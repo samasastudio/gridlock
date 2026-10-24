@@ -1,0 +1,3 @@
+# 0002: Cloud Firestore and Cloud Storage as Single Persistence Spine
+
+Gridlock uses Cloud Firestore (validated at runtime via shared Zod schemas) for all structured documents (`projects`, `observations`, `source_artifacts`, `visual_plates`, `connector_configs`, `repair_audits`, `telemetry_runs`) and Google Cloud Storage for immutable SHA-256 raw filings and `.webp` Visual Plates. We rejected syncing a SQLite database file (`gridlock.db`) over object storage and rejected managed PostgreSQL (Cloud SQL) because scraped regulatory filings naturally arrive as semi-structured nested documents, and Firestore + Cloud Storage operate within Google Cloud's $0/month Always-Free tier without custom file-locking or pre/post-run database blob synchronization.
