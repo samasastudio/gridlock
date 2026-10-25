@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+
+if [ "$CURRENT_BRANCH" = "main" ]; then
+  echo "ERROR: Direct commits to 'main' are prohibited." >&2
+  echo "Create a feature branch (e.g. 'git switch -c feat/<issue>-<slug>')," >&2
+  echo "run two-axis '/code-review', and open a Pull Request with '/pr'." >&2
+  exit 1
+fi
+
+npm run lint
+npm test
