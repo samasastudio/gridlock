@@ -34,6 +34,7 @@ export const TdlrFieldLabelsSchema = z.object({
   squareFootage: z.string().min(1),
   currentStatus: z.string().min(1),
   ownerName: z.string().min(1),
+  designFirmName: z.string().min(1).optional(),
 });
 
 export type TdlrFieldLabels = z.infer<typeof TdlrFieldLabelsSchema>;
@@ -71,6 +72,7 @@ export const ProjectSchema = z.object({
   projectName: z.string().min(1),
   facilityName: z.string().min(1),
   ownerName: z.string().min(1),
+  designFirmName: z.string().min(1).optional(),
   locationAddress: z.string().min(1),
   county: z.string().min(1),
   estimatedCostUsd: z.number().positive(),
@@ -100,6 +102,19 @@ export const ObservationSchema = z.object({
 
 export type Observation = z.infer<typeof ObservationSchema>;
 
+export const TdlrSearchRowSchema = z.object({
+  ProjectCreatedOn: z.string().min(1),
+  ProjectNumber: TdlrProjectNumberSchema,
+  ProjectName: z.string().min(1),
+  FacilityName: z.string().optional().default(""),
+  OwnerName: z.string().optional().default(""),
+  ScopeOfWork: z.string().optional().default(""),
+  ProjectStatus: z.number().int().optional(),
+  EstimatedCost: z.number().optional(),
+});
+
+export type TdlrSearchRow = z.infer<typeof TdlrSearchRowSchema>;
+
 export const DEFAULT_TDLR_CONNECTOR_CONFIG: ConnectorConfig = {
   connectorId: "tdlr-tabs",
   version: 1,
@@ -122,6 +137,7 @@ export const DEFAULT_TDLR_CONNECTOR_CONFIG: ConnectorConfig = {
     squareFootage: "Square Footage:",
     currentStatus: "Current Status:",
     ownerName: "Owner Name:",
+    designFirmName: "Design Firm Name:",
   },
   updatedAt: "2026-10-25T00:00:00.000Z",
 };
