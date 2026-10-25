@@ -60,13 +60,13 @@ flowchart TD
 
 ### Wave 1 — Foundation & Deterministic Scraper (Seam 1)
 
-- [ ] **[`gridlock#2`](https://github.com/samasastudio/gridlock/issues/2) — Monorepo & Single-Filing TDLR TABS Tracer Bullet** (`~350 LOC`)
+- [x] **[`gridlock#2`](https://github.com/samasastudio/gridlock/issues/2) — Monorepo & Single-Filing TDLR TABS Tracer Bullet** (`~350 LOC`)
   - **Blocked by**: *None — **Ready to start immediately***
   - **Unlocks**: `#3`
   - **Delivers**: Bootstraps `packages/core` and `packages/widgets`, core `Project` / `Observation` / `SourceArtifact` / `ConnectorConfig` Zod schemas, and a Playwright + `<dl class="dl-horizontal">` parser extracting 1 frozen TDLR filing (`TABS2027003697`), storing a `.gz` SHA-256 **Source Artifact**, and short-circuiting on duplicate hash.
   - **Testing Validation Gate**:
-    - [ ] **Happy Path**: Extracts valid `Project` and append-only `Observation` records from frozen TDLR HTML (`TABS2027003697`) via `ConnectorConfig` `<dl class="dl-horizontal">` selectors, persists a gzipped `.gz` SHA-256 `SourceArtifact` (`expiresAt: null` when milestone-referenced, `+90d` when unreferenced), and short-circuits on a second identical run with `0` duplicate entity writes.
-    - [ ] **Sad Path**: Fails Zod invariant validation (`selector_anomaly`) when required `<dt>/<dd>` fields are missing or malformed (e.g., non-numeric `Estimated Cost` or missing `Project Number`), and aborts cleanly on empty/corrupted HTML payloads with zero partial `Project` or `Observation` writes.
+    - [x] **Happy Path**: Extracts valid `Project` and append-only `Observation` records from frozen TDLR HTML (`TABS2027003697`) via `ConnectorConfig` `<dl class="dl-horizontal">` selectors, persists a gzipped `.gz` SHA-256 `SourceArtifact` (`expiresAt: null` when milestone-referenced, `+90d` when unreferenced), and short-circuits on a second identical run with `0` duplicate entity writes.
+    - [x] **Sad Path**: Fails Zod invariant validation (`selector_anomaly`) when required `<dt>/<dd>` fields are missing or malformed (e.g., non-numeric `Estimated Cost` or missing `Project Number`), and aborts cleanly on empty/corrupted HTML payloads with zero partial `Project` or `Observation` writes.
 
 - [ ] **[`gridlock#3`](https://github.com/samasastudio/gridlock/issues/3) — Site Access Guard, Ethical/PII Sanitizers & `--backfill` Discovery (Seam 1)** (`~350 LOC`)
   - **Blocked by**: [`#2`](https://github.com/samasastudio/gridlock/issues/2)

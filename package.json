@@ -1,0 +1,26 @@
+{
+  "name": "gridlock",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc -b",
+    "typecheck": "node ./node_modules/typescript/bin/tsc -b --pretty false",
+    "lint": "node ./node_modules/typescript/bin/tsc -b --pretty false",
+    "test": "node --test packages/core/test/*.test.ts packages/widgets/test/*.test.ts"
+  },
+  "dependencies": {
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "~5.7.2"
+  }
+}
