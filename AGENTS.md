@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Issues and specs live in GitHub Issues (`gh` CLI). See `docs/agents/issue-tracker.md`.
+Issues and specs live in GitHub Issues (`gh` CLI). See `docs/agents/issue-tracker.md` and the execution order in `ROADMAP.md`.
 
 ### Triage labels
 
