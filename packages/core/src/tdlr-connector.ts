@@ -12,13 +12,31 @@ import {
   type TdlrSearchRow,
 } from "./schemas.ts";
 import type { GridlockRepository } from "./repository.ts";
+import {
+  GRIDLOCK_USER_AGENT,
+  headersToRecord,
+  isPathAllowedByRobotsTxt,
+  sanitizeLocationAddressPii,
+  sanitizeTextPii,
+  verifySiteAccess,
+  type SiteAccessCheckResult,
+  type SiteAccessInput,
+} from "./site-access-and-pii.ts";
 
-export const GRIDLOCK_USER_AGENT =
-  "GridlockCivicResearchBot/1.0 (+https://samasastudio.com; contact@samasastudio.com)";
+export {
+  GRIDLOCK_USER_AGENT,
+  isPathAllowedByRobotsTxt,
+  sanitizeLocationAddressPii,
+  sanitizeTextPii,
+  verifySiteAccess,
+  type SiteAccessCheckResult,
+  type SiteAccessInput,
+};
 
 export const DEFAULT_TDLR_BASE_URL = "https://www.tdlr.texas.gov";
 export const ARTIFACT_BUCKET_URI = "gs://gridlock-artifacts";
 export const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+export const DEFAULT_DAILY_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
 export const MILESTONE_COST_THRESHOLD_USD = 25_000_000;
 export const MIN_POLITE_DELAY_MS = 1_500;
 export const MAX_RECORDS_PER_RUN = 100;
@@ -44,7 +62,9 @@ export interface PlaywrightPageLike {
   content(): Promise<string>;
 }
 
-export function createPlaywrightPageLoader(page: PlaywrightPageLike): PageLoader {
+export function createPlaywrightPageLoader(
+  page: PlaywrightPageLike
+): PageLoader {
   return async (url: string): Promise<PageLoaderResponse> => {
     const response = await page.goto(url, { waitUntil: "domcontentloaded" });
     const body = await page.content();
@@ -66,223 +86,14 @@ export const defaultPageLoader: PageLoader = async (url: string) => {
     },
   });
   const body = await response.text();
-  const headers: Record<string, string> = {};
-  response.headers.forEach((value, key) => {
-    headers[key.toLowerCase()] = value;
-  });
   return {
     status: response.status,
-    contentType: response.headers.get("content-type") ?? "text/html; charset=utf-8",
+    contentType:
+      response.headers.get("content-type") ?? "text/html; charset=utf-8",
     body,
-    headers,
+    headers: headersToRecord(response.headers),
   };
 };
-
-export interface SiteAccessInput {
-  status: number;
-  headers?: Record<string, string | undefined>;
-  body: string;
-  robotsTxt?: string;
-  targetPath?: string;
-  userAgent?: string;
-  now?: Date;
-}
-
-export type SiteAccessCheckResult =
-  | {
-      allowed: true;
-      status: "ok";
-      tokensUsed: 0;
-    }
-  | {
-      allowed: false;
-      status: "blocked_by_waf";
-      reason: string;
-      retryAfterSeconds?: number;
-      tokensUsed: 0;
-    };
-
-function getHeaderCaseInsensitive(
-  headers: Record<string, string | undefined> | undefined,
-  name: string
-): string | undefined {
-  if (!headers) return undefined;
-  const target = name.toLowerCase();
-  for (const [key, value] of Object.entries(headers)) {
-    if (key.toLowerCase() === target && value !== undefined) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function parseRetryAfterSeconds(
-  raw: string | undefined,
-  now?: Date
-): number | undefined {
-  if (!raw) return undefined;
-  const trimmed = raw.trim();
-  if (/^\d+$/.test(trimmed)) {
-    return Number.parseInt(trimmed, 10);
-  }
-  const dateMs = Date.parse(trimmed);
-  if (!Number.isNaN(dateMs)) {
-    const baseMs = now ? now.getTime() : Date.now();
-    return Math.max(0, Math.ceil((dateMs - baseMs) / 1000));
-  }
-  return undefined;
-}
-
-export function isPathAllowedByRobotsTxt(
-  robotsTxt: string,
-  targetPath: string,
-  userAgent: string = GRIDLOCK_USER_AGENT
-): boolean {
-  const uaLower = userAgent.toLowerCase();
-  const botProductToken = (uaLower.split("/")[0] ?? "gridlockcivicresearchbot").trim();
-  const lines = robotsTxt.split(/\r?\n/);
-
-  let currentAgents: string[] = [];
-  let seenRuleInGroup = false;
-  const disallowPrefixes: string[] = [];
-  const allowPrefixes: string[] = [];
-
-  for (const rawLine of lines) {
-    const line = rawLine.replace(/#.*$/, "").trim();
-    if (!line) {
-      currentAgents = [];
-      seenRuleInGroup = false;
-      continue;
-    }
-    const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) continue;
-    const directive = line.slice(0, colonIdx).trim().toLowerCase();
-    const value = line.slice(colonIdx + 1).trim();
-
-    if (directive === "user-agent") {
-      if (seenRuleInGroup) {
-        currentAgents = [];
-        seenRuleInGroup = false;
-      }
-      currentAgents.push(value.toLowerCase());
-      continue;
-    }
-
-    const groupApplies = currentAgents.some(
-      (ua) =>
-        ua === "*" ||
-        uaLower.includes(ua) ||
-        botProductToken.includes(ua)
-    );
-
-    if (directive === "disallow") {
-      seenRuleInGroup = true;
-      if (groupApplies && value.length > 0) {
-        disallowPrefixes.push(value);
-      }
-    } else if (directive === "allow") {
-      seenRuleInGroup = true;
-      if (groupApplies && value.length > 0) {
-        allowPrefixes.push(value);
-      }
-    }
-  }
-
-  const normalizedPath = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
-  let longestDisallow = -1;
-  for (const prefix of disallowPrefixes) {
-    if (normalizedPath.startsWith(prefix) && prefix.length > longestDisallow) {
-      longestDisallow = prefix.length;
-    }
-  }
-  if (longestDisallow === -1) {
-    return true;
-  }
-
-  let longestAllow = -1;
-  for (const prefix of allowPrefixes) {
-    if (normalizedPath.startsWith(prefix) && prefix.length > longestAllow) {
-      longestAllow = prefix.length;
-    }
-  }
-
-  return longestAllow >= longestDisallow;
-}
-
-const WAF_BODY_SIGNATURES: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /_Incapsula_Resource/i, label: "Imperva Incapsula (_Incapsula_Resource)" },
-  { pattern: /cf-mitigated/i, label: "Cloudflare mitigation (cf-mitigated)" },
-  { pattern: /challenge-platform/i, label: "Cloudflare challenge-platform" },
-  {
-    pattern: /cf-turnstile|challenges\.cloudflare\.com\/turnstile/i,
-    label: "Cloudflare Turnstile challenge",
-  },
-  { pattern: /g-recaptcha/i, label: "Google reCAPTCHA challenge (g-recaptcha)" },
-  {
-    pattern: /<title>\s*TDLR TABS\s*-\s*Under Maintenance\s*<\/title>/i,
-    label: "TDLR TABS Maintenance Window",
-  },
-];
-
-export function verifySiteAccess(input: SiteAccessInput): SiteAccessCheckResult {
-  const retryAfterSeconds = parseRetryAfterSeconds(
-    getHeaderCaseInsensitive(input.headers, "retry-after"),
-    input.now
-  );
-
-  if (
-    input.robotsTxt &&
-    input.targetPath &&
-    !isPathAllowedByRobotsTxt(input.robotsTxt, input.targetPath, input.userAgent)
-  ) {
-    return {
-      allowed: false,
-      status: "blocked_by_waf",
-      reason: `Disallowed by robots.txt for path ${input.targetPath}`,
-      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-      tokensUsed: 0,
-    };
-  }
-
-  if (input.status === 403 || input.status === 429 || input.status === 503) {
-    return {
-      allowed: false,
-      status: "blocked_by_waf",
-      reason: `Portal returned HTTP ${input.status} access/rate-limit status`,
-      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-      tokensUsed: 0,
-    };
-  }
-
-  const cfMitigated = getHeaderCaseInsensitive(input.headers, "cf-mitigated");
-  if (cfMitigated) {
-    return {
-      allowed: false,
-      status: "blocked_by_waf",
-      reason: `Blocked by Cloudflare cf-mitigated header (${cfMitigated})`,
-      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-      tokensUsed: 0,
-    };
-  }
-
-  for (const sig of WAF_BODY_SIGNATURES) {
-    if (sig.pattern.test(input.body)) {
-      return {
-        allowed: false,
-        status: "blocked_by_waf",
-        reason: `WAF/CAPTCHA challenge detected: ${sig.label}`,
-        ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-        tokensUsed: 0,
-      };
-    }
-  }
-
-  return {
-    allowed: true,
-    status: "ok",
-    tokensUsed: 0,
-  };
-}
 
 export type IngestFilingResult =
   | {
@@ -307,47 +118,72 @@ export type IngestFilingResult =
       tokensUsed: 0;
     };
 
-const EMAIL_PII_PATTERN = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-const PHONE_PII_PATTERN =
-  /(?:\+?1[-.\s]?)?(?:\(\d{3}\)|\b\d{3})[-.\s]\d{3}[-.\s]\d{4}\b(?:\s*(?:ext\.?|x)\s*\d+)?/gi;
-const LABELED_RESIDENTIAL_ADDRESS_PATTERN =
-  /\b(?:Residential|Home|Personal)\s+Address\s*:\s*[^.;\n]+/gi;
-const RESIDENTIAL_ADDRESS_INDICATOR_PATTERN =
-  /\b(?:apt\.?|apartment|unit|lot|residence|residential|home\s+address|private\s+residence|single-family|condo)\b/i;
-
-export function sanitizeTextPii(raw: string): string {
-  return raw
-    .replace(LABELED_RESIDENTIAL_ADDRESS_PATTERN, "[REDACTED_ADDRESS]")
-    .replace(EMAIL_PII_PATTERN, "[REDACTED_EMAIL]")
-    .replace(PHONE_PII_PATTERN, "[REDACTED_PHONE]")
-    .trim();
+async function markBlockedByWaf(
+  repository: GridlockRepository,
+  connectorId: string,
+  nowIso: string,
+  access: Extract<SiteAccessCheckResult, { allowed: false }>
+): Promise<{
+  status: "blocked_by_waf";
+  reason: string;
+  retryAfterSeconds?: number;
+  tokensUsed: 0;
+}> {
+  await repository.setConnectorStatus(connectorId, "blocked_by_waf", nowIso);
+  return {
+    status: "blocked_by_waf",
+    reason: access.reason,
+    ...(access.retryAfterSeconds !== undefined
+      ? { retryAfterSeconds: access.retryAfterSeconds }
+      : {}),
+    tokensUsed: 0,
+  };
 }
 
-export function sanitizeLocationAddressPii(addressPartsOrText: string | string[]): string {
-  const parts = Array.isArray(addressPartsOrText)
-    ? addressPartsOrText.map((p) => p.trim()).filter(Boolean)
-    : addressPartsOrText
-        .split(",")
-        .map((p) => p.trim())
-        .filter(Boolean);
-
-  const joined = parts.join(", ");
-  if (!RESIDENTIAL_ADDRESS_INDICATOR_PATTERN.test(joined)) {
-    return sanitizeTextPii(joined);
+async function preflightRobotsTxt(params: {
+  baseUrl: string;
+  targetPath: string;
+  providedRobotsTxt?: string;
+  pageLoader: PageLoader;
+  now: Date;
+}): Promise<
+  | { allowed: true; robotsTxt: string }
+  | {
+      allowed: false;
+      access: Extract<SiteAccessCheckResult, { allowed: false }>;
+    }
+> {
+  let robotsTxt = params.providedRobotsTxt;
+  if (robotsTxt === undefined) {
+    try {
+      const robotsRes = await params.pageLoader(`${params.baseUrl}/robots.txt`);
+      const robotsAccess = verifySiteAccess({
+        status: robotsRes.status === 404 ? 200 : robotsRes.status,
+        headers: robotsRes.headers,
+        body: robotsRes.status === 404 ? "" : robotsRes.body,
+        now: params.now,
+      });
+      if (!robotsAccess.allowed) {
+        return { allowed: false, access: robotsAccess };
+      }
+      robotsTxt = robotsRes.status === 200 ? robotsRes.body : "";
+    } catch {
+      robotsTxt = "";
+    }
   }
 
-  // Retain trailing municipal/state/ZIP segment when present
-  if (Array.isArray(addressPartsOrText) && parts.length >= 2) {
-    const cityStateZip = sanitizeTextPii(parts[parts.length - 1]!);
-    return `[REDACTED_ADDRESS], ${cityStateZip}`;
+  const pathCheck = verifySiteAccess({
+    status: 200,
+    body: "",
+    robotsTxt,
+    targetPath: params.targetPath,
+    now: params.now,
+  });
+  if (!pathCheck.allowed) {
+    return { allowed: false, access: pathCheck };
   }
 
-  const cityStateMatch = /([A-Za-z .'-]+,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)$/.exec(joined);
-  if (cityStateMatch) {
-    return `[REDACTED_ADDRESS], ${sanitizeTextPii(cityStateMatch[1]!)}`;
-  }
-
-  return "[REDACTED_ADDRESS]";
+  return { allowed: true, robotsTxt };
 }
 
 function stripHtmlTags(html: string): string {
@@ -427,7 +263,10 @@ function extractDefinitionListFields(
         if (!fields.has(currentTerm)) {
           fields.set(currentTerm, []);
         }
-      } else if (tag === config.descriptionSelector.toLowerCase() && currentTerm) {
+      } else if (
+        tag === config.descriptionSelector.toLowerCase() &&
+        currentTerm
+      ) {
         const list = fields.get(currentTerm) ?? [];
         if (text.length > 0) {
           list.push(text);
@@ -512,63 +351,20 @@ export async function ingestTdlrFiling(
   const sourceUrl = `${baseUrl}${targetPath}`;
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
 
-  let robotsTxt = input.robotsTxt;
-  if (robotsTxt === undefined) {
-    try {
-      const robotsRes = await pageLoader(`${baseUrl}/robots.txt`);
-      if (robotsRes.status === 200) {
-        robotsTxt = robotsRes.body;
-      } else if (
-        robotsRes.status === 403 ||
-        robotsRes.status === 429 ||
-        robotsRes.status === 503
-      ) {
-        const robotsAccess = verifySiteAccess({
-          status: robotsRes.status,
-          headers: robotsRes.headers,
-          body: robotsRes.body,
-          now,
-        });
-        if (!robotsAccess.allowed) {
-          await deps.repository.setConnectorStatus(
-            config.connectorId,
-            "blocked_by_waf",
-            nowIso
-          );
-          return {
-            status: "blocked_by_waf",
-            reason: robotsAccess.reason,
-            ...(robotsAccess.retryAfterSeconds !== undefined
-              ? { retryAfterSeconds: robotsAccess.retryAfterSeconds }
-              : {}),
-            tokensUsed: 0,
-          };
-        }
-      }
-    } catch {
-      // If robots.txt fetch fails at network layer, defer to target page load
-    }
-  }
-
-  if (robotsTxt !== undefined) {
-    const preflightAccess = verifySiteAccess({
-      status: 200,
-      body: "",
-      robotsTxt,
-      targetPath,
-    });
-    if (!preflightAccess.allowed) {
-      await deps.repository.setConnectorStatus(
-        config.connectorId,
-        "blocked_by_waf",
-        nowIso
-      );
-      return {
-        status: "blocked_by_waf",
-        reason: preflightAccess.reason,
-        tokensUsed: 0,
-      };
-    }
+  const preflight = await preflightRobotsTxt({
+    baseUrl,
+    targetPath,
+    providedRobotsTxt: input.robotsTxt,
+    pageLoader,
+    now,
+  });
+  if (!preflight.allowed) {
+    return markBlockedByWaf(
+      deps.repository,
+      config.connectorId,
+      nowIso,
+      preflight.access
+    );
   }
 
   const response = await pageLoader(sourceUrl);
@@ -576,31 +372,25 @@ export async function ingestTdlrFiling(
     status: response.status,
     headers: response.headers,
     body: response.body,
-    robotsTxt,
+    robotsTxt: preflight.robotsTxt,
     targetPath,
     now,
   });
 
   if (!accessCheck.allowed) {
-    await deps.repository.setConnectorStatus(
+    return markBlockedByWaf(
+      deps.repository,
       config.connectorId,
-      "blocked_by_waf",
-      nowIso
+      nowIso,
+      accessCheck
     );
-    return {
-      status: "blocked_by_waf",
-      reason: accessCheck.reason,
-      ...(accessCheck.retryAfterSeconds !== undefined
-        ? { retryAfterSeconds: accessCheck.retryAfterSeconds }
-        : {}),
-      tokensUsed: 0,
-    };
   }
 
   const rawBuffer = Buffer.from(response.body, "utf-8");
   const sha256 = createHash("sha256").update(rawBuffer).digest("hex");
 
-  const existingArtifact = await deps.repository.getSourceArtifactByHash(sha256);
+  const existingArtifact =
+    await deps.repository.getSourceArtifactByHash(sha256);
   if (
     existingArtifact &&
     !existingArtifact.storageUri.includes("/quarantine/")
@@ -612,7 +402,9 @@ export async function ingestTdlrFiling(
   }
 
   const gzipBuffer = gzipSync(rawBuffer);
-  const plusNinetyDaysIso = new Date(now.getTime() + NINETY_DAYS_MS).toISOString();
+  const plusNinetyDaysIso = new Date(
+    now.getTime() + NINETY_DAYS_MS
+  ).toISOString();
 
   const quarantineWithErrors = async (
     invariantErrors: string[]
@@ -657,11 +449,14 @@ export async function ingestTdlrFiling(
 
   const labels = config.fieldLabels;
 
-  const getSingle = (label: string): string => (fields.get(label) ?? [])[0] ?? "";
+  const getSingle = (label: string): string =>
+    (fields.get(label) ?? [])[0] ?? "";
   const rawDesignFirm = labels.designFirmName
     ? getSingle(labels.designFirmName)
     : "";
-  const sanitizedDesignFirm = rawDesignFirm ? sanitizeTextPii(rawDesignFirm) : undefined;
+  const sanitizedDesignFirm = rawDesignFirm
+    ? sanitizeTextPii(rawDesignFirm)
+    : undefined;
 
   const estimatedCostUsd = parseCurrencyUsd(getSingle(labels.estimatedCost));
   const squareFootage = parseSquareFootage(getSingle(labels.squareFootage));
@@ -695,10 +490,13 @@ export async function ingestTdlrFiling(
   }
 
   const project = parsedProject.data;
-  const existingProject = await deps.repository.getProjectByNumber(project.projectNumber);
+  const existingProject = await deps.repository.getProjectByNumber(
+    project.projectNumber
+  );
   const isMilestone =
     project.estimatedCostUsd >= MILESTONE_COST_THRESHOLD_USD ||
-    (existingProject !== null && existingProject.currentStatus !== project.currentStatus);
+    (existingProject !== null &&
+      existingProject.currentStatus !== project.currentStatus);
 
   const sourceArtifact = buildSourceArtifact({
     sha256,
@@ -774,16 +572,12 @@ export const defaultSearchLoader: SearchLoader = async (
     body: formBody,
   });
   const body = await response.text();
-  const headers: Record<string, string> = {};
-  response.headers.forEach((value, key) => {
-    headers[key.toLowerCase()] = value;
-  });
   return {
     status: response.status,
     contentType:
       response.headers.get("content-type") ?? "application/json; charset=utf-8",
     body,
-    headers,
+    headers: headersToRecord(response.headers),
   };
 };
 
@@ -886,61 +680,30 @@ export async function runTdlrDiscoverySweep(
   );
   const backfillStartYear = input.backfillStartYear ?? 2024;
   const backfillEndYear = input.backfillEndYear ?? 2026;
+  const effectiveSinceDate =
+    input.sinceDate ??
+    (mode === "daily"
+      ? new Date(now.getTime() - DEFAULT_DAILY_LOOKBACK_MS)
+      : undefined);
 
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
-
-  // 1. Check robots.txt before discovery
-  let robotsTxt = "";
-  try {
-    const robotsRes = await pageLoader(`${baseUrl}/robots.txt`);
-    const robotsAccess = verifySiteAccess({
-      status: robotsRes.status === 404 ? 200 : robotsRes.status,
-      headers: robotsRes.headers,
-      body: robotsRes.status === 404 ? "" : robotsRes.body,
-      now,
-    });
-    if (!robotsAccess.allowed) {
-      await deps.repository.setConnectorStatus(
-        config.connectorId,
-        "blocked_by_waf",
-        nowIso
-      );
-      return {
-        status: "blocked_by_waf",
-        mode,
-        reason: robotsAccess.reason,
-        ...(robotsAccess.retryAfterSeconds !== undefined
-          ? { retryAfterSeconds: robotsAccess.retryAfterSeconds }
-          : {}),
-        tokensUsed: 0,
-      };
-    }
-    if (robotsRes.status === 200) {
-      robotsTxt = robotsRes.body;
-    }
-  } catch {
-    // Proceed if robots.txt endpoint is unreachable
-  }
-
   const searchPath = "/TABS/Search/SearchProjects";
-  const searchAccessPreflight = verifySiteAccess({
-    status: 200,
-    body: "",
-    robotsTxt,
+
+  // 1. Preflight robots.txt once per sweep
+  const preflight = await preflightRobotsTxt({
+    baseUrl,
     targetPath: searchPath,
+    pageLoader,
+    now,
   });
-  if (!searchAccessPreflight.allowed) {
-    await deps.repository.setConnectorStatus(
+  if (!preflight.allowed) {
+    const blocked = await markBlockedByWaf(
+      deps.repository,
       config.connectorId,
-      "blocked_by_waf",
-      nowIso
+      nowIso,
+      preflight.access
     );
-    return {
-      status: "blocked_by_waf",
-      mode,
-      reason: searchAccessPreflight.reason,
-      tokensUsed: 0,
-    };
+    return { ...blocked, mode };
   }
 
   // 2. Enforce single-token guardrail on OwnerName filters
@@ -975,25 +738,18 @@ export async function runTdlrDiscoverySweep(
       status: searchRes.status,
       headers: searchRes.headers,
       body: searchRes.body,
-      robotsTxt,
+      robotsTxt: preflight.robotsTxt,
       targetPath: searchPath,
       now,
     });
     if (!searchAccess.allowed) {
-      await deps.repository.setConnectorStatus(
+      const blocked = await markBlockedByWaf(
+        deps.repository,
         config.connectorId,
-        "blocked_by_waf",
-        nowIso
+        nowIso,
+        searchAccess
       );
-      return {
-        status: "blocked_by_waf",
-        mode,
-        reason: searchAccess.reason,
-        ...(searchAccess.retryAfterSeconds !== undefined
-          ? { retryAfterSeconds: searchAccess.retryAfterSeconds }
-          : {}),
-        tokensUsed: 0,
-      };
+      return { ...blocked, mode };
     }
 
     let parsedJson: unknown;
@@ -1026,8 +782,11 @@ export async function runTdlrDiscoverySweep(
         }
       }
 
-      if (input.sinceDate) {
-        if (Number.isNaN(createdMs) || createdMs < input.sinceDate.getTime()) {
+      if (effectiveSinceDate) {
+        if (
+          Number.isNaN(createdMs) ||
+          createdMs < effectiveSinceDate.getTime()
+        ) {
           continue;
         }
       }
@@ -1069,7 +828,7 @@ export async function runTdlrDiscoverySweep(
         projectNumber: row.ProjectNumber,
         baseUrl,
         now,
-        robotsTxt,
+        robotsTxt: preflight.robotsTxt,
       },
       {
         repository: deps.repository,

@@ -397,11 +397,21 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     assert.equal(status503Check.status, "blocked_by_waf");
     assert.equal(status503Check.retryAfterSeconds, 60);
 
-    // 4. robots.txt Disallow for GridlockCivicResearchBot or *
+    // Standalone Retry-After header even on HTTP 200 halts with blocked_by_waf
+    const standaloneRetryAfterCheck = verifySiteAccess({
+      status: 200,
+      headers: { "Retry-After": "45" },
+      body: "<html><body>Please slow down</body></html>",
+    });
+    assert.equal(standaloneRetryAfterCheck.allowed, false);
+    assert.equal(standaloneRetryAfterCheck.status, "blocked_by_waf");
+    assert.equal(standaloneRetryAfterCheck.retryAfterSeconds, 45);
+
+    // 4. robots.txt Disallow for GridlockCivicResearchBot takes precedence over User-agent: * Allow (RFC 9309)
     routeMap.set("/robots.txt", {
       status: 200,
       headers: { "content-type": "text/plain; charset=utf-8" },
-      body: `User-agent: GridlockCivicResearchBot\nDisallow: /TABS/\n`,
+      body: `User-agent: *\nAllow: /TABS/Search/Project/\n\nUser-agent: GridlockCivicResearchBot\nDisallow: /TABS/\n`,
     });
     routeMap.set("/TABS/Search/Project/TABS2027003697", {
       status: 200,
@@ -415,6 +425,18 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     assert.equal(robotsBlocked.status, "blocked_by_waf");
     assert.equal(robotsBlocked.tokensUsed, 0);
     assert.match(robotsBlocked.reason, /robots\.txt/i);
+
+    // 5. WAF challenge served on HTTP 200 /robots.txt halts ingestTdlrFiling with blocked_by_waf
+    routeMap.set("/robots.txt", {
+      status: 200,
+      body: `<html><body><iframe src="/_Incapsula_Resource?CWUDNSAI=1"></iframe></body></html>`,
+    });
+    const robotsWafBlocked = await ingestTdlrFiling(
+      { projectNumber: "TABS2027003697", baseUrl, now },
+      { repository }
+    );
+    assert.equal(robotsWafBlocked.status, "blocked_by_waf");
+    assert.equal(robotsWafBlocked.tokensUsed, 0);
     assert.equal((await repository.listProjects()).length, 0);
   });
 
@@ -613,8 +635,8 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
   test("enforces <= 100 records/run circuit breaker on oversized discovery sets, halts search on WAF/Retry-After HTTP-date, and supports daily incremental sinceDate", async () => {
     const oversizedRows = Array.from({ length: 135 }, (_, idx) => {
       const num = String(1000 + idx).padStart(4, "0");
-      const day = String((idx % 28) + 1).padStart(2, "0");
-      const month = String((Math.floor(idx / 28) % 12) + 1).padStart(2, "0");
+      const day = String((idx % 25) + 1).padStart(2, "0");
+      const month = String((idx % 10) + 1).padStart(2, "0");
       const projectNumber = `TABS202600${num}`;
       routeMap.set(`/TABS/Search/Project/${projectNumber}`, {
         status: 200,
@@ -662,7 +684,27 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     assert.equal(cappedSweep.skippedByCircuitBreakerCount, 35);
     assert.equal((await repository.listProjects()).length, 100);
 
-    // Daily weekday mode with incremental sinceDate filter
+    // Daily weekday mode with default incremental window (excludes older months when sinceDate omitted)
+    const defaultDailySweep = await runTdlrDiscoverySweep(
+      {
+        mode: "daily",
+        baseUrl,
+        now,
+        searchFilters: [{ field: "ProjectName", value: "Data Center" }],
+      },
+      {
+        repository,
+        sleep: async () => {},
+        jitterMs: () => 0,
+      }
+    );
+    assert.equal(defaultDailySweep.status, "completed");
+    assert.ok(
+      defaultDailySweep.discoveredCount < 135 &&
+        defaultDailySweep.discoveredCount > 0
+    );
+
+    // Daily weekday mode with explicit incremental sinceDate filter
     const dailySweep = await runTdlrDiscoverySweep(
       {
         mode: "daily",
