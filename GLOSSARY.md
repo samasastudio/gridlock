@@ -53,3 +53,9 @@ _Avoid_: Image gallery, chat history
 **UI AST**:
 A strongly-typed, Zod-validated JSON tree emitted by the Investigation Planner that specifies which curated Atlas Dossier React components to render and what Firestore data props hydrate them.
 _Avoid_: Generated JSX, raw HTML response, chat transcript
+
+### Observability & Efficiency Telemetry
+
+**Efficiency Ledger**:
+A cumulative telemetry record tracking deterministic execution rates, counterfactual LLM tokens avoided (`naiveTokensAvoided`), autonomous repair MTTR (`mttrMs`), and heal amortization (`subsequentDeterministicRunsServed`) to empirically quantify how deterministic gates reduce AI token consumption.
+_Avoid_: Raw log dump, vanity metrics
