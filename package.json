@@ -7,9 +7,14 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
+    "prebuild": "bash ./scripts/ensure-ext4-deps.sh",
     "build": "node ./node_modules/typescript/bin/tsc -b",
+    "pretypecheck": "bash ./scripts/ensure-ext4-deps.sh",
     "typecheck": "node ./node_modules/typescript/bin/tsc -b --pretty false",
-    "lint": "node ./node_modules/typescript/bin/tsc -b --pretty false",
+    "prelint": "bash ./scripts/ensure-ext4-deps.sh",
+    "lint": "node ./scripts/lint-checks.mjs",
+    "pretest": "bash ./scripts/ensure-ext4-deps.sh",
     "test": "node --test packages/core/test/*.test.ts packages/widgets/test/*.test.ts"
   },
   "dependencies": {
