@@ -140,3 +140,13 @@ To prevent this:
 2. **Distinct Failure States**:
    - **`blocked_by_waf`**: Halts immediately with `0` Gemini tokens spent and logs an access alert—**never** invokes the **Repair Agent**.
    - **`selector_anomaly`**: Confirmed valid portal document (`<title>TDLR TABS...`) where expected fields failed extraction—invokes the out-of-band **Repair Agent**.
+
+---
+
+## 5. Ethical, Legal & Civic Stewardship Guardrails ("Cause No Harm")
+
+1. **Public-Domain Civic Scope**: Gridlock exclusively ingests non-confidential commercial regulatory records published for public inspection under the **Texas Public Information Act (Texas Government Code Chapter 552)** and official open-government portals, always preferring structured Open Data REST APIs over HTML scraping where available.
+2. **Zero Circumvention**: Connectors must **never** bypass, spoof, or defeat `robots.txt` directives, authentication gates, rate limiters (`429` / `Retry-After`), CAPTCHAs, or WAF challenges (such as Imperva Incapsula on `abc.austintexas.gov`). Any access restriction halts the connector (`blocked_by_waf`) immediately.
+3. **Transparent Identification & Polite Pacing**: Every outgoing HTTP and Playwright request sends a transparent, contactable `User-Agent` (`GridlockCivicResearchBot/1.0 (+https://samasastudio.com; contact@samasastudio.com)`), runs single-threaded (`maxConcurrency: 1`), waits `>= 1,500ms` with jitter between detail fetches, and enforces a per-run cap (`<= 100` records/run) on a polite once-daily weekday schedule (`0 14 * * 1-5` UTC).
+4. **PII Redaction & Privacy Minimization**: Deterministic sanitizers strip incidental personal contact information (individual phone numbers, personal email addresses, residential addresses) before writing `Project` or `Observation` records to Firestore, retaining only corporate entity names (`OwnerName`, `FacilityName`, `DesignFirmName`) and municipal/county location fields.
+5. **Cryptographic Provenance & Epistemic Honesty**: All published records link to an immutable SHA-256 `SourceArtifact` and upstream URL, and user-branched `Visual Plates` are explicitly labeled as `"Scenario Branch / Unverified Projection"`.
