@@ -155,14 +155,10 @@ export function createInMemoryGridlockRepository(
     async getEfficiencyLedger(
       options?: TelemetryLedgerQueryOptions
     ): Promise<EfficiencyLedger> {
-      const limit = options?.limit ?? 50;
-      const executionMode = options?.executionMode;
-      const filteredRuns = telemetryRuns.filter((run) =>
-        executionMode ? run.execution_mode === executionMode : true
-      );
-      const boundedRuns = filteredRuns
-        .slice(-limit)
-        .map((run) => structuredClone(run));
+      const boundedRuns = await this.listTelemetryRuns({
+        ...options,
+        limit: options?.limit ?? 50,
+      });
       return EfficiencyLedgerSchema.parse({
         ...structuredClone(efficiencyLedger),
         recentRuns: boundedRuns,

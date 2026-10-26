@@ -46,7 +46,9 @@ export {
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
   createCloudLoggingSpanSink,
+  defaultSpanSink,
   recordAgenticStageTelemetry,
+  recordStageTelemetry,
   type TelemetrySpanSink,
 } from "./telemetry.ts";
 

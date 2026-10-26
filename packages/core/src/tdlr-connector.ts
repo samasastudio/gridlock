@@ -4,6 +4,7 @@ import {
   ObservationSchema,
   ProjectSchema,
   SourceArtifactSchema,
+  TdlrProjectNumberSchema,
   TdlrSearchRowSchema,
   type ConnectorConfig,
   type Observation,
@@ -13,10 +14,11 @@ import {
 } from "./schemas.ts";
 import type { GridlockRepository } from "./repository.ts";
 import {
-  buildTelemetryRun,
   buildTelemetrySpan,
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
+  defaultSpanSink,
+  recordStageTelemetry,
   type TelemetrySpanSink,
 } from "./telemetry.ts";
 import {
@@ -360,6 +362,13 @@ export async function ingestTdlrFiling(
   const sourceUrl = `${baseUrl}${targetPath}`;
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
 
+  const validProjectNumber = TdlrProjectNumberSchema.safeParse(
+    input.projectNumber
+  );
+  const projectNumberProp = validProjectNumber.success
+    ? { projectNumber: validProjectNumber.data }
+    : {};
+
   const finalizeTelemetry = async (
     result: IngestFilingResult
   ): Promise<IngestFilingResult> => {
@@ -378,43 +387,34 @@ export async function ingestTdlrFiling(
       ? calculateEstimatedCostSavedUsd(naiveTokensAvoided)
       : 0;
 
-    const run = buildTelemetryRun({
-      stage: "tdlr_ingest",
-      connectorId: config.connectorId,
-      ...( /^TABS\d+$/.test(input.projectNumber)
-        ? { projectNumber: input.projectNumber }
-        : {}),
-      ...(result.status !== "blocked_by_waf"
-        ? { sourceArtifactHash: result.sourceArtifact.sha256 }
-        : {}),
-      execution_mode: "deterministic",
-      status: result.status,
-      durationMs,
-      rawByteLength,
-      tokensUsed: 0,
-      naiveTokensAvoided,
-      estimatedCostSavedUsd,
-      recordedAt: nowIso,
-    });
-    await deps.repository.recordTelemetryRun(run);
-
-    if (deps.spanSink) {
-      const span = buildTelemetrySpan({
+    await recordStageTelemetry(
+      {
         stage: "tdlr_ingest",
+        connectorId: config.connectorId,
+        ...projectNumberProp,
+        ...(result.status !== "blocked_by_waf"
+          ? { sourceArtifactHash: result.sourceArtifact.sha256 }
+          : {}),
         execution_mode: "deterministic",
         status: result.status,
-        startedAt: now,
-        endedAt,
+        rawByteLength,
         tokensUsed: 0,
         naiveTokensAvoided,
+        estimatedCostSavedUsd,
+        startedAt: now,
+        endedAt,
+        recordedAt: nowIso,
         attributes: {
           connectorId: config.connectorId,
           projectNumber: input.projectNumber,
           rawByteLength,
         },
-      });
-      deps.spanSink(span);
-    }
+      },
+      {
+        repository: deps.repository,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+      }
+    );
 
     return result;
   };
@@ -606,39 +606,30 @@ export async function ingestTdlrFiling(
   } catch (error) {
     const durationMs = Math.max(0, Date.now() - startedWallMs);
     const endedAt = new Date(now.getTime() + durationMs);
-    const abortedRun = buildTelemetryRun({
-      stage: "tdlr_ingest",
-      connectorId: config.connectorId,
-      ...( /^TABS\d+$/.test(input.projectNumber)
-        ? { projectNumber: input.projectNumber }
-        : {}),
-      execution_mode: "deterministic",
-      status: "aborted",
-      durationMs,
-      rawByteLength: 0,
-      tokensUsed: 0,
-      naiveTokensAvoided: 0,
-      estimatedCostSavedUsd: 0,
-      recordedAt: nowIso,
-    });
-    await deps.repository.recordTelemetryRun(abortedRun);
-    if (deps.spanSink) {
-      deps.spanSink(
-        buildTelemetrySpan({
-          stage: "tdlr_ingest",
-          execution_mode: "deterministic",
-          status: "aborted",
-          startedAt: now,
-          endedAt,
-          tokensUsed: 0,
-          naiveTokensAvoided: 0,
-          attributes: {
-            connectorId: config.connectorId,
-            projectNumber: input.projectNumber,
-          },
-        })
-      );
-    }
+    await recordStageTelemetry(
+      {
+        stage: "tdlr_ingest",
+        connectorId: config.connectorId,
+        ...projectNumberProp,
+        execution_mode: "deterministic",
+        status: "aborted",
+        rawByteLength: 0,
+        tokensUsed: 0,
+        naiveTokensAvoided: 0,
+        estimatedCostSavedUsd: 0,
+        startedAt: now,
+        endedAt,
+        recordedAt: nowIso,
+        attributes: {
+          connectorId: config.connectorId,
+          projectNumber: input.projectNumber,
+        },
+      },
+      {
+        repository: deps.repository,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+      }
+    );
     throw error;
   }
 }
@@ -800,147 +791,151 @@ export async function runTdlrDiscoverySweep(
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
   const searchPath = "/TABS/Search/SearchProjects";
 
-  const recordDiscoveryBlockedTelemetry = async () => {
+  const recordDiscoveryFailureTelemetry = async (
+    status: "blocked_by_waf" | "aborted"
+  ) => {
     const durationMs = Math.max(0, Date.now() - startedWallMs);
     const endedAt = new Date(now.getTime() + durationMs);
-    await deps.repository.recordTelemetryRun(
-      buildTelemetryRun({
+    await recordStageTelemetry(
+      {
         stage: "tdlr_discovery_sweep",
         connectorId: config.connectorId,
         execution_mode: "deterministic",
-        status: "blocked_by_waf",
-        durationMs,
+        status,
         rawByteLength: 0,
         tokensUsed: 0,
         naiveTokensAvoided: 0,
         estimatedCostSavedUsd: 0,
+        startedAt: now,
+        endedAt,
         recordedAt: nowIso,
-      })
+        attributes: { connectorId: config.connectorId, mode },
+      },
+      {
+        repository: deps.repository,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+      }
     );
-    if (deps.spanSink) {
-      deps.spanSink(
-        buildTelemetrySpan({
-          stage: "tdlr_discovery_sweep",
-          execution_mode: "deterministic",
-          status: "blocked_by_waf",
-          startedAt: now,
-          endedAt,
-          tokensUsed: 0,
-          naiveTokensAvoided: 0,
-          attributes: { connectorId: config.connectorId, mode },
-        })
-      );
-    }
   };
 
-  // 1. Preflight robots.txt once per sweep
-  const preflight = await preflightRobotsTxt({
-    baseUrl,
-    targetPath: searchPath,
-    pageLoader,
-    now,
-  });
-  if (!preflight.allowed) {
-    const blocked = await markBlockedByWaf(
-      deps.repository,
-      config.connectorId,
-      nowIso,
-      preflight.access
-    );
-    await recordDiscoveryBlockedTelemetry();
-    return { ...blocked, mode };
-  }
-
-  // 2. Enforce single-token guardrail on OwnerName filters
-  const rawFilters = input.searchFilters ?? DEFAULT_TDLR_SEARCH_FILTERS;
-  const safeFilters = rawFilters.filter((filter) => {
-    const trimmed = filter.value.trim();
-    if (!trimmed) return false;
-    if (filter.field === "OwnerName" && /\s/.test(trimmed)) {
-      return false;
-    }
-    return true;
-  });
-
-  // 3. Single-flight discovery queries (maxConcurrency: 1)
+  let preflight: Awaited<ReturnType<typeof preflightRobotsTxt>>;
   const discoveredByNumber = new Map<string, TdlrSearchRow>();
-  const searchUrl = `${baseUrl}${searchPath}`;
 
-  for (let i = 0; i < safeFilters.length; i += 1) {
-    const filter = safeFilters[i]!;
-    if (i > 0) {
-      await sleep(baseDelayMs + Math.max(0, jitterMs()));
-    }
-    const formBody = new URLSearchParams({
-      [filter.field]: filter.value.trim(),
-      draw: String(i + 1),
-      start: "0",
-      length: "100",
-    }).toString();
-
-    const searchRes = await searchLoader(searchUrl, formBody);
-    const searchAccess = verifySiteAccess({
-      status: searchRes.status,
-      headers: searchRes.headers,
-      body: searchRes.body,
-      robotsTxt: preflight.robotsTxt,
+  try {
+    // 1. Preflight robots.txt once per sweep
+    preflight = await preflightRobotsTxt({
+      baseUrl,
       targetPath: searchPath,
+      pageLoader,
       now,
     });
-    if (!searchAccess.allowed) {
+    if (!preflight.allowed) {
       const blocked = await markBlockedByWaf(
         deps.repository,
         config.connectorId,
         nowIso,
-        searchAccess
+        preflight.access
       );
-      await recordDiscoveryBlockedTelemetry();
+      await recordDiscoveryFailureTelemetry("blocked_by_waf");
       return { ...blocked, mode };
     }
 
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(searchRes.body);
-    } catch {
-      continue;
-    }
+    // 2. Enforce single-token guardrail on OwnerName filters
+    const rawFilters = input.searchFilters ?? DEFAULT_TDLR_SEARCH_FILTERS;
+    const safeFilters = rawFilters.filter((filter) => {
+      const trimmed = filter.value.trim();
+      if (!trimmed) return false;
+      if (filter.field === "OwnerName" && /\s/.test(trimmed)) {
+        return false;
+      }
+      return true;
+    });
 
-    const rawRows: unknown[] = Array.isArray(parsedJson)
-      ? parsedJson
-      : parsedJson !== null &&
-          typeof parsedJson === "object" &&
-          Array.isArray((parsedJson as { data?: unknown }).data)
-        ? (parsedJson as { data: unknown[] }).data
-        : [];
+    // 3. Single-flight discovery queries (maxConcurrency: 1)
+    const searchUrl = `${baseUrl}${searchPath}`;
 
-    for (const rawRow of rawRows) {
-      const parsedRow = TdlrSearchRowSchema.safeParse(rawRow);
-      if (!parsedRow.success) continue;
-      const row = parsedRow.data;
-      if (!isComputeInfrastructureFiling(row)) continue;
+    for (let i = 0; i < safeFilters.length; i += 1) {
+      const filter = safeFilters[i]!;
+      if (i > 0) {
+        await sleep(baseDelayMs + Math.max(0, jitterMs()));
+      }
+      const formBody = new URLSearchParams({
+        [filter.field]: filter.value.trim(),
+        draw: String(i + 1),
+        start: "0",
+        length: "100",
+      }).toString();
 
-      const createdMs = Date.parse(row.ProjectCreatedOn);
-      if (mode === "backfill") {
-        if (Number.isNaN(createdMs)) continue;
-        const createdYear = new Date(createdMs).getUTCFullYear();
-        if (createdYear < backfillStartYear || createdYear > backfillEndYear) {
-          continue;
+      const searchRes = await searchLoader(searchUrl, formBody);
+      const searchAccess = verifySiteAccess({
+        status: searchRes.status,
+        headers: searchRes.headers,
+        body: searchRes.body,
+        robotsTxt: preflight.robotsTxt,
+        targetPath: searchPath,
+        now,
+      });
+      if (!searchAccess.allowed) {
+        const blocked = await markBlockedByWaf(
+          deps.repository,
+          config.connectorId,
+          nowIso,
+          searchAccess
+        );
+        await recordDiscoveryFailureTelemetry("blocked_by_waf");
+        return { ...blocked, mode };
+      }
+
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(searchRes.body);
+      } catch {
+        continue;
+      }
+
+      const rawRows: unknown[] = Array.isArray(parsedJson)
+        ? parsedJson
+        : parsedJson !== null &&
+            typeof parsedJson === "object" &&
+            Array.isArray((parsedJson as { data?: unknown }).data)
+          ? (parsedJson as { data: unknown[] }).data
+          : [];
+
+      for (const rawRow of rawRows) {
+        const parsedRow = TdlrSearchRowSchema.safeParse(rawRow);
+        if (!parsedRow.success) continue;
+        const row = parsedRow.data;
+        if (!isComputeInfrastructureFiling(row)) continue;
+
+        const createdMs = Date.parse(row.ProjectCreatedOn);
+        if (mode === "backfill") {
+          if (Number.isNaN(createdMs)) continue;
+          const createdYear = new Date(createdMs).getUTCFullYear();
+          if (
+            createdYear < backfillStartYear ||
+            createdYear > backfillEndYear
+          ) {
+            continue;
+          }
+        }
+
+        if (effectiveSinceDate) {
+          if (
+            Number.isNaN(createdMs) ||
+            createdMs < effectiveSinceDate.getTime()
+          ) {
+            continue;
+          }
+        }
+
+        if (!discoveredByNumber.has(row.ProjectNumber)) {
+          discoveredByNumber.set(row.ProjectNumber, row);
         }
       }
-
-      if (effectiveSinceDate) {
-        if (
-          Number.isNaN(createdMs) ||
-          createdMs < effectiveSinceDate.getTime()
-        ) {
-          continue;
-        }
-      }
-
-      if (!discoveredByNumber.has(row.ProjectNumber)) {
-        discoveredByNumber.set(row.ProjectNumber, row);
-      }
     }
+  } catch (error) {
+    await recordDiscoveryFailureTelemetry("aborted");
+    throw error;
   }
 
   // 4. Sort chronologically (ProjectCreatedOn ASC)
@@ -1000,6 +995,34 @@ export async function runTdlrDiscoverySweep(
       ingestedProjectNumbers.push(row.ProjectNumber);
     }
   }
+
+  const sweepDurationMs = Math.max(0, Date.now() - startedWallMs);
+  const sweepEndedAt = new Date(now.getTime() + sweepDurationMs);
+  const sweepTokensAvoided = results.reduce((sum, r) => {
+    if (r.status === "ingested" || r.status === "unchanged_artifact") {
+      return sum + calculateNaiveTokensAvoided(r.sourceArtifact.rawByteLength);
+    }
+    return sum;
+  }, 0);
+  const sink = deps.spanSink ?? defaultSpanSink;
+  sink(
+    buildTelemetrySpan({
+      stage: "tdlr_discovery_sweep",
+      execution_mode: "deterministic",
+      status:
+        ingestedProjectNumbers.length > 0 ? "ingested" : "unchanged_artifact",
+      startedAt: now,
+      endedAt: sweepEndedAt,
+      tokensUsed: 0,
+      naiveTokensAvoided: sweepTokensAvoided,
+      attributes: {
+        connectorId: config.connectorId,
+        mode,
+        discoveredCount,
+        ingestedCount: ingestedProjectNumbers.length,
+      },
+    })
+  );
 
   return {
     status: "completed",

@@ -20,6 +20,12 @@ const EfficiencyQueryParamsSchema = z
   })
   .strict();
 
+const CORS_HEADERS = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type",
+} as const;
+
 function sendJson(
   res: ServerResponse,
   statusCode: number,
@@ -28,9 +34,7 @@ function sendJson(
   const body = JSON.stringify(payload);
   res.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
+    ...CORS_HEADERS,
     "cache-control": "no-store",
   });
   res.end(body);
@@ -44,11 +48,7 @@ export async function handleGridlockHttpRequest(
   }
 ): Promise<void> {
   if (req.method === "OPTIONS") {
-    res.writeHead(204, {
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
-      "access-control-allow-headers": "content-type",
-    });
+    res.writeHead(204, CORS_HEADERS);
     res.end();
     return;
   }
@@ -65,18 +65,6 @@ export async function handleGridlockHttpRequest(
   }
 
   const pathname = parsedUrl.pathname;
-
-  if (pathname === "/healthz") {
-    if (req.method !== "GET") {
-      sendJson(res, 405, {
-        error: "method_not_allowed",
-        message: "Only GET is supported on /healthz",
-      });
-      return;
-    }
-    sendJson(res, 200, { status: "ok" });
-    return;
-  }
 
   if (pathname === "/api/telemetry/efficiency") {
     if (req.method !== "GET") {

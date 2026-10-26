@@ -522,5 +522,40 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
       ledgerAfterOkSweep.naiveTokensAvoided,
       Math.ceil(rawByteLength / 4)
     );
+    assert.equal(emittedSpans.at(-1)?.stage, "tdlr_discovery_sweep");
+    assert.equal(emittedSpans.at(-1)?.status, "ingested");
+    assert.equal(
+      emittedSpans.at(-1)?.naiveTokensAvoided,
+      Math.ceil(rawByteLength / 4)
+    );
+
+    // Aborted discovery sweep records aborted telemetry run without inflating counters
+    await assert.rejects(
+      () =>
+        runTdlrDiscoverySweep(
+          {
+            mode: "daily",
+            baseUrl,
+            now: new Date("2026-10-26T17:10:00.000Z"),
+            searchFilters: [{ field: "OwnerName", value: "Compass" }],
+          },
+          {
+            repository,
+            spanSink,
+            searchLoader: async () => {
+              throw new Error("Simulated search socket hang up");
+            },
+            sleep: async () => {},
+            jitterMs: () => 0,
+          }
+        ),
+      /Simulated search socket hang up/
+    );
+
+    const ledgerAfterAbortedSweep = await repository.getEfficiencyLedger();
+    assert.equal(ledgerAfterAbortedSweep.deterministicRunsCount, 1);
+    assert.equal(ledgerAfterAbortedSweep.failedOrBlockedRunsCount, 2);
+    assert.equal(emittedSpans.at(-1)?.stage, "tdlr_discovery_sweep");
+    assert.equal(emittedSpans.at(-1)?.status, "aborted");
   });
 });

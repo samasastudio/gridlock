@@ -32,7 +32,15 @@ export function calculateEstimatedCostSavedUsd(
 }
 
 export function createCloudLoggingSpanSink(
-  writer: (jsonLine: string) => void = (line) => process.stdout.write(`${line}\n`),
+  writer: (jsonLine: string) => void = (line) => {
+    if (
+      process.env.NODE_ENV !== "test" &&
+      process.env.npm_lifecycle_event !== "test" &&
+      !process.execArgv.includes("--test")
+    ) {
+      process.stdout.write(`${line}\n`);
+    }
+  },
   projectId: string = process.env.GOOGLE_CLOUD_PROJECT ?? DEFAULT_GCP_PROJECT_ID
 ): TelemetrySpanSink {
   return (span: TelemetrySpan) => {
@@ -67,6 +75,8 @@ export function createCloudLoggingSpanSink(
     writer(JSON.stringify(cloudLogEntry));
   };
 }
+
+export const defaultSpanSink: TelemetrySpanSink = createCloudLoggingSpanSink();
 
 export function buildTelemetrySpan(params: {
   stage: string;
@@ -227,18 +237,22 @@ export function applyTelemetryRunToLedger(
   });
 }
 
-export async function recordAgenticStageTelemetry(
+export async function recordStageTelemetry(
   input: {
     stage: string;
     connectorId?: string;
     projectNumber?: string;
     sourceArtifactHash?: string;
-    status: "agentic_completed" | "agentic_failed";
+    execution_mode: ExecutionMode;
+    status: TelemetryRunStatus;
+    rawByteLength: number;
     tokensUsed: number;
+    naiveTokensAvoided: number;
+    estimatedCostSavedUsd?: number;
     interactionId?: string;
-    rawByteLength?: number;
     startedAt: Date;
     endedAt: Date;
+    recordedAt?: string;
     attributes?: Record<string, string | number | boolean | null>;
   },
   deps: {
@@ -263,28 +277,30 @@ export async function recordAgenticStageTelemetry(
     ...(input.sourceArtifactHash !== undefined
       ? { sourceArtifactHash: input.sourceArtifactHash }
       : {}),
-    execution_mode: "agentic",
+    execution_mode: input.execution_mode,
     status: input.status,
     durationMs,
-    rawByteLength: input.rawByteLength ?? 0,
+    rawByteLength: input.rawByteLength,
     tokensUsed: input.tokensUsed,
-    naiveTokensAvoided: 0,
-    estimatedCostSavedUsd: 0,
+    naiveTokensAvoided: input.naiveTokensAvoided,
+    ...(input.estimatedCostSavedUsd !== undefined
+      ? { estimatedCostSavedUsd: input.estimatedCostSavedUsd }
+      : {}),
     ...(input.interactionId !== undefined
       ? { interactionId: input.interactionId }
       : {}),
-    recordedAt: input.endedAt.toISOString(),
+    recordedAt: input.recordedAt ?? input.endedAt.toISOString(),
   });
 
   const ledger = await deps.repository.recordTelemetryRun(run);
   const span = buildTelemetrySpan({
     stage: input.stage,
-    execution_mode: "agentic",
+    execution_mode: input.execution_mode,
     status: input.status,
     startedAt: input.startedAt,
     endedAt: input.endedAt,
     tokensUsed: input.tokensUsed,
-    naiveTokensAvoided: 0,
+    naiveTokensAvoided: input.naiveTokensAvoided,
     ...(input.interactionId !== undefined
       ? { interactionId: input.interactionId }
       : {}),
@@ -293,9 +309,41 @@ export async function recordAgenticStageTelemetry(
       : {}),
   });
 
-  if (deps.spanSink) {
-    deps.spanSink(span);
-  }
+  const sink = deps.spanSink ?? defaultSpanSink;
+  sink(span);
 
   return { run, span, ledger };
+}
+
+export async function recordAgenticStageTelemetry(
+  input: {
+    stage: string;
+    connectorId?: string;
+    projectNumber?: string;
+    sourceArtifactHash?: string;
+    status: "agentic_completed" | "agentic_failed";
+    tokensUsed: number;
+    interactionId?: string;
+    rawByteLength?: number;
+    startedAt: Date;
+    endedAt: Date;
+    attributes?: Record<string, string | number | boolean | null>;
+  },
+  deps: {
+    repository: {
+      recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
+    };
+    spanSink?: TelemetrySpanSink;
+  }
+): Promise<{ run: TelemetryRun; span: TelemetrySpan; ledger: EfficiencyLedger }> {
+  return recordStageTelemetry(
+    {
+      ...input,
+      execution_mode: "agentic",
+      rawByteLength: input.rawByteLength ?? 0,
+      naiveTokensAvoided: 0,
+      estimatedCostSavedUsd: 0,
+    },
+    deps
+  );
 }
