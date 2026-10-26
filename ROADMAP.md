@@ -82,13 +82,13 @@ flowchart TD
 
 *(Once [`#3`](https://github.com/samasastudio/gridlock/issues/3) completes, `#4`, `#5`, and `#7` are all unblocked and can be tackled in any order or in parallel.)*
 
-- [ ] **[`gridlock#4`](https://github.com/samasastudio/gridlock/issues/4) — Efficiency Ledger, Cloud Trace Spans & `GET /api/telemetry/efficiency`** (`~300 LOC`)
+- [x] **[`gridlock#4`](https://github.com/samasastudio/gridlock/issues/4) — Efficiency Ledger, Cloud Trace Spans & `GET /api/telemetry/efficiency`** (`~300 LOC`)
   - **Blocked by**: [`#3`](https://github.com/samasastudio/gridlock/issues/3)
   - **Unlocks**: `#6` (alongside `#5`)
   - **Delivers**: Records permanent per-run `telemetry_runs` (`~156 KB/year`) and cumulative `telemetry_summary` (`naiveTokensAvoided`, `execution_mode: "deterministic" | "agentic"` spans) and boots the HTTP service with `GET /api/telemetry/efficiency`.
   - **Testing Validation Gate**:
-    - [ ] **Happy Path**: Deterministic runs (fresh extractions and content-hash short-circuits) atomically increment `naiveTokensAvoided` (`Math.ceil(rawByteLength / 4)`), `deterministicRunsCount`, and `estimatedCostSavedUsd`, write permanent `telemetry_runs` (`expiresAt: null`), emit `execution_mode: "deterministic"` spans, and return a schema-valid scorecard from `GET /api/telemetry/efficiency`.
-    - [ ] **Sad Path**: Aborted or `blocked_by_waf` runs record failure telemetry without inflating `naiveTokensAvoided` or `deterministicRunsCount`; invalid query parameters or corrupted telemetry documents return structured `400`/`500` JSON errors rather than crashing the HTTP server.
+    - [x] **Happy Path**: Deterministic runs (fresh extractions and content-hash short-circuits) atomically increment `naiveTokensAvoided` (`Math.ceil(rawByteLength / 4)`), `deterministicRunsCount`, and `estimatedCostSavedUsd`, write permanent `telemetry_runs` (`expiresAt: null`), emit `execution_mode: "deterministic"` spans, and return a schema-valid scorecard from `GET /api/telemetry/efficiency`.
+    - [x] **Sad Path**: Aborted or `blocked_by_waf` runs record failure telemetry without inflating `naiveTokensAvoided` or `deterministicRunsCount`; invalid query parameters or corrupted telemetry documents return structured `400`/`500` JSON errors rather than crashing the HTTP server.
 
 - [ ] **[`gridlock#5`](https://github.com/samasastudio/gridlock/issues/5) — Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core)** (`~350 LOC`)
   - **Blocked by**: [`#3`](https://github.com/samasastudio/gridlock/issues/3)
