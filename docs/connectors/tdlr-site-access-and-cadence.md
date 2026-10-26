@@ -136,7 +136,7 @@ Querying TDLR TABS across verified compute infrastructure filters (`ProjectName=
 Because portals like `abc.austintexas.gov` serve HTTP `200 OK` HTML pages containing an Imperva challenge (`/_Incapsula_Resource`), a naive scraper would mistake a WAF block for a "broken CSS selector" and invoke the **Repair Agent** on a CAPTCHA page.
 
 To prevent this:
-1. **Pre-Parse Site Access Guard (`verifySiteAccess`)**: Before evaluating `ConnectorConfig` selectors, inspect HTTP status (`403`, `429`, `503`) and known WAF signatures (`_Incapsula_Resource`, `cf-mitigated`, `challenge-platform`, `g-recaptcha`).
+1. **Pre-Parse Site Access Guard (`verifySiteAccess`)**: Before evaluating `ConnectorConfig` selectors, inspect HTTP status (`403`, `429`, `503`), `Retry-After` headers, `robots.txt` directives, and known WAF/maintenance signatures (`_Incapsula_Resource`, `cf-mitigated`, `challenge-platform`, `cf-turnstile`, `g-recaptcha`, `<title>TDLR TABS - Under Maintenance</title>`). Note: `www.tdlr.texas.gov/TABS` serves `HTTP 503` (`<title>TDLR TABS - Under Maintenance</title>`) during Sunday maintenance windows, reinforcing the Monday–Friday (`0 14 * * 1-5` UTC) schedule.
 2. **Distinct Failure States**:
    - **`blocked_by_waf`**: Halts immediately with `0` Gemini tokens spent and logs an access alert—**never** invokes the **Repair Agent**.
    - **`selector_anomaly`**: Confirmed valid portal document (`<title>TDLR TABS...`) where expected fields failed extraction—invokes the out-of-band **Repair Agent**.

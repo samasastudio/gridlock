@@ -8,21 +8,13 @@ description: >-
 
 # Gridlock Monorepo Hygiene (`gridlock-monorepo-hygiene`)
 
-## 1. Branch-First PR & Two-Axis Review Workflow
+## 1. TDD, Two-Axis Review & PR Workflow
 
-1. **Create a Feature Branch First**:
-   - Before writing code for any ticket, switch to a dedicated branch:
-     ```bash
-     git switch -c feat/<issue-number>-<short-slug>
-     ```
-   - `.githooks/pre-commit` blocks direct commits to `main` and runs `npm run lint && npm test`.
+1. **Branch & PR Sequence**: Follow [`docs/agents/issue-tracker.md`](../../../docs/agents/issue-tracker.md) (branch off `main` $\to$ `/tdd` $\to$ two-axis `/code-review` $\to$ `gh pr create` with `/pr` $\to$ present PR URL for human review).
 2. **Drive Implementation via `/tdd`**:
    - Test only at the pre-agreed public seam (`packages/core` or `packages/widgets`), one Red → Green vertical slice at a time.
+   - Run single-file TDD checks via `npm test -- packages/core/test/<file>.test.ts` so `pretest` (`ensure-ext4-deps.sh`) always verifies the `ext4` `node_modules` bind-mount.
    - Verify both the **Happy Path** and **Sad Path** gates in [`ROADMAP.md`](../../../ROADMAP.md) and check off their boxes (`- [x]`).
-3. **Run Two-Axis `/code-review`, Open a PR (`/pr`), and Stop for Human Review**:
-   - Run `/code-review` against `main...HEAD` (**Standards** via [`CODING_STANDARDS.md`](../../../CODING_STANDARDS.md) + **Spec** via the GitHub Issue) and resolve any findings before opening the PR.
-   - Format the PR description using `/pr` (`## Summary`, `## Evidence`, `## Merge Danger`), push the branch, and create the PR via `gh pr create`.
-   - **Never run `gh pr merge`**: Stop after `gh pr create` and present the PR URL so the user can review and merge it into `main`.
 
 ---
 

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "ERROR: Direct pushes to 'main' are blocked by .githooks/pre-push." >&2
+    echo "Push your feature branch ('git push -u origin HEAD') and open a Pull Request via 'gh pr create' for human review." >&2
+    exit 1
+  fi
+done

@@ -15,7 +15,7 @@
     "prelint": "bash ./scripts/ensure-ext4-deps.sh",
     "lint": "node ./scripts/lint-checks.mjs",
     "pretest": "bash ./scripts/ensure-ext4-deps.sh",
-    "test": "node --test packages/core/test/*.test.ts packages/widgets/test/*.test.ts"
+    "test": "node ./scripts/run-tests.mjs"
   },
   "dependencies": {
     "zod": "3.25.76"

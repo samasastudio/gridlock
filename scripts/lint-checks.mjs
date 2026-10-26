@@ -15,7 +15,8 @@ if (tscResult.status !== 0) {
   process.exit(tscResult.status ?? 1);
 }
 
-// 2. Enforce GLOSSARY.md banned terms and interactive .tsx line budgets (<= 220 lines)
+// 2. Enforce GLOSSARY.md banned terms, interactive .tsx line budgets (<= 220 lines),
+//    and .ts source module line budgets (<= 600 lines)
 const BANNED_GLOSSARY_TERMS = [
   { pattern: /\bCompute Atlas\b/i, useInstead: "Gridlock" },
   { pattern: /\braw payload\b/i, useInstead: "Source Artifact" },
@@ -28,6 +29,7 @@ const BANNED_GLOSSARY_TERMS = [
 ];
 
 const MAX_TSX_LINES = 220;
+const MAX_TS_SOURCE_LINES = 600;
 
 function collectSourceFiles(dir) {
   const entries = readdirSync(dir, { withFileTypes: true });
@@ -59,6 +61,17 @@ for (const filePath of sourceFiles) {
   if (filePath.endsWith(".tsx") && lines.length > MAX_TSX_LINES) {
     violations.push(
       `${relPath}: ${lines.length} lines exceeds ${MAX_TSX_LINES}-line component budget (CODING_STANDARDS.md)`
+    );
+  }
+
+  if (
+    filePath.endsWith(".ts") &&
+    !filePath.endsWith(".test.ts") &&
+    relPath.includes("/src/") &&
+    lines.length > MAX_TS_SOURCE_LINES
+  ) {
+    violations.push(
+      `${relPath}: ${lines.length} lines exceeds ${MAX_TS_SOURCE_LINES}-line source module budget (split module to avoid Divergent Change)`
     );
   }
 
