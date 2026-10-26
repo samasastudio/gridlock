@@ -19,9 +19,10 @@ description: >-
 2. **Drive Implementation via `/tdd`**:
    - Test only at the pre-agreed public seam (`packages/core` or `packages/widgets`), one Red → Green vertical slice at a time.
    - Verify both the **Happy Path** and **Sad Path** gates in [`ROADMAP.md`](../../../ROADMAP.md) and check off their boxes (`- [x]`).
-3. **Run Two-Axis `/code-review` & Open a PR (`/pr`)**:
-   - Run `/code-review` against `main...HEAD` (**Standards** via [`CODING_STANDARDS.md`](../../../CODING_STANDARDS.md) + **Spec** via the GitHub Issue).
-   - Format the PR description using `/pr` (`## Summary`, `## Evidence`, `## Merge Danger`), push the branch, create the PR via `gh pr create`, and merge to `main` once review and checks pass.
+3. **Run Two-Axis `/code-review`, Open a PR (`/pr`), and Stop for Human Review**:
+   - Run `/code-review` against `main...HEAD` (**Standards** via [`CODING_STANDARDS.md`](../../../CODING_STANDARDS.md) + **Spec** via the GitHub Issue) and resolve any findings before opening the PR.
+   - Format the PR description using `/pr` (`## Summary`, `## Evidence`, `## Merge Danger`), push the branch, and create the PR via `gh pr create`.
+   - **Never run `gh pr merge`**: Stop after `gh pr create` and present the PR URL so the user can review and merge it into `main`.
 
 ---
 

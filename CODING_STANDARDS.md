@@ -7,8 +7,8 @@ Read during `/code-review` (Standards axis) and when designing modules across `p
 ## 1. Branch, Pull Request & Review Discipline
 
 - **Branch per Ticket**: All changes land on a dedicated branch (`feat/<issue>-<slug>`, `fix/<issue>-<slug>`, or `chore/<slug>`). `.githooks/pre-commit` rejects direct commits to `main`.
-- **Two-Axis Review Before Merge**: Run `/code-review` (`main...HEAD`) across both **Standards** (this file + `GLOSSARY.md` + `docs/adr/`) and **Spec** (the originating GitHub Issue + `ROADMAP.md` Happy/Sad Path gates) and resolve findings before merging.
-- **Structured PR Bodies (`/pr`)**: Shape every Pull Request body with `## Summary` (smallest diagram, call-tree, or diff-sketch), `## Evidence` (Before/After test or Storybook verification), and `## Merge Danger` (`Door: one-way | two-way` and `Blast Radius`).
+- **Two-Axis Review Before PR**: Run `/code-review` (`main...HEAD`) across both **Standards** (this file + `GLOSSARY.md` + `docs/adr/`) and **Spec** (the originating GitHub Issue + `ROADMAP.md` Happy/Sad Path gates) and resolve findings before opening a PR.
+- **Structured PR Bodies (`/pr`) & Human-Only Merge Gate**: Shape every Pull Request body with `## Summary` (smallest diagram, call-tree, or diff-sketch), `## Evidence` (Before/After test or Storybook verification), and `## Merge Danger` (`Door: one-way | two-way` and `Blast Radius`). **Agents must never run `gh pr merge` or merge into `main` autonomously**—always stop after `gh pr create` and wait for the human repository owner to review and merge.
 
 ---
 
