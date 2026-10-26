@@ -12,7 +12,7 @@ Never commit directly to `main` (enforced by `.githooks/pre-commit`). Every chan
    ```bash
    gh pr create --base main --title "feat(core): ... (closes #<number>)" --body "..."
    ```
-4. **Merge**: Once `/code-review` findings are resolved and `npm run lint && npm test` pass, merge the PR (`gh pr merge --squash --delete-branch`) and pull `main`.
+4. **Stop for Human Review (Never Auto-Merge)**: Once the PR is created and `npm run lint && npm test` pass, **stop and share the PR URL with the user**. Never run `gh pr merge` or merge into `main` yourself; merging to `main` is strictly reserved for the human repository owner.
 
 ## Conventions
 
