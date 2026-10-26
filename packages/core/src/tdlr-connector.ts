@@ -4,6 +4,7 @@ import {
   ObservationSchema,
   ProjectSchema,
   SourceArtifactSchema,
+  TdlrProjectNumberSchema,
   TdlrSearchRowSchema,
   type ConnectorConfig,
   type Observation,
@@ -12,6 +13,14 @@ import {
   type TdlrSearchRow,
 } from "./schemas.ts";
 import type { GridlockRepository } from "./repository.ts";
+import {
+  buildTelemetrySpan,
+  calculateEstimatedCostSavedUsd,
+  calculateNaiveTokensAvoided,
+  defaultSpanSink,
+  recordStageTelemetry,
+  type TelemetrySpanSink,
+} from "./telemetry.ts";
 import {
   GRIDLOCK_USER_AGENT,
   headersToRecord,
@@ -341,8 +350,10 @@ export async function ingestTdlrFiling(
   deps: {
     repository: GridlockRepository;
     pageLoader?: PageLoader;
+    spanSink?: TelemetrySpanSink;
   }
 ): Promise<IngestFilingResult> {
+  const startedWallMs = Date.now();
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
@@ -351,187 +362,276 @@ export async function ingestTdlrFiling(
   const sourceUrl = `${baseUrl}${targetPath}`;
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
 
-  const preflight = await preflightRobotsTxt({
-    baseUrl,
-    targetPath,
-    providedRobotsTxt: input.robotsTxt,
-    pageLoader,
-    now,
-  });
-  if (!preflight.allowed) {
-    return markBlockedByWaf(
-      deps.repository,
-      config.connectorId,
-      nowIso,
-      preflight.access
-    );
-  }
+  const validProjectNumber = TdlrProjectNumberSchema.safeParse(
+    input.projectNumber
+  );
+  const projectNumberProp = validProjectNumber.success
+    ? { projectNumber: validProjectNumber.data }
+    : {};
 
-  const response = await pageLoader(sourceUrl);
-  const accessCheck = verifySiteAccess({
-    status: response.status,
-    headers: response.headers,
-    body: response.body,
-    robotsTxt: preflight.robotsTxt,
-    targetPath,
-    now,
-  });
-
-  if (!accessCheck.allowed) {
-    return markBlockedByWaf(
-      deps.repository,
-      config.connectorId,
-      nowIso,
-      accessCheck
-    );
-  }
-
-  const rawBuffer = Buffer.from(response.body, "utf-8");
-  const sha256 = createHash("sha256").update(rawBuffer).digest("hex");
-
-  const existingArtifact =
-    await deps.repository.getSourceArtifactByHash(sha256);
-  if (
-    existingArtifact &&
-    !existingArtifact.storageUri.includes("/quarantine/")
-  ) {
-    return {
-      status: "unchanged_artifact",
-      sourceArtifact: existingArtifact,
-    };
-  }
-
-  const gzipBuffer = gzipSync(rawBuffer);
-  const plusNinetyDaysIso = new Date(
-    now.getTime() + NINETY_DAYS_MS
-  ).toISOString();
-
-  const quarantineWithErrors = async (
-    invariantErrors: string[]
+  const finalizeTelemetry = async (
+    result: IngestFilingResult
   ): Promise<IngestFilingResult> => {
-    const quarantinedArtifact = buildSourceArtifact({
+    const durationMs = Math.max(0, Date.now() - startedWallMs);
+    const endedAt = new Date(now.getTime() + durationMs);
+    const isSuccess =
+      result.status === "ingested" || result.status === "unchanged_artifact";
+    const rawByteLength =
+      result.status === "blocked_by_waf"
+        ? 0
+        : result.sourceArtifact.rawByteLength;
+    const naiveTokensAvoided = isSuccess
+      ? calculateNaiveTokensAvoided(rawByteLength)
+      : 0;
+    const estimatedCostSavedUsd = isSuccess
+      ? calculateEstimatedCostSavedUsd(naiveTokensAvoided)
+      : 0;
+
+    await recordStageTelemetry(
+      {
+        stage: "tdlr_ingest",
+        connectorId: config.connectorId,
+        ...projectNumberProp,
+        ...(result.status !== "blocked_by_waf"
+          ? { sourceArtifactHash: result.sourceArtifact.sha256 }
+          : {}),
+        execution_mode: "deterministic",
+        status: result.status,
+        rawByteLength,
+        tokensUsed: 0,
+        naiveTokensAvoided,
+        estimatedCostSavedUsd,
+        startedAt: now,
+        endedAt,
+        recordedAt: nowIso,
+        attributes: {
+          connectorId: config.connectorId,
+          projectNumber: input.projectNumber,
+          rawByteLength,
+        },
+      },
+      {
+        repository: deps.repository,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+      }
+    );
+
+    return result;
+  };
+
+  try {
+    const preflight = await preflightRobotsTxt({
+      baseUrl,
+      targetPath,
+      providedRobotsTxt: input.robotsTxt,
+      pageLoader,
+      now,
+    });
+    if (!preflight.allowed) {
+      const blocked = await markBlockedByWaf(
+        deps.repository,
+        config.connectorId,
+        nowIso,
+        preflight.access
+      );
+      return finalizeTelemetry(blocked);
+    }
+
+    const response = await pageLoader(sourceUrl);
+    const accessCheck = verifySiteAccess({
+      status: response.status,
+      headers: response.headers,
+      body: response.body,
+      robotsTxt: preflight.robotsTxt,
+      targetPath,
+      now,
+    });
+
+    if (!accessCheck.allowed) {
+      const blocked = await markBlockedByWaf(
+        deps.repository,
+        config.connectorId,
+        nowIso,
+        accessCheck
+      );
+      return finalizeTelemetry(blocked);
+    }
+
+    const rawBuffer = Buffer.from(response.body, "utf-8");
+    const sha256 = createHash("sha256").update(rawBuffer).digest("hex");
+
+    const existingArtifact =
+      await deps.repository.getSourceArtifactByHash(sha256);
+    if (
+      existingArtifact &&
+      !existingArtifact.storageUri.includes("/quarantine/")
+    ) {
+      return finalizeTelemetry({
+        status: "unchanged_artifact",
+        sourceArtifact: existingArtifact,
+      });
+    }
+
+    const gzipBuffer = gzipSync(rawBuffer);
+    const plusNinetyDaysIso = new Date(
+      now.getTime() + NINETY_DAYS_MS
+    ).toISOString();
+
+    const quarantineWithErrors = async (
+      invariantErrors: string[]
+    ): Promise<IngestFilingResult> => {
+      const quarantinedArtifact = buildSourceArtifact({
+        sha256,
+        connectorId: config.connectorId,
+        sourceUrl,
+        contentType: response.contentType,
+        rawByteLength: rawBuffer.byteLength,
+        compressedByteLength: gzipBuffer.byteLength,
+        folder: "quarantine",
+        capturedAt: nowIso,
+        expiresAt: plusNinetyDaysIso,
+      });
+      await deps.repository.saveSourceArtifact(quarantinedArtifact, gzipBuffer);
+      await deps.repository.setConnectorStatus(
+        config.connectorId,
+        "selector_anomaly",
+        nowIso
+      );
+      return finalizeTelemetry({
+        status: "selector_anomaly",
+        sourceArtifact: quarantinedArtifact,
+        invariantErrors,
+      });
+    };
+
+    if (response.body.trim().length === 0) {
+      return quarantineWithErrors(["Empty HTML document received from portal"]);
+    }
+
+    const { containerFound, fields } = extractDefinitionListFields(
+      response.body,
+      config
+    );
+    if (!containerFound) {
+      return quarantineWithErrors([
+        `Missing detailContainerSelector "${config.detailContainerSelector}" in portal HTML`,
+      ]);
+    }
+
+    const labels = config.fieldLabels;
+
+    const getSingle = (label: string): string =>
+      (fields.get(label) ?? [])[0] ?? "";
+    const rawDesignFirm = labels.designFirmName
+      ? getSingle(labels.designFirmName)
+      : "";
+    const sanitizedDesignFirm = rawDesignFirm
+      ? sanitizeTextPii(rawDesignFirm)
+      : undefined;
+
+    const estimatedCostUsd = parseCurrencyUsd(getSingle(labels.estimatedCost));
+    const squareFootage = parseSquareFootage(getSingle(labels.squareFootage));
+
+    const parsedProject = ProjectSchema.safeParse({
+      projectNumber: getSingle(labels.projectNumber),
+      projectName: sanitizeTextPii(getSingle(labels.projectName)),
+      facilityName: sanitizeTextPii(getSingle(labels.facilityName)),
+      ownerName: sanitizeTextPii(getSingle(labels.ownerName)),
+      ...(sanitizedDesignFirm ? { designFirmName: sanitizedDesignFirm } : {}),
+      locationAddress: sanitizeLocationAddressPii(
+        fields.get(labels.locationAddress) ?? []
+      ),
+      county: sanitizeTextPii(getSingle(labels.county)),
+      estimatedCostUsd,
+      squareFootage,
+      typeOfWork: sanitizeTextPii(getSingle(labels.typeOfWork)),
+      scopeOfWork: sanitizeTextPii(getSingle(labels.scopeOfWork)),
+      currentStatus: sanitizeTextPii(getSingle(labels.currentStatus)),
+      startDate: parseUsSlashDateToIso(getSingle(labels.startDate)),
+      completionDate: parseUsSlashDateToIso(getSingle(labels.completionDate)),
+      latestSourceArtifactHash: sha256,
+      updatedAt: nowIso,
+    });
+
+    if (!parsedProject.success) {
+      const invariantErrors = parsedProject.error.issues.map(
+        (issue) => `${issue.path.join(".") || "document"}: ${issue.message}`
+      );
+      return quarantineWithErrors(invariantErrors);
+    }
+
+    const project = parsedProject.data;
+    const existingProject = await deps.repository.getProjectByNumber(
+      project.projectNumber
+    );
+    const isMilestone =
+      project.estimatedCostUsd >= MILESTONE_COST_THRESHOLD_USD ||
+      (existingProject !== null &&
+        existingProject.currentStatus !== project.currentStatus);
+
+    const sourceArtifact = buildSourceArtifact({
       sha256,
       connectorId: config.connectorId,
       sourceUrl,
       contentType: response.contentType,
       rawByteLength: rawBuffer.byteLength,
       compressedByteLength: gzipBuffer.byteLength,
-      folder: "quarantine",
+      folder: "artifacts",
       capturedAt: nowIso,
-      expiresAt: plusNinetyDaysIso,
+      expiresAt: isMilestone ? null : plusNinetyDaysIso,
     });
-    await deps.repository.saveSourceArtifact(quarantinedArtifact, gzipBuffer);
-    await deps.repository.setConnectorStatus(
-      config.connectorId,
-      "selector_anomaly",
-      nowIso
+
+    const observation = ObservationSchema.parse({
+      id: `obs_${project.projectNumber}_${sha256.slice(0, 12)}`,
+      projectNumber: project.projectNumber,
+      sourceArtifactHash: sha256,
+      observedAt: nowIso,
+      status: project.currentStatus,
+      estimatedCostUsd: project.estimatedCostUsd,
+      squareFootage: project.squareFootage,
+      scopeOfWork: project.scopeOfWork,
+      isMilestone,
+    });
+
+    await deps.repository.saveSourceArtifact(sourceArtifact, gzipBuffer);
+    await deps.repository.upsertProject(project);
+    await deps.repository.appendObservation(observation);
+
+    return finalizeTelemetry({
+      status: "ingested",
+      sourceArtifact,
+      project,
+      observation,
+    });
+  } catch (error) {
+    const durationMs = Math.max(0, Date.now() - startedWallMs);
+    const endedAt = new Date(now.getTime() + durationMs);
+    await recordStageTelemetry(
+      {
+        stage: "tdlr_ingest",
+        connectorId: config.connectorId,
+        ...projectNumberProp,
+        execution_mode: "deterministic",
+        status: "aborted",
+        rawByteLength: 0,
+        tokensUsed: 0,
+        naiveTokensAvoided: 0,
+        estimatedCostSavedUsd: 0,
+        startedAt: now,
+        endedAt,
+        recordedAt: nowIso,
+        attributes: {
+          connectorId: config.connectorId,
+          projectNumber: input.projectNumber,
+        },
+      },
+      {
+        repository: deps.repository,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+      }
     );
-    return {
-      status: "selector_anomaly",
-      sourceArtifact: quarantinedArtifact,
-      invariantErrors,
-    };
-  };
-
-  if (response.body.trim().length === 0) {
-    return quarantineWithErrors(["Empty HTML document received from portal"]);
+    throw error;
   }
-
-  const { containerFound, fields } = extractDefinitionListFields(
-    response.body,
-    config
-  );
-  if (!containerFound) {
-    return quarantineWithErrors([
-      `Missing detailContainerSelector "${config.detailContainerSelector}" in portal HTML`,
-    ]);
-  }
-
-  const labels = config.fieldLabels;
-
-  const getSingle = (label: string): string =>
-    (fields.get(label) ?? [])[0] ?? "";
-  const rawDesignFirm = labels.designFirmName
-    ? getSingle(labels.designFirmName)
-    : "";
-  const sanitizedDesignFirm = rawDesignFirm
-    ? sanitizeTextPii(rawDesignFirm)
-    : undefined;
-
-  const estimatedCostUsd = parseCurrencyUsd(getSingle(labels.estimatedCost));
-  const squareFootage = parseSquareFootage(getSingle(labels.squareFootage));
-
-  const parsedProject = ProjectSchema.safeParse({
-    projectNumber: getSingle(labels.projectNumber),
-    projectName: sanitizeTextPii(getSingle(labels.projectName)),
-    facilityName: sanitizeTextPii(getSingle(labels.facilityName)),
-    ownerName: sanitizeTextPii(getSingle(labels.ownerName)),
-    ...(sanitizedDesignFirm ? { designFirmName: sanitizedDesignFirm } : {}),
-    locationAddress: sanitizeLocationAddressPii(
-      fields.get(labels.locationAddress) ?? []
-    ),
-    county: sanitizeTextPii(getSingle(labels.county)),
-    estimatedCostUsd,
-    squareFootage,
-    typeOfWork: sanitizeTextPii(getSingle(labels.typeOfWork)),
-    scopeOfWork: sanitizeTextPii(getSingle(labels.scopeOfWork)),
-    currentStatus: sanitizeTextPii(getSingle(labels.currentStatus)),
-    startDate: parseUsSlashDateToIso(getSingle(labels.startDate)),
-    completionDate: parseUsSlashDateToIso(getSingle(labels.completionDate)),
-    latestSourceArtifactHash: sha256,
-    updatedAt: nowIso,
-  });
-
-  if (!parsedProject.success) {
-    const invariantErrors = parsedProject.error.issues.map(
-      (issue) => `${issue.path.join(".") || "document"}: ${issue.message}`
-    );
-    return quarantineWithErrors(invariantErrors);
-  }
-
-  const project = parsedProject.data;
-  const existingProject = await deps.repository.getProjectByNumber(
-    project.projectNumber
-  );
-  const isMilestone =
-    project.estimatedCostUsd >= MILESTONE_COST_THRESHOLD_USD ||
-    (existingProject !== null &&
-      existingProject.currentStatus !== project.currentStatus);
-
-  const sourceArtifact = buildSourceArtifact({
-    sha256,
-    connectorId: config.connectorId,
-    sourceUrl,
-    contentType: response.contentType,
-    rawByteLength: rawBuffer.byteLength,
-    compressedByteLength: gzipBuffer.byteLength,
-    folder: "artifacts",
-    capturedAt: nowIso,
-    expiresAt: isMilestone ? null : plusNinetyDaysIso,
-  });
-
-  const observation = ObservationSchema.parse({
-    id: `obs_${project.projectNumber}_${sha256.slice(0, 12)}`,
-    projectNumber: project.projectNumber,
-    sourceArtifactHash: sha256,
-    observedAt: nowIso,
-    status: project.currentStatus,
-    estimatedCostUsd: project.estimatedCostUsd,
-    squareFootage: project.squareFootage,
-    scopeOfWork: project.scopeOfWork,
-    isMilestone,
-  });
-
-  await deps.repository.saveSourceArtifact(sourceArtifact, gzipBuffer);
-  await deps.repository.upsertProject(project);
-  await deps.repository.appendObservation(observation);
-
-  return {
-    status: "ingested",
-    sourceArtifact,
-    project,
-    observation,
-  };
 }
 
 export type TdlrDiscoveryMode = "backfill" | "daily";
@@ -660,8 +760,10 @@ export async function runTdlrDiscoverySweep(
     searchLoader?: SearchLoader;
     sleep?: (ms: number) => Promise<void>;
     jitterMs?: () => number;
+    spanSink?: TelemetrySpanSink;
   }
 ): Promise<TdlrDiscoverySweepResult> {
+  const startedWallMs = Date.now();
   const mode: TdlrDiscoveryMode = input.mode ?? "daily";
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
@@ -689,112 +791,151 @@ export async function runTdlrDiscoverySweep(
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
   const searchPath = "/TABS/Search/SearchProjects";
 
-  // 1. Preflight robots.txt once per sweep
-  const preflight = await preflightRobotsTxt({
-    baseUrl,
-    targetPath: searchPath,
-    pageLoader,
-    now,
-  });
-  if (!preflight.allowed) {
-    const blocked = await markBlockedByWaf(
-      deps.repository,
-      config.connectorId,
-      nowIso,
-      preflight.access
+  const recordDiscoveryFailureTelemetry = async (
+    status: "blocked_by_waf" | "aborted"
+  ) => {
+    const durationMs = Math.max(0, Date.now() - startedWallMs);
+    const endedAt = new Date(now.getTime() + durationMs);
+    await recordStageTelemetry(
+      {
+        stage: "tdlr_discovery_sweep",
+        connectorId: config.connectorId,
+        execution_mode: "deterministic",
+        status,
+        rawByteLength: 0,
+        tokensUsed: 0,
+        naiveTokensAvoided: 0,
+        estimatedCostSavedUsd: 0,
+        startedAt: now,
+        endedAt,
+        recordedAt: nowIso,
+        attributes: { connectorId: config.connectorId, mode },
+      },
+      {
+        repository: deps.repository,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+      }
     );
-    return { ...blocked, mode };
-  }
+  };
 
-  // 2. Enforce single-token guardrail on OwnerName filters
-  const rawFilters = input.searchFilters ?? DEFAULT_TDLR_SEARCH_FILTERS;
-  const safeFilters = rawFilters.filter((filter) => {
-    const trimmed = filter.value.trim();
-    if (!trimmed) return false;
-    if (filter.field === "OwnerName" && /\s/.test(trimmed)) {
-      return false;
-    }
-    return true;
-  });
-
-  // 3. Single-flight discovery queries (maxConcurrency: 1)
+  let preflight: Awaited<ReturnType<typeof preflightRobotsTxt>>;
   const discoveredByNumber = new Map<string, TdlrSearchRow>();
-  const searchUrl = `${baseUrl}${searchPath}`;
 
-  for (let i = 0; i < safeFilters.length; i += 1) {
-    const filter = safeFilters[i]!;
-    if (i > 0) {
-      await sleep(baseDelayMs + Math.max(0, jitterMs()));
-    }
-    const formBody = new URLSearchParams({
-      [filter.field]: filter.value.trim(),
-      draw: String(i + 1),
-      start: "0",
-      length: "100",
-    }).toString();
-
-    const searchRes = await searchLoader(searchUrl, formBody);
-    const searchAccess = verifySiteAccess({
-      status: searchRes.status,
-      headers: searchRes.headers,
-      body: searchRes.body,
-      robotsTxt: preflight.robotsTxt,
+  try {
+    // 1. Preflight robots.txt once per sweep
+    preflight = await preflightRobotsTxt({
+      baseUrl,
       targetPath: searchPath,
+      pageLoader,
       now,
     });
-    if (!searchAccess.allowed) {
+    if (!preflight.allowed) {
       const blocked = await markBlockedByWaf(
         deps.repository,
         config.connectorId,
         nowIso,
-        searchAccess
+        preflight.access
       );
+      await recordDiscoveryFailureTelemetry("blocked_by_waf");
       return { ...blocked, mode };
     }
 
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(searchRes.body);
-    } catch {
-      continue;
-    }
+    // 2. Enforce single-token guardrail on OwnerName filters
+    const rawFilters = input.searchFilters ?? DEFAULT_TDLR_SEARCH_FILTERS;
+    const safeFilters = rawFilters.filter((filter) => {
+      const trimmed = filter.value.trim();
+      if (!trimmed) return false;
+      if (filter.field === "OwnerName" && /\s/.test(trimmed)) {
+        return false;
+      }
+      return true;
+    });
 
-    const rawRows: unknown[] = Array.isArray(parsedJson)
-      ? parsedJson
-      : parsedJson !== null &&
-          typeof parsedJson === "object" &&
-          Array.isArray((parsedJson as { data?: unknown }).data)
-        ? (parsedJson as { data: unknown[] }).data
-        : [];
+    // 3. Single-flight discovery queries (maxConcurrency: 1)
+    const searchUrl = `${baseUrl}${searchPath}`;
 
-    for (const rawRow of rawRows) {
-      const parsedRow = TdlrSearchRowSchema.safeParse(rawRow);
-      if (!parsedRow.success) continue;
-      const row = parsedRow.data;
-      if (!isComputeInfrastructureFiling(row)) continue;
+    for (let i = 0; i < safeFilters.length; i += 1) {
+      const filter = safeFilters[i]!;
+      if (i > 0) {
+        await sleep(baseDelayMs + Math.max(0, jitterMs()));
+      }
+      const formBody = new URLSearchParams({
+        [filter.field]: filter.value.trim(),
+        draw: String(i + 1),
+        start: "0",
+        length: "100",
+      }).toString();
 
-      const createdMs = Date.parse(row.ProjectCreatedOn);
-      if (mode === "backfill") {
-        if (Number.isNaN(createdMs)) continue;
-        const createdYear = new Date(createdMs).getUTCFullYear();
-        if (createdYear < backfillStartYear || createdYear > backfillEndYear) {
-          continue;
+      const searchRes = await searchLoader(searchUrl, formBody);
+      const searchAccess = verifySiteAccess({
+        status: searchRes.status,
+        headers: searchRes.headers,
+        body: searchRes.body,
+        robotsTxt: preflight.robotsTxt,
+        targetPath: searchPath,
+        now,
+      });
+      if (!searchAccess.allowed) {
+        const blocked = await markBlockedByWaf(
+          deps.repository,
+          config.connectorId,
+          nowIso,
+          searchAccess
+        );
+        await recordDiscoveryFailureTelemetry("blocked_by_waf");
+        return { ...blocked, mode };
+      }
+
+      let parsedJson: unknown;
+      try {
+        parsedJson = JSON.parse(searchRes.body);
+      } catch {
+        continue;
+      }
+
+      const rawRows: unknown[] = Array.isArray(parsedJson)
+        ? parsedJson
+        : parsedJson !== null &&
+            typeof parsedJson === "object" &&
+            Array.isArray((parsedJson as { data?: unknown }).data)
+          ? (parsedJson as { data: unknown[] }).data
+          : [];
+
+      for (const rawRow of rawRows) {
+        const parsedRow = TdlrSearchRowSchema.safeParse(rawRow);
+        if (!parsedRow.success) continue;
+        const row = parsedRow.data;
+        if (!isComputeInfrastructureFiling(row)) continue;
+
+        const createdMs = Date.parse(row.ProjectCreatedOn);
+        if (mode === "backfill") {
+          if (Number.isNaN(createdMs)) continue;
+          const createdYear = new Date(createdMs).getUTCFullYear();
+          if (
+            createdYear < backfillStartYear ||
+            createdYear > backfillEndYear
+          ) {
+            continue;
+          }
+        }
+
+        if (effectiveSinceDate) {
+          if (
+            Number.isNaN(createdMs) ||
+            createdMs < effectiveSinceDate.getTime()
+          ) {
+            continue;
+          }
+        }
+
+        if (!discoveredByNumber.has(row.ProjectNumber)) {
+          discoveredByNumber.set(row.ProjectNumber, row);
         }
       }
-
-      if (effectiveSinceDate) {
-        if (
-          Number.isNaN(createdMs) ||
-          createdMs < effectiveSinceDate.getTime()
-        ) {
-          continue;
-        }
-      }
-
-      if (!discoveredByNumber.has(row.ProjectNumber)) {
-        discoveredByNumber.set(row.ProjectNumber, row);
-      }
     }
+  } catch (error) {
+    await recordDiscoveryFailureTelemetry("aborted");
+    throw error;
   }
 
   // 4. Sort chronologically (ProjectCreatedOn ASC)
@@ -833,6 +974,7 @@ export async function runTdlrDiscoverySweep(
       {
         repository: deps.repository,
         pageLoader,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
       }
     );
 
@@ -853,6 +995,34 @@ export async function runTdlrDiscoverySweep(
       ingestedProjectNumbers.push(row.ProjectNumber);
     }
   }
+
+  const sweepDurationMs = Math.max(0, Date.now() - startedWallMs);
+  const sweepEndedAt = new Date(now.getTime() + sweepDurationMs);
+  const sweepTokensAvoided = results.reduce((sum, r) => {
+    if (r.status === "ingested" || r.status === "unchanged_artifact") {
+      return sum + calculateNaiveTokensAvoided(r.sourceArtifact.rawByteLength);
+    }
+    return sum;
+  }, 0);
+  const sink = deps.spanSink ?? defaultSpanSink;
+  sink(
+    buildTelemetrySpan({
+      stage: "tdlr_discovery_sweep",
+      execution_mode: "deterministic",
+      status:
+        ingestedProjectNumbers.length > 0 ? "ingested" : "unchanged_artifact",
+      startedAt: now,
+      endedAt: sweepEndedAt,
+      tokensUsed: 0,
+      naiveTokensAvoided: sweepTokensAvoided,
+      attributes: {
+        connectorId: config.connectorId,
+        mode,
+        discoveredCount,
+        ingestedCount: ingestedProjectNumbers.length,
+      },
+    })
+  );
 
   return {
     status: "completed",

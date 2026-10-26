@@ -1,15 +1,27 @@
 import {
   ConnectorConfigSchema,
+  DEFAULT_EFFICIENCY_LEDGER,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
+  EfficiencyLedgerSchema,
   ObservationSchema,
   ProjectSchema,
   SourceArtifactSchema,
+  TelemetryRunSchema,
   type ConnectorConfig,
   type ConnectorStatus,
+  type EfficiencyLedger,
+  type ExecutionMode,
   type Observation,
   type Project,
   type SourceArtifact,
+  type TelemetryRun,
 } from "./schemas.ts";
+import { applyTelemetryRunToLedger } from "./telemetry.ts";
+
+export interface TelemetryLedgerQueryOptions {
+  limit?: number;
+  executionMode?: ExecutionMode;
+}
 
 export interface GridlockRepository {
   getActiveConnectorConfig(connectorId: string): Promise<ConnectorConfig>;
@@ -29,10 +41,18 @@ export interface GridlockRepository {
   appendObservation(observation: Observation): Promise<void>;
   listObservationsByProject(projectNumber: string): Promise<Observation[]>;
   listProjects(): Promise<Project[]>;
+  recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
+  getEfficiencyLedger(
+    options?: TelemetryLedgerQueryOptions
+  ): Promise<EfficiencyLedger>;
+  listTelemetryRuns(
+    options?: TelemetryLedgerQueryOptions
+  ): Promise<TelemetryRun[]>;
 }
 
 export function createInMemoryGridlockRepository(
-  initialConfig: ConnectorConfig = DEFAULT_TDLR_CONNECTOR_CONFIG
+  initialConfig: ConnectorConfig = DEFAULT_TDLR_CONNECTOR_CONFIG,
+  initialLedger: EfficiencyLedger = DEFAULT_EFFICIENCY_LEDGER
 ): GridlockRepository {
   const configs = new Map<string, ConnectorConfig>([
     [initialConfig.connectorId, ConnectorConfigSchema.parse(initialConfig)],
@@ -41,6 +61,14 @@ export function createInMemoryGridlockRepository(
   const artifactBlobs = new Map<string, Buffer>();
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
+  const telemetryRuns: TelemetryRun[] = [
+    ...initialLedger.recentRuns.map((run) =>
+      structuredClone(TelemetryRunSchema.parse(run))
+    ),
+  ];
+  let efficiencyLedger: EfficiencyLedger = structuredClone(
+    EfficiencyLedgerSchema.parse(initialLedger)
+  );
 
   return {
     async getActiveConnectorConfig(connectorId: string): Promise<ConnectorConfig> {
@@ -108,6 +136,47 @@ export function createInMemoryGridlockRepository(
 
     async listProjects(): Promise<Project[]> {
       return Array.from(projects.values()).map((proj) => structuredClone(proj));
+    },
+
+    async recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger> {
+      const validatedRun = TelemetryRunSchema.parse(run);
+      telemetryRuns.push(structuredClone(validatedRun));
+      const recentSlice = telemetryRuns
+        .slice(-50)
+        .map((r) => structuredClone(r));
+      efficiencyLedger = applyTelemetryRunToLedger(
+        efficiencyLedger,
+        validatedRun,
+        recentSlice
+      );
+      return structuredClone(efficiencyLedger);
+    },
+
+    async getEfficiencyLedger(
+      options?: TelemetryLedgerQueryOptions
+    ): Promise<EfficiencyLedger> {
+      const boundedRuns = await this.listTelemetryRuns({
+        ...options,
+        limit: options?.limit ?? 50,
+      });
+      return EfficiencyLedgerSchema.parse({
+        ...structuredClone(efficiencyLedger),
+        recentRuns: boundedRuns,
+      });
+    },
+
+    async listTelemetryRuns(
+      options?: TelemetryLedgerQueryOptions
+    ): Promise<TelemetryRun[]> {
+      const executionMode = options?.executionMode;
+      const filteredRuns = telemetryRuns.filter((run) =>
+        executionMode ? run.execution_mode === executionMode : true
+      );
+      const sliced =
+        options?.limit !== undefined
+          ? filteredRuns.slice(-options.limit)
+          : filteredRuns;
+      return sliced.map((run) => structuredClone(run));
     },
   };
 }

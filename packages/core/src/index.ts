@@ -1,7 +1,10 @@
 export {
   ConnectorConfigSchema,
   ConnectorStatusSchema,
+  DEFAULT_EFFICIENCY_LEDGER,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
+  EfficiencyLedgerSchema,
+  ExecutionModeSchema,
   ObservationSchema,
   ProjectSchema,
   Sha256HashSchema,
@@ -9,8 +12,13 @@ export {
   TdlrFieldLabelsSchema,
   TdlrProjectNumberSchema,
   TdlrSearchRowSchema,
+  TelemetryRunSchema,
+  TelemetryRunStatusSchema,
+  TelemetrySpanSchema,
   type ConnectorConfig,
   type ConnectorStatus,
+  type EfficiencyLedger,
+  type ExecutionMode,
   type Observation,
   type Project,
   type Sha256Hash,
@@ -18,12 +26,36 @@ export {
   type TdlrFieldLabels,
   type TdlrProjectNumber,
   type TdlrSearchRow,
+  type TelemetryRun,
+  type TelemetryRunStatus,
+  type TelemetrySpan,
 } from "./schemas.ts";
 
 export {
   createInMemoryGridlockRepository,
   type GridlockRepository,
+  type TelemetryLedgerQueryOptions,
 } from "./repository.ts";
+
+export {
+  DEFAULT_GCP_PROJECT_ID,
+  NAIVE_COST_PER_TOKEN_USD,
+  applyTelemetryRunToLedger,
+  buildTelemetryRun,
+  buildTelemetrySpan,
+  calculateEstimatedCostSavedUsd,
+  calculateNaiveTokensAvoided,
+  createCloudLoggingSpanSink,
+  defaultSpanSink,
+  recordAgenticStageTelemetry,
+  recordStageTelemetry,
+  type TelemetrySpanSink,
+} from "./telemetry.ts";
+
+export {
+  createGridlockHttpServer,
+  handleGridlockHttpRequest,
+} from "./http-server.ts";
 
 export {
   ARTIFACT_BUCKET_URI,
