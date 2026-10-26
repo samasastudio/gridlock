@@ -68,13 +68,13 @@ flowchart TD
     - [x] **Happy Path**: Extracts valid `Project` and append-only `Observation` records from frozen TDLR HTML (`TABS2027003697`) via `ConnectorConfig` `<dl class="dl-horizontal">` selectors, persists a gzipped `.gz` SHA-256 `SourceArtifact` (`expiresAt: null` when milestone-referenced, `+90d` when unreferenced), and short-circuits on a second identical run with `0` duplicate entity writes.
     - [x] **Sad Path**: Fails Zod invariant validation (`selector_anomaly`) when required `<dt>/<dd>` fields are missing or malformed (e.g., non-numeric `Estimated Cost` or missing `Project Number`), and aborts cleanly on empty/corrupted HTML payloads with zero partial `Project` or `Observation` writes.
 
-- [ ] **[`gridlock#3`](https://github.com/samasastudio/gridlock/issues/3) — Site Access Guard, Ethical/PII Sanitizers & `--backfill` Discovery (Seam 1)** (`~350 LOC`)
+- [x] **[`gridlock#3`](https://github.com/samasastudio/gridlock/issues/3) — Site Access Guard, Ethical/PII Sanitizers & `--backfill` Discovery (Seam 1)** (`~350 LOC`)
   - **Blocked by**: [`#2`](https://github.com/samasastudio/gridlock/issues/2)
   - **Unlocks**: `#4`, `#5`, `#7` *(3 parallel tracks)*
   - **Delivers**: Adds `POST /TABS/Search/SearchProjects` discovery (`--backfill` + daily weekday mode), `verifySiteAccess` (`blocked_by_waf` vs. `selector_anomaly`, `robots.txt` / `429`), polite single-flight pacing (`GridlockCivicResearchBot/1.0`, `>= 1,500ms`), deterministic PII redaction, and opt-in `LIVE_ACCESS_TEST=1` smoke check.
   - **Testing Validation Gate**:
-    - [ ] **Happy Path**: Discovers and ingests filings chronologically via `POST /TABS/Search/SearchProjects` using the transparent `GridlockCivicResearchBot/1.0` User-Agent and single-flight pacing (`maxConcurrency: 1`, `>= 1,500ms`), and deterministically redacts personal phone numbers, personal emails, and residential addresses while retaining corporate `OwnerName` / `FacilityName` / `DesignFirmName`.
-    - [ ] **Sad Path**: `verifySiteAccess` immediately halts with `status: "blocked_by_waf"` and `0` Gemini tokens when served HTTP `403`/`429`/`503`, `robots.txt` disallow rules, `Retry-After` headers, Imperva `/_Incapsula_Resource` challenges, or Cloudflare Turnstile pages; enforces the `<= 100` records/run circuit breaker when discovery returns oversized result sets.
+    - [x] **Happy Path**: Discovers and ingests filings chronologically via `POST /TABS/Search/SearchProjects` using the transparent `GridlockCivicResearchBot/1.0` User-Agent and single-flight pacing (`maxConcurrency: 1`, `>= 1,500ms`), and deterministically redacts personal phone numbers, personal emails, and residential addresses while retaining corporate `OwnerName` / `FacilityName` / `DesignFirmName`.
+    - [x] **Sad Path**: `verifySiteAccess` immediately halts with `status: "blocked_by_waf"` and `0` Gemini tokens when served HTTP `403`/`429`/`503`, `robots.txt` disallow rules, `Retry-After` headers, Imperva `/_Incapsula_Resource` challenges, or Cloudflare Turnstile pages; enforces the `<= 100` records/run circuit breaker when discovery returns oversized result sets.
 
 ---
 

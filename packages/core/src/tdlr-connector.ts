@@ -4,25 +4,49 @@ import {
   ObservationSchema,
   ProjectSchema,
   SourceArtifactSchema,
+  TdlrSearchRowSchema,
   type ConnectorConfig,
   type Observation,
   type Project,
   type SourceArtifact,
+  type TdlrSearchRow,
 } from "./schemas.ts";
 import type { GridlockRepository } from "./repository.ts";
+import {
+  GRIDLOCK_USER_AGENT,
+  headersToRecord,
+  isPathAllowedByRobotsTxt,
+  sanitizeLocationAddressPii,
+  sanitizeTextPii,
+  verifySiteAccess,
+  type SiteAccessCheckResult,
+  type SiteAccessInput,
+} from "./site-access-and-pii.ts";
 
-export const GRIDLOCK_USER_AGENT =
-  "GridlockCivicResearchBot/1.0 (+https://samasastudio.com; contact@samasastudio.com)";
+export {
+  GRIDLOCK_USER_AGENT,
+  isPathAllowedByRobotsTxt,
+  sanitizeLocationAddressPii,
+  sanitizeTextPii,
+  verifySiteAccess,
+  type SiteAccessCheckResult,
+  type SiteAccessInput,
+};
 
 export const DEFAULT_TDLR_BASE_URL = "https://www.tdlr.texas.gov";
 export const ARTIFACT_BUCKET_URI = "gs://gridlock-artifacts";
 export const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+export const DEFAULT_DAILY_LOOKBACK_MS = 14 * 24 * 60 * 60 * 1000;
 export const MILESTONE_COST_THRESHOLD_USD = 25_000_000;
+export const MIN_POLITE_DELAY_MS = 1_500;
+export const MAX_RECORDS_PER_RUN = 100;
+export const MAX_CONCURRENCY = 1;
 
 export interface PageLoaderResponse {
   status: number;
   contentType: string;
   body: string;
+  headers?: Record<string, string | undefined>;
 }
 
 export type PageLoader = (url: string) => Promise<PageLoaderResponse>;
@@ -38,7 +62,9 @@ export interface PlaywrightPageLike {
   content(): Promise<string>;
 }
 
-export function createPlaywrightPageLoader(page: PlaywrightPageLike): PageLoader {
+export function createPlaywrightPageLoader(
+  page: PlaywrightPageLike
+): PageLoader {
   return async (url: string): Promise<PageLoaderResponse> => {
     const response = await page.goto(url, { waitUntil: "domcontentloaded" });
     const body = await page.content();
@@ -47,6 +73,7 @@ export function createPlaywrightPageLoader(page: PlaywrightPageLike): PageLoader
       status: response?.status() ?? 200,
       contentType: headers["content-type"] ?? "text/html; charset=utf-8",
       body,
+      headers,
     };
   };
 }
@@ -61,8 +88,10 @@ export const defaultPageLoader: PageLoader = async (url: string) => {
   const body = await response.text();
   return {
     status: response.status,
-    contentType: response.headers.get("content-type") ?? "text/html; charset=utf-8",
+    contentType:
+      response.headers.get("content-type") ?? "text/html; charset=utf-8",
     body,
+    headers: headersToRecord(response.headers),
   };
 };
 
@@ -81,7 +110,81 @@ export type IngestFilingResult =
       status: "selector_anomaly";
       sourceArtifact: SourceArtifact;
       invariantErrors: string[];
+    }
+  | {
+      status: "blocked_by_waf";
+      reason: string;
+      retryAfterSeconds?: number;
+      tokensUsed: 0;
     };
+
+async function markBlockedByWaf(
+  repository: GridlockRepository,
+  connectorId: string,
+  nowIso: string,
+  access: Extract<SiteAccessCheckResult, { allowed: false }>
+): Promise<{
+  status: "blocked_by_waf";
+  reason: string;
+  retryAfterSeconds?: number;
+  tokensUsed: 0;
+}> {
+  await repository.setConnectorStatus(connectorId, "blocked_by_waf", nowIso);
+  return {
+    status: "blocked_by_waf",
+    reason: access.reason,
+    ...(access.retryAfterSeconds !== undefined
+      ? { retryAfterSeconds: access.retryAfterSeconds }
+      : {}),
+    tokensUsed: 0,
+  };
+}
+
+async function preflightRobotsTxt(params: {
+  baseUrl: string;
+  targetPath: string;
+  providedRobotsTxt?: string;
+  pageLoader: PageLoader;
+  now: Date;
+}): Promise<
+  | { allowed: true; robotsTxt: string }
+  | {
+      allowed: false;
+      access: Extract<SiteAccessCheckResult, { allowed: false }>;
+    }
+> {
+  let robotsTxt = params.providedRobotsTxt;
+  if (robotsTxt === undefined) {
+    try {
+      const robotsRes = await params.pageLoader(`${params.baseUrl}/robots.txt`);
+      const robotsAccess = verifySiteAccess({
+        status: robotsRes.status === 404 ? 200 : robotsRes.status,
+        headers: robotsRes.headers,
+        body: robotsRes.status === 404 ? "" : robotsRes.body,
+        now: params.now,
+      });
+      if (!robotsAccess.allowed) {
+        return { allowed: false, access: robotsAccess };
+      }
+      robotsTxt = robotsRes.status === 200 ? robotsRes.body : "";
+    } catch {
+      robotsTxt = "";
+    }
+  }
+
+  const pathCheck = verifySiteAccess({
+    status: 200,
+    body: "",
+    robotsTxt,
+    targetPath: params.targetPath,
+    now: params.now,
+  });
+  if (!pathCheck.allowed) {
+    return { allowed: false, access: pathCheck };
+  }
+
+  return { allowed: true, robotsTxt };
+}
 
 function stripHtmlTags(html: string): string {
   return html
@@ -160,7 +263,10 @@ function extractDefinitionListFields(
         if (!fields.has(currentTerm)) {
           fields.set(currentTerm, []);
         }
-      } else if (tag === config.descriptionSelector.toLowerCase() && currentTerm) {
+      } else if (
+        tag === config.descriptionSelector.toLowerCase() &&
+        currentTerm
+      ) {
         const list = fields.get(currentTerm) ?? [];
         if (text.length > 0) {
           list.push(text);
@@ -230,6 +336,7 @@ export async function ingestTdlrFiling(
     projectNumber: string;
     baseUrl?: string;
     now?: Date;
+    robotsTxt?: string;
   },
   deps: {
     repository: GridlockRepository;
@@ -240,13 +347,50 @@ export async function ingestTdlrFiling(
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
   const pageLoader = deps.pageLoader ?? defaultPageLoader;
-  const sourceUrl = `${baseUrl}/TABS/Search/Project/${encodeURIComponent(input.projectNumber)}`;
+  const targetPath = `/TABS/Search/Project/${encodeURIComponent(input.projectNumber)}`;
+  const sourceUrl = `${baseUrl}${targetPath}`;
+  const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
+
+  const preflight = await preflightRobotsTxt({
+    baseUrl,
+    targetPath,
+    providedRobotsTxt: input.robotsTxt,
+    pageLoader,
+    now,
+  });
+  if (!preflight.allowed) {
+    return markBlockedByWaf(
+      deps.repository,
+      config.connectorId,
+      nowIso,
+      preflight.access
+    );
+  }
 
   const response = await pageLoader(sourceUrl);
+  const accessCheck = verifySiteAccess({
+    status: response.status,
+    headers: response.headers,
+    body: response.body,
+    robotsTxt: preflight.robotsTxt,
+    targetPath,
+    now,
+  });
+
+  if (!accessCheck.allowed) {
+    return markBlockedByWaf(
+      deps.repository,
+      config.connectorId,
+      nowIso,
+      accessCheck
+    );
+  }
+
   const rawBuffer = Buffer.from(response.body, "utf-8");
   const sha256 = createHash("sha256").update(rawBuffer).digest("hex");
 
-  const existingArtifact = await deps.repository.getSourceArtifactByHash(sha256);
+  const existingArtifact =
+    await deps.repository.getSourceArtifactByHash(sha256);
   if (
     existingArtifact &&
     !existingArtifact.storageUri.includes("/quarantine/")
@@ -257,9 +401,10 @@ export async function ingestTdlrFiling(
     };
   }
 
-  const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
   const gzipBuffer = gzipSync(rawBuffer);
-  const plusNinetyDaysIso = new Date(now.getTime() + NINETY_DAYS_MS).toISOString();
+  const plusNinetyDaysIso = new Date(
+    now.getTime() + NINETY_DAYS_MS
+  ).toISOString();
 
   const quarantineWithErrors = async (
     invariantErrors: string[]
@@ -304,24 +449,33 @@ export async function ingestTdlrFiling(
 
   const labels = config.fieldLabels;
 
-  const getSingle = (label: string): string => (fields.get(label) ?? [])[0] ?? "";
-  const getMultiJoined = (label: string): string => (fields.get(label) ?? []).join(", ");
+  const getSingle = (label: string): string =>
+    (fields.get(label) ?? [])[0] ?? "";
+  const rawDesignFirm = labels.designFirmName
+    ? getSingle(labels.designFirmName)
+    : "";
+  const sanitizedDesignFirm = rawDesignFirm
+    ? sanitizeTextPii(rawDesignFirm)
+    : undefined;
 
   const estimatedCostUsd = parseCurrencyUsd(getSingle(labels.estimatedCost));
   const squareFootage = parseSquareFootage(getSingle(labels.squareFootage));
 
   const parsedProject = ProjectSchema.safeParse({
     projectNumber: getSingle(labels.projectNumber),
-    projectName: getSingle(labels.projectName),
-    facilityName: getSingle(labels.facilityName),
-    ownerName: getSingle(labels.ownerName),
-    locationAddress: getMultiJoined(labels.locationAddress),
-    county: getSingle(labels.county),
+    projectName: sanitizeTextPii(getSingle(labels.projectName)),
+    facilityName: sanitizeTextPii(getSingle(labels.facilityName)),
+    ownerName: sanitizeTextPii(getSingle(labels.ownerName)),
+    ...(sanitizedDesignFirm ? { designFirmName: sanitizedDesignFirm } : {}),
+    locationAddress: sanitizeLocationAddressPii(
+      fields.get(labels.locationAddress) ?? []
+    ),
+    county: sanitizeTextPii(getSingle(labels.county)),
     estimatedCostUsd,
     squareFootage,
-    typeOfWork: getSingle(labels.typeOfWork),
-    scopeOfWork: getSingle(labels.scopeOfWork),
-    currentStatus: getSingle(labels.currentStatus),
+    typeOfWork: sanitizeTextPii(getSingle(labels.typeOfWork)),
+    scopeOfWork: sanitizeTextPii(getSingle(labels.scopeOfWork)),
+    currentStatus: sanitizeTextPii(getSingle(labels.currentStatus)),
     startDate: parseUsSlashDateToIso(getSingle(labels.startDate)),
     completionDate: parseUsSlashDateToIso(getSingle(labels.completionDate)),
     latestSourceArtifactHash: sha256,
@@ -336,10 +490,13 @@ export async function ingestTdlrFiling(
   }
 
   const project = parsedProject.data;
-  const existingProject = await deps.repository.getProjectByNumber(project.projectNumber);
+  const existingProject = await deps.repository.getProjectByNumber(
+    project.projectNumber
+  );
   const isMilestone =
     project.estimatedCostUsd >= MILESTONE_COST_THRESHOLD_USD ||
-    (existingProject !== null && existingProject.currentStatus !== project.currentStatus);
+    (existingProject !== null &&
+      existingProject.currentStatus !== project.currentStatus);
 
   const sourceArtifact = buildSourceArtifact({
     sha256,
@@ -374,5 +531,337 @@ export async function ingestTdlrFiling(
     sourceArtifact,
     project,
     observation,
+  };
+}
+
+export type TdlrDiscoveryMode = "backfill" | "daily";
+
+export interface TdlrSearchFilter {
+  field: "ProjectName" | "FacilityName" | "OwnerName";
+  value: string;
+}
+
+export const DEFAULT_TDLR_SEARCH_FILTERS: readonly TdlrSearchFilter[] = [
+  { field: "ProjectName", value: "Data Center" },
+  { field: "ProjectName", value: "Datacenter" },
+  { field: "FacilityName", value: "Data Center" },
+  { field: "OwnerName", value: "Datacenter" },
+  { field: "OwnerName", value: "QTS" },
+  { field: "OwnerName", value: "CyrusOne" },
+  { field: "OwnerName", value: "Compass" },
+  { field: "OwnerName", value: "Colovore" },
+];
+
+export type SearchLoader = (
+  url: string,
+  formBody: string
+) => Promise<PageLoaderResponse>;
+
+export const defaultSearchLoader: SearchLoader = async (
+  url: string,
+  formBody: string
+): Promise<PageLoaderResponse> => {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "user-agent": GRIDLOCK_USER_AGENT,
+      "x-requested-with": "XMLHttpRequest",
+      "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+      accept: "application/json, text/javascript, */*; q=0.01",
+    },
+    body: formBody,
+  });
+  const body = await response.text();
+  return {
+    status: response.status,
+    contentType:
+      response.headers.get("content-type") ?? "application/json; charset=utf-8",
+    body,
+    headers: headersToRecord(response.headers),
+  };
+};
+
+export function parseTdlrCliArgs(argv: readonly string[]): {
+  mode: TdlrDiscoveryMode;
+} {
+  return {
+    mode: argv.includes("--backfill") ? "backfill" : "daily",
+  };
+}
+
+const COMPUTE_INFRASTRUCTURE_KEYWORDS =
+  /\b(?:data\s*centers?|datacenters?|qts|cyrusone|compass\s+datacenters?|colovore|substation|semiconductor|hyperscale|server\s+farm|colocation|ai\s+campus|compute)\b/i;
+
+const NON_COMPUTE_FALSE_POSITIVE_PATTERN =
+  /\b(?:shopping|community|fitness|daycare|recreation|senior|convention|retail)\s+center\b/i;
+
+export function isComputeInfrastructureFiling(row: {
+  ProjectName: string;
+  FacilityName?: string;
+  OwnerName?: string;
+  ScopeOfWork?: string;
+}): boolean {
+  const combined = [
+    row.ProjectName,
+    row.FacilityName ?? "",
+    row.OwnerName ?? "",
+    row.ScopeOfWork ?? "",
+  ].join(" ");
+
+  if (
+    NON_COMPUTE_FALSE_POSITIVE_PATTERN.test(combined) &&
+    !/\b(?:data\s*centers?|datacenters?)\b/i.test(combined)
+  ) {
+    return false;
+  }
+
+  return COMPUTE_INFRASTRUCTURE_KEYWORDS.test(combined);
+}
+
+const defaultSleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const defaultJitterMs = (): number => Math.floor(Math.random() * 250);
+
+export type TdlrDiscoverySweepResult =
+  | {
+      status: "completed";
+      mode: TdlrDiscoveryMode;
+      discoveredCount: number;
+      ingestedProjectNumbers: string[];
+      results: IngestFilingResult[];
+      circuitBreakerTripped: boolean;
+      skippedByCircuitBreakerCount: number;
+      tokensUsed: 0;
+    }
+  | {
+      status: "blocked_by_waf";
+      mode: TdlrDiscoveryMode;
+      reason: string;
+      retryAfterSeconds?: number;
+      tokensUsed: 0;
+    };
+
+export async function runTdlrDiscoverySweep(
+  input: {
+    mode?: TdlrDiscoveryMode;
+    baseUrl?: string;
+    now?: Date;
+    sinceDate?: Date;
+    searchFilters?: readonly TdlrSearchFilter[];
+    backfillStartYear?: number;
+    backfillEndYear?: number;
+    minDelayMs?: number;
+    maxRecordsPerRun?: number;
+  },
+  deps: {
+    repository: GridlockRepository;
+    pageLoader?: PageLoader;
+    searchLoader?: SearchLoader;
+    sleep?: (ms: number) => Promise<void>;
+    jitterMs?: () => number;
+  }
+): Promise<TdlrDiscoverySweepResult> {
+  const mode: TdlrDiscoveryMode = input.mode ?? "daily";
+  const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
+  const now = input.now ?? new Date();
+  const nowIso = now.toISOString();
+  const pageLoader = deps.pageLoader ?? defaultPageLoader;
+  const searchLoader = deps.searchLoader ?? defaultSearchLoader;
+  const sleep = deps.sleep ?? defaultSleep;
+  const jitterMs = deps.jitterMs ?? defaultJitterMs;
+  const baseDelayMs = Math.max(
+    MIN_POLITE_DELAY_MS,
+    input.minDelayMs ?? MIN_POLITE_DELAY_MS
+  );
+  const maxRecordsPerRun = Math.min(
+    MAX_RECORDS_PER_RUN,
+    Math.max(1, input.maxRecordsPerRun ?? MAX_RECORDS_PER_RUN)
+  );
+  const backfillStartYear = input.backfillStartYear ?? 2024;
+  const backfillEndYear = input.backfillEndYear ?? 2026;
+  const effectiveSinceDate =
+    input.sinceDate ??
+    (mode === "daily"
+      ? new Date(now.getTime() - DEFAULT_DAILY_LOOKBACK_MS)
+      : undefined);
+
+  const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
+  const searchPath = "/TABS/Search/SearchProjects";
+
+  // 1. Preflight robots.txt once per sweep
+  const preflight = await preflightRobotsTxt({
+    baseUrl,
+    targetPath: searchPath,
+    pageLoader,
+    now,
+  });
+  if (!preflight.allowed) {
+    const blocked = await markBlockedByWaf(
+      deps.repository,
+      config.connectorId,
+      nowIso,
+      preflight.access
+    );
+    return { ...blocked, mode };
+  }
+
+  // 2. Enforce single-token guardrail on OwnerName filters
+  const rawFilters = input.searchFilters ?? DEFAULT_TDLR_SEARCH_FILTERS;
+  const safeFilters = rawFilters.filter((filter) => {
+    const trimmed = filter.value.trim();
+    if (!trimmed) return false;
+    if (filter.field === "OwnerName" && /\s/.test(trimmed)) {
+      return false;
+    }
+    return true;
+  });
+
+  // 3. Single-flight discovery queries (maxConcurrency: 1)
+  const discoveredByNumber = new Map<string, TdlrSearchRow>();
+  const searchUrl = `${baseUrl}${searchPath}`;
+
+  for (let i = 0; i < safeFilters.length; i += 1) {
+    const filter = safeFilters[i]!;
+    if (i > 0) {
+      await sleep(baseDelayMs + Math.max(0, jitterMs()));
+    }
+    const formBody = new URLSearchParams({
+      [filter.field]: filter.value.trim(),
+      draw: String(i + 1),
+      start: "0",
+      length: "100",
+    }).toString();
+
+    const searchRes = await searchLoader(searchUrl, formBody);
+    const searchAccess = verifySiteAccess({
+      status: searchRes.status,
+      headers: searchRes.headers,
+      body: searchRes.body,
+      robotsTxt: preflight.robotsTxt,
+      targetPath: searchPath,
+      now,
+    });
+    if (!searchAccess.allowed) {
+      const blocked = await markBlockedByWaf(
+        deps.repository,
+        config.connectorId,
+        nowIso,
+        searchAccess
+      );
+      return { ...blocked, mode };
+    }
+
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(searchRes.body);
+    } catch {
+      continue;
+    }
+
+    const rawRows: unknown[] = Array.isArray(parsedJson)
+      ? parsedJson
+      : parsedJson !== null &&
+          typeof parsedJson === "object" &&
+          Array.isArray((parsedJson as { data?: unknown }).data)
+        ? (parsedJson as { data: unknown[] }).data
+        : [];
+
+    for (const rawRow of rawRows) {
+      const parsedRow = TdlrSearchRowSchema.safeParse(rawRow);
+      if (!parsedRow.success) continue;
+      const row = parsedRow.data;
+      if (!isComputeInfrastructureFiling(row)) continue;
+
+      const createdMs = Date.parse(row.ProjectCreatedOn);
+      if (mode === "backfill") {
+        if (Number.isNaN(createdMs)) continue;
+        const createdYear = new Date(createdMs).getUTCFullYear();
+        if (createdYear < backfillStartYear || createdYear > backfillEndYear) {
+          continue;
+        }
+      }
+
+      if (effectiveSinceDate) {
+        if (
+          Number.isNaN(createdMs) ||
+          createdMs < effectiveSinceDate.getTime()
+        ) {
+          continue;
+        }
+      }
+
+      if (!discoveredByNumber.has(row.ProjectNumber)) {
+        discoveredByNumber.set(row.ProjectNumber, row);
+      }
+    }
+  }
+
+  // 4. Sort chronologically (ProjectCreatedOn ASC)
+  const chronologicalRows = Array.from(discoveredByNumber.values()).sort(
+    (a, b) => {
+      const diff =
+        Date.parse(a.ProjectCreatedOn) - Date.parse(b.ProjectCreatedOn);
+      if (diff !== 0 && !Number.isNaN(diff)) {
+        return diff;
+      }
+      return a.ProjectNumber.localeCompare(b.ProjectNumber);
+    }
+  );
+
+  // 5. Enforce <= 100 records/run circuit breaker
+  const discoveredCount = chronologicalRows.length;
+  const circuitBreakerTripped = discoveredCount > maxRecordsPerRun;
+  const skippedByCircuitBreakerCount = circuitBreakerTripped
+    ? discoveredCount - maxRecordsPerRun
+    : 0;
+  const boundedRows = chronologicalRows.slice(0, maxRecordsPerRun);
+
+  // 6. Ingest each filing single-flight with polite pacing (>= 1,500ms + jitter)
+  const results: IngestFilingResult[] = [];
+  const ingestedProjectNumbers: string[] = [];
+
+  for (const row of boundedRows) {
+    await sleep(baseDelayMs + Math.max(0, jitterMs()));
+    const filingResult = await ingestTdlrFiling(
+      {
+        projectNumber: row.ProjectNumber,
+        baseUrl,
+        now,
+        robotsTxt: preflight.robotsTxt,
+      },
+      {
+        repository: deps.repository,
+        pageLoader,
+      }
+    );
+
+    if (filingResult.status === "blocked_by_waf") {
+      return {
+        status: "blocked_by_waf",
+        mode,
+        reason: filingResult.reason,
+        ...(filingResult.retryAfterSeconds !== undefined
+          ? { retryAfterSeconds: filingResult.retryAfterSeconds }
+          : {}),
+        tokensUsed: 0,
+      };
+    }
+
+    results.push(filingResult);
+    if (filingResult.status === "ingested") {
+      ingestedProjectNumbers.push(row.ProjectNumber);
+    }
+  }
+
+  return {
+    status: "completed",
+    mode,
+    discoveredCount,
+    ingestedProjectNumbers,
+    results,
+    circuitBreakerTripped,
+    skippedByCircuitBreakerCount,
+    tokensUsed: 0,
   };
 }
