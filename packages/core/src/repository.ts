@@ -222,6 +222,19 @@ export function createInMemoryGridlockRepository(
       const validatedEntry = RepairChangelogEntrySchema.parse(changelogEntry);
       configs.set(validatedConfig.connectorId, structuredClone(validatedConfig));
       repairChangelog.push(structuredClone(validatedEntry));
+      const quarantinedArtifact = artifacts.get(
+        validatedEntry.quarantinedArtifactHash
+      );
+      if (quarantinedArtifact) {
+        artifacts.set(
+          validatedEntry.quarantinedArtifactHash,
+          SourceArtifactSchema.parse({
+            ...quarantinedArtifact,
+            referencedByMilestone: true,
+            expiresAt: null,
+          })
+        );
+      }
       const totalMttrMs = repairChangelog.reduce(
         (sum, item) => sum + item.mttrMs,
         0

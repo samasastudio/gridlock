@@ -4,6 +4,7 @@ import {
   CandidateSelectorPatchSchema,
   ConnectorConfigSchema,
   RepairChangelogEntrySchema,
+  TdlrFieldLabelsSchema,
   type CandidateSelectorPatch,
   type ConnectorConfig,
   type RepairChangelogEntry,
@@ -24,9 +25,6 @@ export const REPAIR_AGENT_MODEL = "gemini-3.8-flash" as const;
 export interface GeminiInteractionCreateRequest {
   model: string;
   input: string | Array<Record<string, unknown>>;
-  store?: boolean;
-  previous_interaction_id?: string;
-  system_instruction?: string;
   response_format?: {
     type: "text";
     mime_type: "application/json";
@@ -38,10 +36,6 @@ export interface GeminiInteractionResponse {
   id: string;
   status?: string;
   output_text?: string | null;
-  output_image?: {
-    data: string;
-    mime_type: string;
-  } | null;
   usage?: {
     total_tokens?: number;
   };
@@ -64,22 +58,12 @@ export const CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA: Record<string, unknown> = {
     descriptionSelector: { type: "string" },
     fieldLabels: {
       type: "object",
-      properties: {
-        projectName: { type: "string" },
-        projectNumber: { type: "string" },
-        facilityName: { type: "string" },
-        locationAddress: { type: "string" },
-        county: { type: "string" },
-        startDate: { type: "string" },
-        completionDate: { type: "string" },
-        estimatedCost: { type: "string" },
-        typeOfWork: { type: "string" },
-        scopeOfWork: { type: "string" },
-        squareFootage: { type: "string" },
-        currentStatus: { type: "string" },
-        ownerName: { type: "string" },
-        designFirmName: { type: "string" },
-      },
+      properties: Object.fromEntries(
+        Object.keys(TdlrFieldLabelsSchema.shape).map((key) => [
+          key,
+          { type: "string" },
+        ])
+      ),
     },
     rootCauseSummary: { type: "string" },
   },
@@ -163,14 +147,20 @@ export function evaluateSandboxReplayGate(input: {
   if (selectorDiffs.length === 0) {
     failureReasons.push("Candidate patch produced zero selector diffs");
   }
+  if (historicalFixtures.length === 0) {
+    failureReasons.push(
+      "At least 1 historical fixture is required for Sandbox Replay Gate verification"
+    );
+  }
 
-  const quarantinedHash = createHash("sha256")
-    .update(Buffer.from(quarantinedHtml, "utf-8"))
-    .digest("hex");
-  const quarantinedParse = parseTdlrFilingHtml(quarantinedHtml, candidateConfig, {
-    sha256: quarantinedHash,
-    nowIso,
-  });
+  const replayFixture = (html: string) => {
+    const sha256 = createHash("sha256")
+      .update(Buffer.from(html, "utf-8"))
+      .digest("hex");
+    return parseTdlrFilingHtml(html, candidateConfig, { sha256, nowIso });
+  };
+
+  const quarantinedParse = replayFixture(quarantinedHtml);
   const quarantinedPassed = quarantinedParse.ok;
   if (!quarantinedParse.ok) {
     failureReasons.push(
@@ -180,14 +170,7 @@ export function evaluateSandboxReplayGate(input: {
 
   let historicalFixturesPassed = 0;
   for (let i = 0; i < historicalFixtures.length; i += 1) {
-    const fixtureHtml = historicalFixtures[i]!;
-    const fixtureHash = createHash("sha256")
-      .update(Buffer.from(fixtureHtml, "utf-8"))
-      .digest("hex");
-    const parsed = parseTdlrFilingHtml(fixtureHtml, candidateConfig, {
-      sha256: fixtureHash,
-      nowIso,
-    });
+    const parsed = replayFixture(historicalFixtures[i]!);
     if (parsed.ok) {
       historicalFixturesPassed += 1;
     } else {
@@ -199,6 +182,7 @@ export function evaluateSandboxReplayGate(input: {
 
   const passed =
     selectorDiffs.length > 0 &&
+    historicalFixtures.length > 0 &&
     quarantinedPassed &&
     historicalFixturesPassed === historicalFixtures.length;
 

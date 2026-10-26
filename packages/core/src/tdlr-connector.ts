@@ -229,15 +229,21 @@ function parseCssClassToken(selector: string): {
   };
 }
 
+function splitSelectorList(selector: string, lowerCase = false): string[] {
+  return selector
+    .split(",")
+    .map((s) => (lowerCase ? s.trim().toLowerCase() : s.trim()))
+    .filter(Boolean);
+}
+
 function extractDefinitionListFields(
   html: string,
   config: ConnectorConfig
 ): { containerFound: boolean; fields: Map<string, string[]> } {
   const fields = new Map<string, string[]>();
-  const containerAlternatives = config.detailContainerSelector
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const containerAlternatives = splitSelectorList(
+    config.detailContainerSelector
+  );
 
   let containerMatch: RegExpExecArray | null = null;
   for (const alt of containerAlternatives) {
@@ -258,18 +264,9 @@ function extractDefinitionListFields(
   }
 
   const scopedHtml = html.slice(containerMatch.index);
-  const dlAlternatives = config.definitionListSelector
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const termTags = config.termSelector
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  const descTags = config.descriptionSelector
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
+  const dlAlternatives = splitSelectorList(config.definitionListSelector);
+  const termTags = splitSelectorList(config.termSelector, true);
+  const descTags = splitSelectorList(config.descriptionSelector, true);
   const allTokenTags = [...termTags, ...descTags].map(escapeRegExp).join("|");
 
   const tokenPattern = new RegExp(
