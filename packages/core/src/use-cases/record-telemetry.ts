@@ -1,17 +1,20 @@
+import { defaultSpanSink } from "../adapters/cloud-logging-sink.ts";
 import {
+  type ConnectorConfig,
   type EfficiencyLedger,
   type ExecutionMode,
+  type GridlockRepository,
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
 import {
+  applyHealAmortization,
+  applyTelemetryRunToLedger,
   buildTelemetryRun,
   buildTelemetrySpan,
 } from "./helpers/telemetry-math.ts";
-
-const noopSpanSink: TelemetrySpanSink = () => {};
 
 export async function recordStageTelemetry(
   input: {
@@ -32,9 +35,7 @@ export async function recordStageTelemetry(
     attributes?: Record<string, string | number | boolean | null>;
   },
   deps: {
-    repository: {
-      recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
-    };
+    repository: GridlockRepository;
     spanSink?: TelemetrySpanSink;
   }
 ): Promise<{ run: TelemetryRun; span: TelemetrySpan; ledger: EfficiencyLedger }> {
@@ -68,7 +69,39 @@ export async function recordStageTelemetry(
     recordedAt: input.recordedAt ?? input.endedAt.toISOString(),
   });
 
-  const ledger = await deps.repository.recordTelemetryRun(run);
+  const currentLedger = await deps.repository.getEfficiencyLedger();
+  const existingRuns = await deps.repository.listTelemetryRuns();
+  const recentSlice = [...existingRuns, run].slice(-50);
+  const ledgerAfterRun = applyTelemetryRunToLedger(
+    currentLedger,
+    run,
+    recentSlice
+  );
+
+  let activeConfig: ConnectorConfig | undefined;
+  if (run.connectorId) {
+    try {
+      activeConfig = await deps.repository.getActiveConnectorConfig(
+        run.connectorId
+      );
+    } catch {
+      activeConfig = undefined;
+    }
+  }
+
+  const currentChangelog = await deps.repository.listRepairChangelog();
+  const amortized = applyHealAmortization({
+    run,
+    activeConfig,
+    repairChangelog: currentChangelog,
+    ledger: ledgerAfterRun,
+  });
+
+  const ledger = await deps.repository.recordTelemetryRun(run, {
+    updatedLedger: amortized.updatedLedger,
+    updatedChangelog: amortized.updatedChangelog,
+  });
+
   const span = buildTelemetrySpan({
     stage: input.stage,
     execution_mode: input.execution_mode,
@@ -85,7 +118,7 @@ export async function recordStageTelemetry(
       : {}),
   });
 
-  const sink = deps.spanSink ?? noopSpanSink;
+  const sink = deps.spanSink ?? defaultSpanSink;
   sink(span);
 
   return { run, span, ledger };
@@ -106,9 +139,7 @@ export async function recordAgenticStageTelemetry(
     attributes?: Record<string, string | number | boolean | null>;
   },
   deps: {
-    repository: {
-      recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
-    };
+    repository: GridlockRepository;
     spanSink?: TelemetrySpanSink;
   }
 ): Promise<{ run: TelemetryRun; span: TelemetrySpan; ledger: EfficiencyLedger }> {

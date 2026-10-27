@@ -56,6 +56,7 @@ export {
 } from "./repair-models.ts";
 
 export type {
+  ConnectorPromotionStateUpdate,
   GeminiInteractionCreateRequest,
   GeminiInteractionResponse,
   GeminiInteractionsClient,
@@ -66,6 +67,7 @@ export type {
   SearchLoader,
   TelemetryLedgerQueryOptions,
   TelemetrySpanSink,
+  TelemetryStateUpdate,
 } from "./adapter-contracts.ts";
 
 export {

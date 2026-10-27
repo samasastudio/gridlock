@@ -1,3 +1,8 @@
+import { defaultSpanSink } from "../adapters/cloud-logging-sink.ts";
+import {
+  defaultPageLoader,
+  defaultSearchLoader,
+} from "../adapters/http-loaders.ts";
 import {
   DEFAULT_DAILY_LOOKBACK_MS,
   DEFAULT_TDLR_BASE_URL,
@@ -35,7 +40,6 @@ const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 const defaultJitterMs = (): number => Math.floor(Math.random() * 250);
-const noopSpanSink: TelemetrySpanSink = () => {};
 
 export async function runTdlrDiscoverySweep(
   input: {
@@ -51,8 +55,8 @@ export async function runTdlrDiscoverySweep(
   },
   deps: {
     repository: GridlockRepository;
-    pageLoader: PageLoader;
-    searchLoader: SearchLoader;
+    pageLoader?: PageLoader;
+    searchLoader?: SearchLoader;
     sleep?: (ms: number) => Promise<void>;
     jitterMs?: () => number;
     spanSink?: TelemetrySpanSink;
@@ -63,7 +67,8 @@ export async function runTdlrDiscoverySweep(
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
-  const { pageLoader, searchLoader } = deps;
+  const pageLoader = deps.pageLoader ?? defaultPageLoader;
+  const searchLoader = deps.searchLoader ?? defaultSearchLoader;
   const sleep = deps.sleep ?? defaultSleep;
   const jitterMs = deps.jitterMs ?? defaultJitterMs;
   const baseDelayMs = Math.max(
@@ -239,7 +244,7 @@ export async function runTdlrDiscoverySweep(
     }
     return sum;
   }, 0);
-  const sink = deps.spanSink ?? noopSpanSink;
+  const sink = deps.spanSink ?? defaultSpanSink;
   sink(
     buildTelemetrySpan({
       stage: "tdlr_discovery_sweep",

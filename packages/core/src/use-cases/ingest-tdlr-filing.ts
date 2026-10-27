@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
+import { defaultPageLoader } from "../adapters/http-loaders.ts";
 import {
   DEFAULT_TDLR_BASE_URL,
   MILESTONE_COST_THRESHOLD_USD,
@@ -35,7 +36,7 @@ export async function ingestTdlrFiling(
   },
   deps: {
     repository: GridlockRepository;
-    pageLoader: PageLoader;
+    pageLoader?: PageLoader;
     spanSink?: TelemetrySpanSink;
   }
 ): Promise<IngestFilingResult> {
@@ -43,7 +44,7 @@ export async function ingestTdlrFiling(
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
-  const pageLoader = deps.pageLoader;
+  const pageLoader = deps.pageLoader ?? defaultPageLoader;
   const targetPath = `/TABS/Search/Project/${encodeURIComponent(input.projectNumber)}`;
   const sourceUrl = `${baseUrl}${targetPath}`;
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");

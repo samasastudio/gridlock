@@ -70,14 +70,20 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
       for (const spec of specifiers) {
         if (!spec.startsWith(".")) continue;
         if (topDir === "interfaces") {
-          if (/(?:^|\/)(?:use-cases|adapters|controllers)(?:\/|$)/.test(spec)) {
+          if (/(?:^|\b)(?:use-cases|adapters|controllers)(?:\/|$)/.test(spec)) {
             violations.push(
               `${relPath}: Clean Architecture violation — interfaces/ must not import from "${spec}" (ADR-0004)`
             );
           }
+        } else if (topDir === "adapters") {
+          if (/(?:^|\b)(?:use-cases|controllers)(?:\/|$)/.test(spec)) {
+            violations.push(
+              `${relPath}: Clean Architecture violation — adapters/ must only import from interfaces/, not "${spec}" (ADR-0004)`
+            );
+          }
         } else if (subPath.startsWith("use-cases/helpers/")) {
           if (
-            /(?:^|\/)(?:adapters|controllers)(?:\/|$)/.test(spec) ||
+            /(?:^|\b)(?:adapters|controllers)(?:\/|$)/.test(spec) ||
             (spec.startsWith("../") && !spec.startsWith("../../interfaces/"))
           ) {
             violations.push(
@@ -85,19 +91,15 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
             );
           }
         } else if (topDir === "use-cases") {
-          if (/(?:^|\/)(?:adapters|controllers)(?:\/|$)/.test(spec)) {
+          if (/(?:^|\b)controllers(?:\/|$)/.test(spec)) {
             violations.push(
-              `${relPath}: Clean Architecture violation — use-cases/ must not import from outer adapters/ or controllers/ ("${spec}") (ADR-0004)`
+              `${relPath}: Clean Architecture violation — use-cases/ must not import from controllers/ ("${spec}") (ADR-0004)`
             );
           }
-        } else if (topDir === "adapters") {
-          if (
-            /(?:^|\/)controllers(?:\/|$)/.test(spec) ||
-            (/(?:^|\/)use-cases(?:\/|$)/.test(spec) &&
-              !/(?:^|\/)use-cases\/helpers\//.test(spec))
-          ) {
+        } else if (topDir === "controllers") {
+          if (/(?:^|\b)adapters(?:\/|$)/.test(spec)) {
             violations.push(
-              `${relPath}: Clean Architecture violation — adapters/ must only import from interfaces/ or use-cases/helpers/, not "${spec}" (ADR-0004)`
+              `${relPath}: Clean Architecture violation — controllers/ must delegate to use-cases/ and not import from adapters/ ("${spec}") (ADR-0004)`
             );
           }
         }

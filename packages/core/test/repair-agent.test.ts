@@ -381,13 +381,23 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       )
     );
 
-    const useCaseAdapterImportViolations = evaluateSourceFileLintRules(
-      "packages/core/src/use-cases/bad-use-case.ts",
-      "const mod = await import(\"../adapters/http-loaders.ts\");"
+    const controllerAdapterImportViolations = evaluateSourceFileLintRules(
+      "packages/core/src/controllers/bad-controller.ts",
+      "import { createInMemoryGridlockRepository } from \"../adapters/in-memory-repository.ts\";"
     );
     assert.ok(
-      useCaseAdapterImportViolations.some((v) =>
-        v.includes("use-cases/ must not import from outer adapters/")
+      controllerAdapterImportViolations.some((v) =>
+        v.includes("controllers/ must delegate to use-cases/ and not import from adapters/")
+      )
+    );
+
+    const adapterUseCaseImportViolations = evaluateSourceFileLintRules(
+      "packages/core/src/adapters/bad-adapter.ts",
+      "const mod = await import(\"../use-cases/helpers/telemetry-math.ts\");"
+    );
+    assert.ok(
+      adapterUseCaseImportViolations.some((v) =>
+        v.includes("adapters/ must only import from interfaces/")
       )
     );
 

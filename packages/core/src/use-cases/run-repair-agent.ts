@@ -14,6 +14,7 @@ import {
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
 import { evaluateSandboxReplayGate } from "./helpers/sandbox-replay.ts";
+import { applyConnectorPromotion } from "./helpers/telemetry-math.ts";
 import { recordAgenticStageTelemetry } from "./record-telemetry.ts";
 
 export async function runOutOfBandRepairAgent(
@@ -192,9 +193,22 @@ export async function runOutOfBandRepairAgent(
     expiresAt: null,
   });
 
+  const existingChangelog = await deps.repository.listRepairChangelog();
+  const existingQuarantined = await deps.repository.getSourceArtifactByHash(
+    changelogEntry.quarantinedArtifactHash
+  );
+  const currentLedger = await deps.repository.getEfficiencyLedger();
+  const promotion = applyConnectorPromotion({
+    changelogEntry,
+    allChangelogEntries: [...existingChangelog, changelogEntry],
+    quarantinedArtifact: existingQuarantined ?? undefined,
+    ledger: currentLedger,
+  });
+
   await deps.repository.promoteConnectorConfig(
     replay.candidateConfig,
-    changelogEntry
+    changelogEntry,
+    promotion
   );
   await recordAgenticStageTelemetry(
     {

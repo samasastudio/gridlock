@@ -9,6 +9,7 @@ import {
   SourceArtifactSchema,
   TelemetryRunSchema,
   type ConnectorConfig,
+  type ConnectorPromotionStateUpdate,
   type ConnectorStatus,
   type EfficiencyLedger,
   type GridlockRepository,
@@ -18,12 +19,8 @@ import {
   type SourceArtifact,
   type TelemetryLedgerQueryOptions,
   type TelemetryRun,
+  type TelemetryStateUpdate,
 } from "../interfaces/index.ts";
-import {
-  applyConnectorPromotion,
-  applyHealAmortization,
-  applyTelemetryRunToLedger,
-} from "../use-cases/helpers/telemetry-math.ts";
 
 export function createInMemoryGridlockRepository(
   initialConfig: ConnectorConfig = DEFAULT_TDLR_CONNECTOR_CONFIG,
@@ -114,30 +111,22 @@ export function createInMemoryGridlockRepository(
       return Array.from(projects.values()).map((proj) => structuredClone(proj));
     },
 
-    async recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger> {
+    async recordTelemetryRun(
+      run: TelemetryRun,
+      stateUpdate?: TelemetryStateUpdate
+    ): Promise<EfficiencyLedger> {
       const validatedRun = TelemetryRunSchema.parse(run);
       telemetryRuns.push(structuredClone(validatedRun));
-      const recentSlice = telemetryRuns
-        .slice(-50)
-        .map((r) => structuredClone(r));
-      const ledgerAfterRun = applyTelemetryRunToLedger(
-        efficiencyLedger,
-        validatedRun,
-        recentSlice
-      );
-
-      const activeConfig = validatedRun.connectorId
-        ? configs.get(validatedRun.connectorId)
-        : undefined;
-      const amortized = applyHealAmortization({
-        run: validatedRun,
-        activeConfig,
-        repairChangelog,
-        ledger: ledgerAfterRun,
-      });
-      repairChangelog = amortized.updatedChangelog;
-      efficiencyLedger = amortized.updatedLedger;
-
+      if (stateUpdate) {
+        efficiencyLedger = structuredClone(
+          EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
+        );
+        if (stateUpdate.updatedChangelog) {
+          repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
+            structuredClone(RepairChangelogEntrySchema.parse(entry))
+          );
+        }
+      }
       return structuredClone(efficiencyLedger);
     },
 
@@ -170,28 +159,25 @@ export function createInMemoryGridlockRepository(
 
     async promoteConnectorConfig(
       config: ConnectorConfig,
-      changelogEntry: RepairChangelogEntry
+      changelogEntry: RepairChangelogEntry,
+      stateUpdate?: ConnectorPromotionStateUpdate
     ): Promise<void> {
       const validatedConfig = ConnectorConfigSchema.parse(config);
       const validatedEntry = RepairChangelogEntrySchema.parse(changelogEntry);
       configs.set(validatedConfig.connectorId, structuredClone(validatedConfig));
       repairChangelog.push(structuredClone(validatedEntry));
 
-      const promotion = applyConnectorPromotion({
-        changelogEntry: validatedEntry,
-        allChangelogEntries: repairChangelog,
-        quarantinedArtifact: artifacts.get(
-          validatedEntry.quarantinedArtifactHash
-        ),
-        ledger: efficiencyLedger,
-      });
-      if (promotion.promotedArtifact) {
+      if (stateUpdate?.promotedArtifact) {
         artifacts.set(
           validatedEntry.quarantinedArtifactHash,
-          promotion.promotedArtifact
+          structuredClone(SourceArtifactSchema.parse(stateUpdate.promotedArtifact))
         );
       }
-      efficiencyLedger = promotion.updatedLedger;
+      if (stateUpdate) {
+        efficiencyLedger = structuredClone(
+          EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
+        );
+      }
     },
 
     async listRepairChangelog(

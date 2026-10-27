@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import {
-  EfficiencyLedgerSchema,
   ExecutionModeSchema,
   PositiveIntegerStringSchema,
   type GridlockRepository,
 } from "../interfaces/index.ts";
+import { getEfficiencyScorecard } from "../use-cases/get-efficiency-scorecard.ts";
 import { sendJson } from "./http-utils.ts";
 
 export const EfficiencyQueryParamsSchema = z
@@ -50,33 +50,25 @@ export async function handleGetEfficiencyTelemetry(
     return;
   }
 
-  try {
-    const ledgerCandidate = await deps.repository.getEfficiencyLedger({
+  const result = await getEfficiencyScorecard(
+    {
       ...(parsedQuery.data.limit !== undefined
         ? { limit: parsedQuery.data.limit }
         : {}),
       ...(parsedQuery.data.execution_mode !== undefined
         ? { executionMode: parsedQuery.data.execution_mode }
         : {}),
-    });
-    const validatedLedger = EfficiencyLedgerSchema.safeParse(ledgerCandidate);
-    if (!validatedLedger.success) {
-      sendJson(res, 500, {
-        error: "telemetry_ledger_error",
-        message:
-          "Stored EfficiencyLedger document failed runtime schema validation",
-      });
-      return;
-    }
+    },
+    deps
+  );
 
-    sendJson(res, 200, validatedLedger.data);
-  } catch (error) {
+  if (!result.ok) {
     sendJson(res, 500, {
-      error: "telemetry_ledger_error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Failed to read EfficiencyLedger telemetry",
+      error: result.error,
+      message: result.message,
     });
+    return;
   }
+
+  sendJson(res, 200, result.ledger);
 }

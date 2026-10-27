@@ -13,6 +13,16 @@ import type {
 } from "./telemetry-models.ts";
 import type { RepairChangelogEntry } from "./repair-models.ts";
 
+export interface TelemetryStateUpdate {
+  updatedLedger: EfficiencyLedger;
+  updatedChangelog?: readonly RepairChangelogEntry[];
+}
+
+export interface ConnectorPromotionStateUpdate {
+  updatedLedger: EfficiencyLedger;
+  promotedArtifact?: SourceArtifact;
+}
+
 export interface TelemetryLedgerQueryOptions {
   limit?: number;
   executionMode?: ExecutionMode;
@@ -36,7 +46,10 @@ export interface GridlockRepository {
   appendObservation(observation: Observation): Promise<void>;
   listObservationsByProject(projectNumber: string): Promise<Observation[]>;
   listProjects(): Promise<Project[]>;
-  recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
+  recordTelemetryRun(
+    run: TelemetryRun,
+    stateUpdate?: TelemetryStateUpdate
+  ): Promise<EfficiencyLedger>;
   getEfficiencyLedger(
     options?: TelemetryLedgerQueryOptions
   ): Promise<EfficiencyLedger>;
@@ -45,7 +58,8 @@ export interface GridlockRepository {
   ): Promise<TelemetryRun[]>;
   promoteConnectorConfig(
     config: ConnectorConfig,
-    changelogEntry: RepairChangelogEntry
+    changelogEntry: RepairChangelogEntry,
+    stateUpdate?: ConnectorPromotionStateUpdate
   ): Promise<void>;
   listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
 }
