@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { defaultPageLoader } from "../adapters/http-loaders.ts";

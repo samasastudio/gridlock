@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type { AddressInfo } from "node:net";
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
