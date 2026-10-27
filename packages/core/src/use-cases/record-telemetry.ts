@@ -6,11 +6,12 @@ import {
   type TelemetrySpan,
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
-import { defaultSpanSink } from "../adapters/cloud-logging-sink.ts";
 import {
   buildTelemetryRun,
   buildTelemetrySpan,
 } from "./helpers/telemetry-math.ts";
+
+const noopSpanSink: TelemetrySpanSink = () => {};
 
 export async function recordStageTelemetry(
   input: {
@@ -84,7 +85,7 @@ export async function recordStageTelemetry(
       : {}),
   });
 
-  const sink = deps.spanSink ?? defaultSpanSink;
+  const sink = deps.spanSink ?? noopSpanSink;
   sink(span);
 
   return { run, span, ledger };

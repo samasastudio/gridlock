@@ -5,7 +5,14 @@ import {
   type PlaywrightPageLike,
   type SearchLoader,
 } from "../interfaces/index.ts";
-import { headersToRecord } from "../use-cases/helpers/site-access.ts";
+
+export function headersToRecord(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    result[key.toLowerCase()] = value;
+  });
+  return result;
+}
 
 export function createPlaywrightPageLoader(
   page: PlaywrightPageLike

@@ -11,3 +11,14 @@ export const TdlrProjectNumberSchema = z
   .regex(/^TABS\d+$/, "Expected TDLR TABS project number (e.g. TABS2027003697)");
 
 export type TdlrProjectNumber = z.infer<typeof TdlrProjectNumberSchema>;
+
+export const IsoCalendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD calendar date");
+
+export type IsoCalendarDate = z.infer<typeof IsoCalendarDateSchema>;
+
+export const PositiveIntegerStringSchema = z
+  .string()
+  .regex(/^\d+$/, "Expected positive integer")
+  .transform((val) => Number.parseInt(val, 10));

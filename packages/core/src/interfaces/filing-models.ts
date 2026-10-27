@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { Sha256HashSchema, TdlrProjectNumberSchema } from "./primitives.ts";
+import {
+  IsoCalendarDateSchema,
+  Sha256HashSchema,
+  TdlrProjectNumberSchema,
+} from "./primitives.ts";
 
 export const ConnectorStatusSchema = z.enum([
   "healthy",
@@ -70,8 +74,8 @@ export const ProjectSchema = z.object({
   typeOfWork: z.string().min(1),
   scopeOfWork: z.string().min(1),
   currentStatus: z.string().min(1),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  completionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startDate: IsoCalendarDateSchema,
+  completionDate: IsoCalendarDateSchema,
   latestSourceArtifactHash: Sha256HashSchema,
   updatedAt: z.string().datetime(),
 });

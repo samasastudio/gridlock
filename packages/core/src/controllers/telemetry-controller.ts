@@ -3,18 +3,16 @@ import { z } from "zod";
 import {
   EfficiencyLedgerSchema,
   ExecutionModeSchema,
+  PositiveIntegerStringSchema,
   type GridlockRepository,
 } from "../interfaces/index.ts";
 import { sendJson } from "./http-utils.ts";
 
 export const EfficiencyQueryParamsSchema = z
   .object({
-    limit: z
-      .string()
-      .regex(/^\d+$/, "Expected positive integer for limit")
-      .transform((val) => Number.parseInt(val, 10))
-      .pipe(z.number().int().min(1).max(365))
-      .optional(),
+    limit: PositiveIntegerStringSchema.pipe(
+      z.number().int().min(1).max(365)
+    ).optional(),
     execution_mode: ExecutionModeSchema.optional(),
   })
   .strict();

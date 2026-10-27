@@ -1,16 +1,10 @@
 import {
   GRIDLOCK_USER_AGENT,
+  type GridlockRepository,
+  type PageLoader,
   type SiteAccessCheckResult,
   type SiteAccessInput,
 } from "../../interfaces/index.ts";
-
-export function headersToRecord(headers: Headers): Record<string, string> {
-  const result: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    result[key.toLowerCase()] = value;
-  });
-  return result;
-}
 
 function getHeaderCaseInsensitive(
   headers: Record<string, string | undefined> | undefined,
@@ -54,9 +48,7 @@ function evaluateRulePrefixes(
       longestDisallow = prefix.length;
     }
   }
-  if (longestDisallow === -1) {
-    return true;
-  }
+  if (longestDisallow === -1) return true;
 
   let longestAllow = -1;
   for (const prefix of allowPrefixes) {
@@ -64,7 +56,6 @@ function evaluateRulePrefixes(
       longestAllow = prefix.length;
     }
   }
-
   return longestAllow >= longestDisallow;
 }
 
@@ -81,7 +72,6 @@ export function isPathAllowedByRobotsTxt(
 
   let currentAgents: string[] = [];
   let seenRuleInGroup = false;
-
   let matchedSpecificGroup = false;
   const specificDisallow: string[] = [];
   const specificAllow: string[] = [];
@@ -117,61 +107,39 @@ export function isPathAllowedByRobotsTxt(
     }
 
     const isSpecific = currentAgents.some(
-      (ua) =>
-        ua !== "*" && (uaLower.includes(ua) || botProductToken.includes(ua))
+      (ua) => ua !== "*" && (uaLower.includes(ua) || botProductToken.includes(ua))
     );
     const isWildcard = currentAgents.includes("*");
 
-    if (directive === "disallow") {
+    if (directive === "disallow" && value.length > 0) {
       seenRuleInGroup = true;
-      if (value.length > 0) {
-        if (isSpecific) specificDisallow.push(value);
-        if (isWildcard) wildcardDisallow.push(value);
-      }
-    } else if (directive === "allow") {
+      if (isSpecific) specificDisallow.push(value);
+      if (isWildcard) wildcardDisallow.push(value);
+    } else if (directive === "allow" && value.length > 0) {
       seenRuleInGroup = true;
-      if (value.length > 0) {
-        if (isSpecific) specificAllow.push(value);
-        if (isWildcard) wildcardAllow.push(value);
-      }
+      if (isSpecific) specificAllow.push(value);
+      if (isWildcard) wildcardAllow.push(value);
     }
   }
 
-  const normalizedPath = targetPath.startsWith("/")
-    ? targetPath
-    : `/${targetPath}`;
-
-  // RFC 9309 §2.2.1: Specific user-agent groups take precedence over wildcard (*)
+  const normalizedPath = targetPath.startsWith("/") ? targetPath : `/${targetPath}`;
   if (matchedSpecificGroup) {
     return evaluateRulePrefixes(normalizedPath, specificDisallow, specificAllow);
   }
-
   return evaluateRulePrefixes(normalizedPath, wildcardDisallow, wildcardAllow);
 }
 
 const WAF_BODY_SIGNATURES: Array<{ pattern: RegExp; label: string }> = [
-  {
-    pattern: /_Incapsula_Resource/i,
-    label: "Imperva Incapsula (_Incapsula_Resource)",
-  },
+  { pattern: /_Incapsula_Resource/i, label: "Imperva Incapsula (_Incapsula_Resource)" },
   { pattern: /cf-mitigated/i, label: "Cloudflare mitigation (cf-mitigated)" },
   { pattern: /challenge-platform/i, label: "Cloudflare challenge-platform" },
-  {
-    pattern: /cf-turnstile|challenges\.cloudflare\.com\/turnstile/i,
-    label: "Cloudflare Turnstile challenge",
-  },
+  { pattern: /cf-turnstile|challenges\.cloudflare\.com\/turnstile/i, label: "Cloudflare Turnstile challenge" },
   { pattern: /g-recaptcha/i, label: "Google reCAPTCHA challenge (g-recaptcha)" },
-  {
-    pattern: /<title>\s*TDLR TABS\s*-\s*Under Maintenance\s*<\/title>/i,
-    label: "TDLR TABS Maintenance Window",
-  },
+  { pattern: /<title>\s*TDLR TABS\s*-\s*Under Maintenance\s*<\/title>/i, label: "TDLR TABS Maintenance Window" },
 ];
 
 export function verifySiteAccess(input: SiteAccessInput): SiteAccessCheckResult {
-  const retryAfterHeader = getHeaderCaseInsensitive(
-    input.headers,
-    "retry-after"
-  );
+  const retryAfterHeader = getHeaderCaseInsensitive(input.headers, "retry-after");
   const retryAfterSeconds = parseRetryAfterSeconds(retryAfterHeader, input.now);
 
   if (
@@ -229,9 +197,62 @@ export function verifySiteAccess(input: SiteAccessInput): SiteAccessCheckResult 
     }
   }
 
+  return { allowed: true, status: "ok", tokensUsed: 0 };
+}
+
+export async function markBlockedByWaf(
+  repository: GridlockRepository,
+  connectorId: string,
+  nowIso: string,
+  access: Extract<SiteAccessCheckResult, { allowed: false }>
+): Promise<{
+  status: "blocked_by_waf";
+  reason: string;
+  retryAfterSeconds?: number;
+  tokensUsed: 0;
+}> {
+  await repository.setConnectorStatus(connectorId, "blocked_by_waf", nowIso);
   return {
-    allowed: true,
-    status: "ok",
+    status: "blocked_by_waf",
+    reason: access.reason,
+    ...(access.retryAfterSeconds !== undefined ? { retryAfterSeconds: access.retryAfterSeconds } : {}),
     tokensUsed: 0,
   };
+}
+
+export async function preflightRobotsTxt(params: {
+  baseUrl: string;
+  targetPath: string;
+  providedRobotsTxt?: string;
+  pageLoader: PageLoader;
+  now: Date;
+}): Promise<
+  | { allowed: true; robotsTxt: string }
+  | { allowed: false; access: Extract<SiteAccessCheckResult, { allowed: false }> }
+> {
+  let robotsTxt = params.providedRobotsTxt;
+  if (robotsTxt === undefined) {
+    try {
+      const robotsRes = await params.pageLoader(`${params.baseUrl}/robots.txt`);
+      const robotsAccess = verifySiteAccess({
+        status: robotsRes.status === 404 ? 200 : robotsRes.status,
+        headers: robotsRes.headers,
+        body: robotsRes.status === 404 ? "" : robotsRes.body,
+        now: params.now,
+      });
+      if (!robotsAccess.allowed) return { allowed: false, access: robotsAccess };
+      robotsTxt = robotsRes.status === 200 ? robotsRes.body : "";
+    } catch {
+      robotsTxt = "";
+    }
+  }
+
+  const pathCheck = verifySiteAccess({
+    status: 200,
+    body: "",
+    robotsTxt,
+    targetPath: params.targetPath,
+    now: params.now,
+  });
+  return pathCheck.allowed ? { allowed: true, robotsTxt } : { allowed: false, access: pathCheck };
 }

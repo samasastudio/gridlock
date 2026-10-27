@@ -25,11 +25,14 @@ export const ALLOWED_CORE_TOP_DIRS = new Set([
 
 function extractImportSpecifiers(content) {
   const specifiers = [];
-  const importExportRegex =
+  const staticImportRegex =
     /\b(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g;
-  for (const match of content.matchAll(importExportRegex)) {
-    if (match[1]) {
-      specifiers.push(match[1]);
+  const dynamicImportRegex = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
+  for (const regex of [staticImportRegex, dynamicImportRegex]) {
+    for (const match of content.matchAll(regex)) {
+      if (match[1]) {
+        specifiers.push(match[1]);
+      }
     }
   }
   return specifiers;
@@ -82,9 +85,9 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
             );
           }
         } else if (topDir === "use-cases") {
-          if (/(?:^|\/)controllers(?:\/|$)/.test(spec)) {
+          if (/(?:^|\/)(?:adapters|controllers)(?:\/|$)/.test(spec)) {
             violations.push(
-              `${relPath}: Clean Architecture violation — use-cases/ must not import from controllers/ ("${spec}") (ADR-0004)`
+              `${relPath}: Clean Architecture violation — use-cases/ must not import from outer adapters/ or controllers/ ("${spec}") (ADR-0004)`
             );
           }
         } else if (topDir === "adapters") {

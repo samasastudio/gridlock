@@ -1,6 +1,9 @@
 export {
+  IsoCalendarDateSchema,
+  PositiveIntegerStringSchema,
   Sha256HashSchema,
   TdlrProjectNumberSchema,
+  type IsoCalendarDate,
   type Sha256Hash,
   type TdlrProjectNumber,
 } from "./primitives.ts";

@@ -14,12 +14,11 @@ import {
   type TdlrSearchRow,
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
-import { defaultSpanSink } from "../adapters/cloud-logging-sink.ts";
 import {
-  defaultPageLoader,
-  defaultSearchLoader,
-} from "../adapters/http-loaders.ts";
-import { verifySiteAccess } from "./helpers/site-access.ts";
+  markBlockedByWaf,
+  preflightRobotsTxt,
+  verifySiteAccess,
+} from "./helpers/site-access.ts";
 import {
   collectQualifyingDiscoveryRows,
   sanitizeDiscoverySearchFilters,
@@ -29,17 +28,14 @@ import {
   buildTelemetrySpan,
   calculateNaiveTokensAvoided,
 } from "./helpers/telemetry-math.ts";
-import {
-  ingestTdlrFiling,
-  markBlockedByWaf,
-  preflightRobotsTxt,
-} from "./ingest-tdlr-filing.ts";
+import { ingestTdlrFiling } from "./ingest-tdlr-filing.ts";
 import { recordStageTelemetry } from "./record-telemetry.ts";
 
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 const defaultJitterMs = (): number => Math.floor(Math.random() * 250);
+const noopSpanSink: TelemetrySpanSink = () => {};
 
 export async function runTdlrDiscoverySweep(
   input: {
@@ -55,8 +51,8 @@ export async function runTdlrDiscoverySweep(
   },
   deps: {
     repository: GridlockRepository;
-    pageLoader?: PageLoader;
-    searchLoader?: SearchLoader;
+    pageLoader: PageLoader;
+    searchLoader: SearchLoader;
     sleep?: (ms: number) => Promise<void>;
     jitterMs?: () => number;
     spanSink?: TelemetrySpanSink;
@@ -67,8 +63,7 @@ export async function runTdlrDiscoverySweep(
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
-  const pageLoader = deps.pageLoader ?? defaultPageLoader;
-  const searchLoader = deps.searchLoader ?? defaultSearchLoader;
+  const { pageLoader, searchLoader } = deps;
   const sleep = deps.sleep ?? defaultSleep;
   const jitterMs = deps.jitterMs ?? defaultJitterMs;
   const baseDelayMs = Math.max(
@@ -244,7 +239,7 @@ export async function runTdlrDiscoverySweep(
     }
     return sum;
   }, 0);
-  const sink = deps.spanSink ?? defaultSpanSink;
+  const sink = deps.spanSink ?? noopSpanSink;
   sink(
     buildTelemetrySpan({
       stage: "tdlr_discovery_sweep",

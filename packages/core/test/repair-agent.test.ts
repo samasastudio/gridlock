@@ -381,6 +381,16 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       )
     );
 
+    const useCaseAdapterImportViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/bad-use-case.ts",
+      "const mod = await import(\"../adapters/http-loaders.ts\");"
+    );
+    assert.ok(
+      useCaseAdapterImportViolations.some((v) =>
+        v.includes("use-cases/ must not import from outer adapters/")
+      )
+    );
+
     const impureHelperImportViolations = evaluateSourceFileLintRules(
       "packages/core/src/use-cases/helpers/bad-helper.ts",
       "import { defaultPageLoader } from \"../../adapters/http-loaders.ts\";"

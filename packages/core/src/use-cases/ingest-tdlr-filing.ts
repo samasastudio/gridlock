@@ -9,11 +9,13 @@ import {
   type GridlockRepository,
   type IngestFilingResult,
   type PageLoader,
-  type SiteAccessCheckResult,
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
-import { defaultPageLoader } from "../adapters/http-loaders.ts";
-import { verifySiteAccess } from "./helpers/site-access.ts";
+import {
+  markBlockedByWaf,
+  preflightRobotsTxt,
+  verifySiteAccess,
+} from "./helpers/site-access.ts";
 import {
   buildSourceArtifact,
   parseTdlrFilingHtml,
@@ -24,63 +26,6 @@ import {
 } from "./helpers/telemetry-math.ts";
 import { recordStageTelemetry } from "./record-telemetry.ts";
 
-export async function markBlockedByWaf(
-  repository: GridlockRepository,
-  connectorId: string,
-  nowIso: string,
-  access: Extract<SiteAccessCheckResult, { allowed: false }>
-): Promise<{
-  status: "blocked_by_waf";
-  reason: string;
-  retryAfterSeconds?: number;
-  tokensUsed: 0;
-}> {
-  await repository.setConnectorStatus(connectorId, "blocked_by_waf", nowIso);
-  return {
-    status: "blocked_by_waf",
-    reason: access.reason,
-    ...(access.retryAfterSeconds !== undefined ? { retryAfterSeconds: access.retryAfterSeconds } : {}),
-    tokensUsed: 0,
-  };
-}
-
-export async function preflightRobotsTxt(params: {
-  baseUrl: string;
-  targetPath: string;
-  providedRobotsTxt?: string;
-  pageLoader: PageLoader;
-  now: Date;
-}): Promise<
-  | { allowed: true; robotsTxt: string }
-  | { allowed: false; access: Extract<SiteAccessCheckResult, { allowed: false }> }
-> {
-  let robotsTxt = params.providedRobotsTxt;
-  if (robotsTxt === undefined) {
-    try {
-      const robotsRes = await params.pageLoader(`${params.baseUrl}/robots.txt`);
-      const robotsAccess = verifySiteAccess({
-        status: robotsRes.status === 404 ? 200 : robotsRes.status,
-        headers: robotsRes.headers,
-        body: robotsRes.status === 404 ? "" : robotsRes.body,
-        now: params.now,
-      });
-      if (!robotsAccess.allowed) return { allowed: false, access: robotsAccess };
-      robotsTxt = robotsRes.status === 200 ? robotsRes.body : "";
-    } catch {
-      robotsTxt = "";
-    }
-  }
-
-  const pathCheck = verifySiteAccess({
-    status: 200,
-    body: "",
-    robotsTxt,
-    targetPath: params.targetPath,
-    now: params.now,
-  });
-  return pathCheck.allowed ? { allowed: true, robotsTxt } : { allowed: false, access: pathCheck };
-}
-
 export async function ingestTdlrFiling(
   input: {
     projectNumber: string;
@@ -90,7 +35,7 @@ export async function ingestTdlrFiling(
   },
   deps: {
     repository: GridlockRepository;
-    pageLoader?: PageLoader;
+    pageLoader: PageLoader;
     spanSink?: TelemetrySpanSink;
   }
 ): Promise<IngestFilingResult> {
@@ -98,7 +43,7 @@ export async function ingestTdlrFiling(
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
-  const pageLoader = deps.pageLoader ?? defaultPageLoader;
+  const pageLoader = deps.pageLoader;
   const targetPath = `/TABS/Search/Project/${encodeURIComponent(input.projectNumber)}`;
   const sourceUrl = `${baseUrl}${targetPath}`;
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
