@@ -1,217 +1,20 @@
-import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import {
+  CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
   CandidateSelectorPatchSchema,
-  ConnectorConfigSchema,
-  RepairChangelogEntrySchema,
-  TdlrFieldLabelsSchema,
-  type CandidateSelectorPatch,
-  type ConnectorConfig,
-  type RepairChangelogEntry,
-  type SelectorDiffEntry,
-  type SourceArtifact,
-  type TdlrFieldLabels,
-} from "./schemas.ts";
-import type { GridlockRepository } from "./repository.ts";
-import { parseTdlrFilingHtml } from "./tdlr-connector.ts";
-import {
   NAIVE_COST_PER_TOKEN_USD,
-  recordAgenticStageTelemetry,
+  REPAIR_AGENT_MODEL,
+  RepairChangelogEntrySchema,
+  type GeminiInteractionResponse,
+  type GeminiInteractionsClient,
+  type GridlockRepository,
+  type RepairAgentResult,
+  type SandboxReplayResult,
+  type SourceArtifact,
   type TelemetrySpanSink,
-} from "./telemetry.ts";
-
-export const REPAIR_AGENT_MODEL = "gemini-3.8-flash" as const;
-
-export interface GeminiInteractionCreateRequest {
-  model: string;
-  input: string | Array<Record<string, unknown>>;
-  response_format?: {
-    type: "text";
-    mime_type: "application/json";
-    schema: Record<string, unknown>;
-  };
-}
-
-export interface GeminiInteractionResponse {
-  id: string;
-  status?: string;
-  output_text?: string | null;
-  usage?: {
-    total_tokens?: number;
-  };
-}
-
-export interface GeminiInteractionsClient {
-  interactions: {
-    create(
-      request: GeminiInteractionCreateRequest
-    ): Promise<GeminiInteractionResponse>;
-  };
-}
-
-export const CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA: Record<string, unknown> = {
-  type: "object",
-  properties: {
-    detailContainerSelector: { type: "string" },
-    definitionListSelector: { type: "string" },
-    termSelector: { type: "string" },
-    descriptionSelector: { type: "string" },
-    fieldLabels: {
-      type: "object",
-      properties: Object.fromEntries(
-        Object.keys(TdlrFieldLabelsSchema.shape).map((key) => [
-          key,
-          { type: "string" },
-        ])
-      ),
-    },
-    rootCauseSummary: { type: "string" },
-  },
-  required: ["rootCauseSummary"],
-};
-
-export interface SandboxReplayResult {
-  passed: boolean;
-  candidateConfig: ConnectorConfig;
-  selectorDiffs: SelectorDiffEntry[];
-  quarantinedPassed: boolean;
-  historicalFixturesTested: number;
-  historicalFixturesPassed: number;
-  totalFixturesVerified: number;
-  failureReasons: string[];
-}
-
-export function evaluateSandboxReplayGate(input: {
-  currentConfig: ConnectorConfig;
-  patch: CandidateSelectorPatch;
-  quarantinedHtml: string;
-  historicalFixtures: readonly string[];
-  nowIso: string;
-}): SandboxReplayResult {
-  const { currentConfig, patch, quarantinedHtml, historicalFixtures, nowIso } =
-    input;
-
-  const mergedLabels: TdlrFieldLabels = {
-    ...currentConfig.fieldLabels,
-    ...(patch.fieldLabels ?? {}),
-  };
-
-  const candidateConfig = ConnectorConfigSchema.parse({
-    ...currentConfig,
-    version: currentConfig.version + 1,
-    status: "healthy",
-    detailContainerSelector:
-      patch.detailContainerSelector ?? currentConfig.detailContainerSelector,
-    definitionListSelector:
-      patch.definitionListSelector ?? currentConfig.definitionListSelector,
-    termSelector: patch.termSelector ?? currentConfig.termSelector,
-    descriptionSelector:
-      patch.descriptionSelector ?? currentConfig.descriptionSelector,
-    fieldLabels: mergedLabels,
-    updatedAt: nowIso,
-  });
-
-  const selectorDiffs: SelectorDiffEntry[] = [];
-  const topFields = [
-    "detailContainerSelector",
-    "definitionListSelector",
-    "termSelector",
-    "descriptionSelector",
-  ] as const;
-
-  for (const field of topFields) {
-    if (currentConfig[field] !== candidateConfig[field]) {
-      selectorDiffs.push({
-        field,
-        before: currentConfig[field],
-        after: candidateConfig[field],
-      });
-    }
-  }
-
-  for (const key of Object.keys(
-    candidateConfig.fieldLabels
-  ) as Array<keyof TdlrFieldLabels>) {
-    const beforeVal = currentConfig.fieldLabels[key] ?? "";
-    const afterVal = candidateConfig.fieldLabels[key] ?? "";
-    if (beforeVal !== afterVal) {
-      selectorDiffs.push({
-        field: `fieldLabels.${key}`,
-        before: beforeVal,
-        after: afterVal,
-      });
-    }
-  }
-
-  const failureReasons: string[] = [];
-  if (selectorDiffs.length === 0) {
-    failureReasons.push("Candidate patch produced zero selector diffs");
-  }
-  if (historicalFixtures.length === 0) {
-    failureReasons.push(
-      "At least 1 historical fixture is required for Sandbox Replay Gate verification"
-    );
-  }
-
-  const replayFixture = (html: string) => {
-    const sha256 = createHash("sha256")
-      .update(Buffer.from(html, "utf-8"))
-      .digest("hex");
-    return parseTdlrFilingHtml(html, candidateConfig, { sha256, nowIso });
-  };
-
-  const quarantinedParse = replayFixture(quarantinedHtml);
-  const quarantinedPassed = quarantinedParse.ok;
-  if (!quarantinedParse.ok) {
-    failureReasons.push(
-      `Quarantined artifact failed replay: ${quarantinedParse.invariantErrors.join("; ")}`
-    );
-  }
-
-  let historicalFixturesPassed = 0;
-  for (let i = 0; i < historicalFixtures.length; i += 1) {
-    const parsed = replayFixture(historicalFixtures[i]!);
-    if (parsed.ok) {
-      historicalFixturesPassed += 1;
-    } else {
-      failureReasons.push(
-        `Historical fixture #${i + 1} regressed: ${parsed.invariantErrors.join("; ")}`
-      );
-    }
-  }
-
-  const passed =
-    selectorDiffs.length > 0 &&
-    historicalFixtures.length > 0 &&
-    quarantinedPassed &&
-    historicalFixturesPassed === historicalFixtures.length;
-
-  return {
-    passed,
-    candidateConfig,
-    selectorDiffs,
-    quarantinedPassed,
-    historicalFixturesTested: historicalFixtures.length,
-    historicalFixturesPassed,
-    totalFixturesVerified:
-      historicalFixturesPassed + (quarantinedPassed ? 1 : 0),
-    failureReasons,
-  };
-}
-
-export type RepairAgentResult =
-  | {
-      status: "repair_promoted";
-      promotedConfig: ConnectorConfig;
-      changelogEntry: RepairChangelogEntry;
-      replay: SandboxReplayResult;
-    }
-  | {
-      status: "repair_rejected";
-      reason: string;
-      connectorStatus: "selector_anomaly";
-      replay?: SandboxReplayResult;
-    };
+} from "../interfaces/index.ts";
+import { evaluateSandboxReplayGate } from "./helpers/sandbox-replay.ts";
+import { recordAgenticStageTelemetry } from "./record-telemetry.ts";
 
 export async function runOutOfBandRepairAgent(
   input: {
@@ -229,7 +32,8 @@ export async function runOutOfBandRepairAgent(
   }
 ): Promise<RepairAgentResult> {
   const connectorId = input.connectorId ?? input.quarantinedArtifact.connectorId;
-  const startedAt = input.anomalyDetectedAt ?? new Date(input.quarantinedArtifact.capturedAt);
+  const startedAt =
+    input.anomalyDetectedAt ?? new Date(input.quarantinedArtifact.capturedAt);
   const endedAt = input.now ?? new Date();
   const nowIso = endedAt.toISOString();
   const currentConfig =

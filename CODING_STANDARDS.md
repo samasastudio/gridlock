@@ -12,9 +12,14 @@ Read during `/code-review` (Standards axis) and when designing modules across `p
 
 ---
 
-## 2. Deep Modules, Seams & Schema Hygiene (`packages/core`)
+## 2. Clean Architecture, Deep Modules & Seams (`packages/core`)
 
-- **Shared Domain Primitives**: Define domain-specific Zod primitives (`Sha256HashSchema`, `TdlrProjectNumberSchema`) once in [`packages/core/src/schemas.ts`](./packages/core/src/schemas.ts) and compose them across entity schemas rather than repeating raw regular expressions.
+- **Four-Folder Clean Architecture Layout (`ADR-0004`)**: Every file under `packages/core/src/` (except the public barrel `src/index.ts`) must reside in one of four directories and stay `<= 300` lines (enforced by `npm run lint`):
+  1. `interfaces/` — Zod schemas, TypeScript domain models, adapter contracts (`GridlockRepository`, `PageLoader`, `GeminiInteractionsClient`, `TelemetrySpanSink`), constants, and seed defaults. Must never import from `use-cases/`, `adapters/`, or `controllers/`.
+  2. `use-cases/` & `use-cases/helpers/` — Business logic orchestrators (`use-cases/`) and pure, zero-I/O deterministic parsers and state transitions (`use-cases/helpers/`). `use-cases/helpers/` must never import from `adapters/` or `controllers/`.
+  3. `adapters/` — Concrete implementations interfacing with external tools (`in-memory-repository.ts`, `http-loaders.ts`, `cloud-logging-sink.ts`). Keep repository adapters focused on storage and delegate state transitions (heal amortization, MTTR averaging, quarantine promotion) to pure functions in `use-cases/helpers/`.
+  4. `controllers/` — HTTP route controllers and request/query validation (`telemetry-controller.ts`, `http-server.ts`).
+- **Shared Domain Primitives**: Define domain-specific Zod primitives (`Sha256HashSchema`, `TdlrProjectNumberSchema`) once in [`packages/core/src/interfaces/primitives.ts`](./packages/core/src/interfaces/primitives.ts) and compose them across entity schemas rather than repeating raw regular expressions.
 - **Dependency Injection at Seams**: Inject external boundaries (`GridlockRepository`, `PageLoader`, Gemini client) as explicit parameters at the module's public seam. Test behavior exclusively through public interfaces (`ingestTdlrFiling`, HTTP handlers, widget props), never by mocking internal helpers.
 - **Quarantine Isolation**: Quarantined `/quarantine/{sha256}.gz` `SourceArtifact` records must never satisfy the canonical `unchanged_artifact` SHA-256 short-circuit gate. Re-running ingestion after a `ConnectorConfig` heal must re-parse and promote the artifact to `/artifacts/{sha256}.gz`.
 - **Pre-Parse Site Access Classification**: Inspect HTTP status (`403`, `429`, `503`), `robots.txt` directives, `Retry-After` headers, and WAF signatures (`_Incapsula_Resource`, `cf-mitigated`, `challenge-platform`, `g-recaptcha`) in `verifySiteAccess` **before** evaluating `ConnectorConfig` selectors. Classify access blocks as `blocked_by_waf` (`0` Gemini tokens) and reserve `selector_anomaly` strictly for verified portal HTML where extraction invariants fail.

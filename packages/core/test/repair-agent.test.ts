@@ -1,10 +1,12 @@
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyConnectorPromotion,
+  applyHealAmortization,
   CandidateSelectorPatchSchema,
   createInMemoryGridlockRepository,
+  DEFAULT_EFFICIENCY_LEDGER,
+  DEFAULT_TDLR_CONNECTOR_CONFIG,
   ingestTdlrFiling,
   REPAIR_AGENT_MODEL,
   RepairChangelogEntrySchema,
@@ -13,89 +15,33 @@ import {
   type GeminiInteractionsClient,
   type TelemetrySpan,
 } from "../src/index.ts";
+import {
+  evaluateSourceFileLintRules,
+  runRepoLintChecks,
+} from "../../../scripts/lint-checks.mjs";
+import {
+  HISTORICAL_FIXTURE_V1_HTML,
+  MUTATED_PORTAL_V2_HTML,
+} from "./helpers/fixtures.ts";
+import {
+  startMockPortalServer,
+  type MockPortalRoute,
+  type MockPortalServerHarness,
+} from "./helpers/mock-portal-server.ts";
 
-const HISTORICAL_FIXTURE_V1_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head><title>TDLR TABS - Historical Filing</title></head>
-<body>
-<div class="project-details">
-  <div class="project-details-project">
-    <dl class="dl-horizontal">
-      <dt>Project Name:</dt>
-      <dd>Compass Datacenters - DFWIII-III - Building 10</dd>
-      <dt>Project Number:</dt>
-      <dd>TABS2027003697</dd>
-      <dt>Facility Name:</dt>
-      <dd>DFWIII III - Building 10</dd>
-      <dt>Location Address:</dt>
-      <dd>590 Austin Blvd</dd>
-      <dd>Red Oak, TX 75154</dd>
-      <dt>Location County:</dt>
-      <dd>Ellis</dd>
-      <dt>Start Date:</dt>
-      <dd>12/1/2024</dd>
-      <dt>Completion Date:</dt>
-      <dd>8/22/2028</dd>
-      <dt>Estimated Cost:</dt>
-      <dd>$100,000,000</dd>
-      <dt>Type of Work:</dt>
-      <dd>Renovation/Alteration</dd>
-      <dt>Scope of Work:</dt>
-      <dd>251,815 sq. ft Data Center fit-out.</dd>
-      <dt>Square Footage:</dt>
-      <dd>251,815 ft <sup>2</sup></dd>
-      <dt>Current Status:</dt>
-      <dd>Project Registered</dd>
-      <dt>Owner Name:</dt>
-      <dd>COMPASS DATACENTERS DFW III-I LLC</dd>
-    </dl>
-  </div>
-</div>
-</body>
-</html>`;
-
-const MUTATED_PORTAL_V2_HTML = HISTORICAL_FIXTURE_V1_HTML
-  .replace('<div class="project-details">', '<div class="tabs-project-details-v2">')
-  .replace("<dt>Estimated Cost:</dt>", "<dt>Total Estimated Cost:</dt>")
-  .replace("<dd>TABS2027003697</dd>", "<dd>TABS2027009888</dd>");
-
-describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5)", () => {
-  let server: Server;
+describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5 & #17)", () => {
+  let harness: MockPortalServerHarness;
   let baseUrl: string;
-  let routeMap: Map<
-    string,
-    { status?: number; headers?: Record<string, string>; body: string }
-  >;
+  let routeMap: Map<string, MockPortalRoute>;
 
   beforeEach(async () => {
-    routeMap = new Map();
-    routeMap.set("/robots.txt", {
-      status: 200,
-      headers: { "content-type": "text/plain" },
-      body: "User-agent: *\nAllow: /\n",
-    });
-    server = createServer((req, res) => {
-      const route = routeMap.get(req.url ?? "");
-      if (!route) {
-        res.writeHead(404, { "content-type": "text/plain" });
-        res.end("Not Found");
-        return;
-      }
-      res.writeHead(route.status ?? 200, {
-        "content-type": "text/html; charset=utf-8",
-        ...(route.headers ?? {}),
-      });
-      res.end(route.body);
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address() as AddressInfo;
-    baseUrl = `http://127.0.0.1:${address.port}`;
+    harness = await startMockPortalServer({ defaultRobotsAllowAll: true });
+    baseUrl = harness.baseUrl;
+    routeMap = harness.routeMap;
   });
 
   afterEach(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve()))
-    );
+    await harness.close();
   });
 
   test("Happy Path: mutated TDLR HTML triggers selector_anomaly, invokes gemini-3.8-flash Repair Agent, passes 100% of historical + quarantined fixtures in Sandbox Replay Gate, promotes ConnectorConfig v2, writes RepairChangelogEntry, and increments subsequentDeterministicRunsServed on following runs", async () => {
@@ -346,5 +292,103 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     assert.equal(ledger.agenticRunsCount, 0);
     assert.equal(ledger.failedOrBlockedRunsCount, 4); // 1 selector_anomaly + 3 rejected repairs
     assert.equal(ledger.actualTokensUsed, 405); // 310 + 95 + 0
+  });
+
+  test("Clean Architecture Prefactor (Ticket #17): pure state transitions and repository lint guardrails pass on valid layout and fail on >300-line files, unapproved root directories, or upward layer imports", () => {
+    // 1. Happy Path: entire workspace passes Clean Architecture lint checks
+    assert.deepEqual(runRepoLintChecks(), []);
+
+    // Pure applyHealAmortization and applyConnectorPromotion transitions work deterministically without I/O
+    const sampleEntry = RepairChangelogEntrySchema.parse({
+      id: "repair_tdlr-tabs_v2_aaaaaaaa",
+      connectorId: "tdlr-tabs",
+      previousVersion: 1,
+      promotedVersion: 2,
+      quarantinedArtifactHash: "a".repeat(64),
+      brokenInvariants: ["document: Missing detailContainerSelector"],
+      selectorDiffs: [
+        {
+          field: "detailContainerSelector",
+          before: ".project-details",
+          after: ".project-details, .tabs-project-details-v2",
+        },
+      ],
+      rootCauseSummary: "Portal container class updated",
+      historicalFixturesTested: 1,
+      historicalFixturesPassed: 1,
+      totalFixturesVerified: 2,
+      anomalyDetectedAt: "2026-10-26T18:00:00.000Z",
+      patchPromotedAt: "2026-10-26T18:00:02.000Z",
+      mttrMs: 2000,
+      interactionId: "inter_unit_01",
+      repairTokensUsed: 200,
+      estimatedRepairCostUsd: 0.0005,
+      subsequentDeterministicRunsServed: 0,
+      expiresAt: null,
+    });
+
+    const promoted = applyConnectorPromotion({
+      changelogEntry: sampleEntry,
+      allChangelogEntries: [sampleEntry],
+      quarantinedArtifact: undefined,
+      ledger: DEFAULT_EFFICIENCY_LEDGER,
+    });
+    assert.equal(promoted.updatedLedger.averageRepairMttrMs, 2000);
+
+    const amortized = applyHealAmortization({
+      run: {
+        runId: "run_1",
+        stage: "tdlr_ingest",
+        connectorId: "tdlr-tabs",
+        execution_mode: "deterministic",
+        status: "ingested",
+        durationMs: 12,
+        rawByteLength: 1024,
+        tokensUsed: 0,
+        naiveTokensAvoided: 256,
+        estimatedCostSavedUsd: 0.00064,
+        recordedAt: "2026-10-26T18:05:00.000Z",
+        expiresAt: null,
+      },
+      activeConfig: { ...DEFAULT_TDLR_CONNECTOR_CONFIG, version: 2 },
+      repairChangelog: [sampleEntry],
+      ledger: promoted.updatedLedger,
+    });
+    assert.equal(amortized.updatedChangelog[0]?.subsequentDeterministicRunsServed, 1);
+    assert.equal(amortized.updatedLedger.subsequentDeterministicRunsServed, 1);
+
+    // 2. Sad Path: >300-line file, unapproved directory, and upward layer imports are rejected
+    const oversizedContent = Array.from({ length: 305 }, () => "export const x = 1;").join("\n");
+    const oversizedViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/oversized.ts",
+      oversizedContent
+    );
+    assert.ok(oversizedViolations.some((v) => v.includes("exceeds 300-line core module budget")));
+
+    const looseRootViolations = evaluateSourceFileLintRules(
+      "packages/core/src/tdlr-connector.ts",
+      "export const x = 1;"
+    );
+    assert.ok(looseRootViolations.some((v) => v.includes("Must reside inside interfaces/")));
+
+    const upwardInterfaceImportViolations = evaluateSourceFileLintRules(
+      "packages/core/src/interfaces/bad-model.ts",
+      "import { defaultPageLoader } from \"../adapters/http-loaders.ts\";"
+    );
+    assert.ok(
+      upwardInterfaceImportViolations.some((v) =>
+        v.includes("interfaces/ must not import")
+      )
+    );
+
+    const impureHelperImportViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/helpers/bad-helper.ts",
+      "import { defaultPageLoader } from \"../../adapters/http-loaders.ts\";"
+    );
+    assert.ok(
+      impureHelperImportViolations.some((v) =>
+        v.includes("use-cases/helpers/ must remain pure")
+      )
+    );
   });
 });
