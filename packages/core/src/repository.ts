@@ -5,6 +5,7 @@ import {
   EfficiencyLedgerSchema,
   ObservationSchema,
   ProjectSchema,
+  RepairChangelogEntrySchema,
   SourceArtifactSchema,
   TelemetryRunSchema,
   type ConnectorConfig,
@@ -13,6 +14,7 @@ import {
   type ExecutionMode,
   type Observation,
   type Project,
+  type RepairChangelogEntry,
   type SourceArtifact,
   type TelemetryRun,
 } from "./schemas.ts";
@@ -48,6 +50,11 @@ export interface GridlockRepository {
   listTelemetryRuns(
     options?: TelemetryLedgerQueryOptions
   ): Promise<TelemetryRun[]>;
+  promoteConnectorConfig(
+    config: ConnectorConfig,
+    changelogEntry: RepairChangelogEntry
+  ): Promise<void>;
+  listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
 }
 
 export function createInMemoryGridlockRepository(
@@ -61,6 +68,7 @@ export function createInMemoryGridlockRepository(
   const artifactBlobs = new Map<string, Buffer>();
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
+  const repairChangelog: RepairChangelogEntry[] = [];
   const telemetryRuns: TelemetryRun[] = [
     ...initialLedger.recentRuns.map((run) =>
       structuredClone(TelemetryRunSchema.parse(run))
@@ -149,6 +157,33 @@ export function createInMemoryGridlockRepository(
         validatedRun,
         recentSlice
       );
+
+      if (
+        validatedRun.execution_mode === "deterministic" &&
+        (validatedRun.status === "ingested" ||
+          validatedRun.status === "unchanged_artifact") &&
+        validatedRun.connectorId
+      ) {
+        const activeConfig = configs.get(validatedRun.connectorId);
+        if (activeConfig) {
+          for (let i = repairChangelog.length - 1; i >= 0; i -= 1) {
+            const entry = repairChangelog[i]!;
+            if (
+              entry.connectorId === validatedRun.connectorId &&
+              entry.promotedVersion === activeConfig.version
+            ) {
+              entry.subsequentDeterministicRunsServed += 1;
+              efficiencyLedger = EfficiencyLedgerSchema.parse({
+                ...efficiencyLedger,
+                subsequentDeterministicRunsServed:
+                  efficiencyLedger.subsequentDeterministicRunsServed + 1,
+              });
+              break;
+            }
+          }
+        }
+      }
+
       return structuredClone(efficiencyLedger);
     },
 
@@ -177,6 +212,51 @@ export function createInMemoryGridlockRepository(
           ? filteredRuns.slice(-options.limit)
           : filteredRuns;
       return sliced.map((run) => structuredClone(run));
+    },
+
+    async promoteConnectorConfig(
+      config: ConnectorConfig,
+      changelogEntry: RepairChangelogEntry
+    ): Promise<void> {
+      const validatedConfig = ConnectorConfigSchema.parse(config);
+      const validatedEntry = RepairChangelogEntrySchema.parse(changelogEntry);
+      configs.set(validatedConfig.connectorId, structuredClone(validatedConfig));
+      repairChangelog.push(structuredClone(validatedEntry));
+      const quarantinedArtifact = artifacts.get(
+        validatedEntry.quarantinedArtifactHash
+      );
+      if (quarantinedArtifact) {
+        artifacts.set(
+          validatedEntry.quarantinedArtifactHash,
+          SourceArtifactSchema.parse({
+            ...quarantinedArtifact,
+            referencedByMilestone: true,
+            expiresAt: null,
+          })
+        );
+      }
+      const totalMttrMs = repairChangelog.reduce(
+        (sum, item) => sum + item.mttrMs,
+        0
+      );
+      const averageRepairMttrMs = Number(
+        (totalMttrMs / repairChangelog.length).toFixed(2)
+      );
+      efficiencyLedger = EfficiencyLedgerSchema.parse({
+        ...efficiencyLedger,
+        averageRepairMttrMs,
+        updatedAt: validatedEntry.patchPromotedAt,
+      });
+    },
+
+    async listRepairChangelog(
+      connectorId?: string
+    ): Promise<RepairChangelogEntry[]> {
+      return repairChangelog
+        .filter((entry) =>
+          connectorId ? entry.connectorId === connectorId : true
+        )
+        .map((entry) => structuredClone(entry));
     },
   };
 }

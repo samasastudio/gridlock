@@ -229,63 +229,163 @@ function parseCssClassToken(selector: string): {
   };
 }
 
+function splitSelectorList(selector: string, lowerCase = false): string[] {
+  return selector
+    .split(",")
+    .map((s) => (lowerCase ? s.trim().toLowerCase() : s.trim()))
+    .filter(Boolean);
+}
+
 function extractDefinitionListFields(
   html: string,
   config: ConnectorConfig
 ): { containerFound: boolean; fields: Map<string, string[]> } {
   const fields = new Map<string, string[]>();
-  const containerSelector = parseCssClassToken(config.detailContainerSelector);
-  const containerTagPattern = containerSelector.tagName
-    ? escapeRegExp(containerSelector.tagName)
-    : "[a-zA-Z0-9-]+";
-  const containerStartPattern = new RegExp(
-    `<${containerTagPattern}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(containerSelector.className)}\\b[^"']*["'][^>]*>`,
-    "i"
+  const containerAlternatives = splitSelectorList(
+    config.detailContainerSelector
   );
-  const containerMatch = containerStartPattern.exec(html);
+
+  let containerMatch: RegExpExecArray | null = null;
+  for (const alt of containerAlternatives) {
+    const containerSelector = parseCssClassToken(alt);
+    const containerTagPattern = containerSelector.tagName
+      ? escapeRegExp(containerSelector.tagName)
+      : "[a-zA-Z0-9-]+";
+    const containerStartPattern = new RegExp(
+      `<${containerTagPattern}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(containerSelector.className)}\\b[^"']*["'][^>]*>`,
+      "i"
+    );
+    containerMatch = containerStartPattern.exec(html);
+    if (containerMatch) break;
+  }
+
   if (!containerMatch) {
     return { containerFound: false, fields };
   }
 
   const scopedHtml = html.slice(containerMatch.index);
-  const dlSelector = parseCssClassToken(config.definitionListSelector);
-  const dlTag = escapeRegExp(dlSelector.tagName ?? "dl");
-
-  const dlPattern = new RegExp(
-    `<${dlTag}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(dlSelector.className)}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/${dlTag}>`,
-    "gi"
-  );
+  const dlAlternatives = splitSelectorList(config.definitionListSelector);
+  const termTags = splitSelectorList(config.termSelector, true);
+  const descTags = splitSelectorList(config.descriptionSelector, true);
+  const allTokenTags = [...termTags, ...descTags].map(escapeRegExp).join("|");
 
   const tokenPattern = new RegExp(
-    `<(${escapeRegExp(config.termSelector)}|${escapeRegExp(config.descriptionSelector)})[^>]*>([\\s\\S]*?)<\\/\\1>`,
+    `<(${allTokenTags})[^>]*>([\\s\\S]*?)<\\/\\1>`,
     "gi"
   );
 
-  for (const dlMatch of scopedHtml.matchAll(dlPattern)) {
-    const dlBody = dlMatch[1] ?? "";
-    let currentTerm: string | null = null;
-    for (const tokenMatch of dlBody.matchAll(tokenPattern)) {
-      const tag = (tokenMatch[1] ?? "").toLowerCase();
-      const text = stripHtmlTags(tokenMatch[2] ?? "");
-      if (tag === config.termSelector.toLowerCase()) {
-        currentTerm = text;
-        if (!fields.has(currentTerm)) {
-          fields.set(currentTerm, []);
+  for (const dlAlt of dlAlternatives) {
+    const dlSelector = parseCssClassToken(dlAlt);
+    const dlTag = escapeRegExp(dlSelector.tagName ?? "dl");
+    const dlPattern = new RegExp(
+      `<${dlTag}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(dlSelector.className)}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/${dlTag}>`,
+      "gi"
+    );
+
+    for (const dlMatch of scopedHtml.matchAll(dlPattern)) {
+      const dlBody = dlMatch[1] ?? "";
+      let currentTerm: string | null = null;
+      for (const tokenMatch of dlBody.matchAll(tokenPattern)) {
+        const tag = (tokenMatch[1] ?? "").toLowerCase();
+        const text = stripHtmlTags(tokenMatch[2] ?? "");
+        if (termTags.includes(tag)) {
+          currentTerm = text;
+          if (!fields.has(currentTerm)) {
+            fields.set(currentTerm, []);
+          }
+        } else if (descTags.includes(tag) && currentTerm) {
+          const list = fields.get(currentTerm) ?? [];
+          if (text.length > 0) {
+            list.push(text);
+          }
+          fields.set(currentTerm, list);
         }
-      } else if (
-        tag === config.descriptionSelector.toLowerCase() &&
-        currentTerm
-      ) {
-        const list = fields.get(currentTerm) ?? [];
-        if (text.length > 0) {
-          list.push(text);
-        }
-        fields.set(currentTerm, list);
       }
     }
   }
 
   return { containerFound: true, fields };
+}
+
+function getFieldList(
+  fields: Map<string, string[]>,
+  labelSpec: string
+): string[] {
+  for (const candidate of labelSpec.split("|")) {
+    const trimmed = candidate.trim();
+    const found = fields.get(trimmed);
+    if (found && found.length > 0) {
+      return found;
+    }
+  }
+  return [];
+}
+
+export function parseTdlrFilingHtml(
+  html: string,
+  config: ConnectorConfig,
+  meta: { sha256: string; nowIso: string }
+):
+  | { ok: true; project: Project }
+  | { ok: false; invariantErrors: string[] } {
+  if (html.trim().length === 0) {
+    return {
+      ok: false,
+      invariantErrors: ["Empty HTML document received from portal"],
+    };
+  }
+
+  const { containerFound, fields } = extractDefinitionListFields(html, config);
+  if (!containerFound) {
+    return {
+      ok: false,
+      invariantErrors: [
+        `Missing detailContainerSelector "${config.detailContainerSelector}" in portal HTML`,
+      ],
+    };
+  }
+
+  const labels = config.fieldLabels;
+  const getSingle = (labelSpec: string): string =>
+    getFieldList(fields, labelSpec)[0] ?? "";
+  const rawDesignFirm = labels.designFirmName
+    ? getSingle(labels.designFirmName)
+    : "";
+  const sanitizedDesignFirm = rawDesignFirm
+    ? sanitizeTextPii(rawDesignFirm)
+    : undefined;
+
+  const parsedProject = ProjectSchema.safeParse({
+    projectNumber: getSingle(labels.projectNumber),
+    projectName: sanitizeTextPii(getSingle(labels.projectName)),
+    facilityName: sanitizeTextPii(getSingle(labels.facilityName)),
+    ownerName: sanitizeTextPii(getSingle(labels.ownerName)),
+    ...(sanitizedDesignFirm ? { designFirmName: sanitizedDesignFirm } : {}),
+    locationAddress: sanitizeLocationAddressPii(
+      getFieldList(fields, labels.locationAddress)
+    ),
+    county: sanitizeTextPii(getSingle(labels.county)),
+    estimatedCostUsd: parseCurrencyUsd(getSingle(labels.estimatedCost)),
+    squareFootage: parseSquareFootage(getSingle(labels.squareFootage)),
+    typeOfWork: sanitizeTextPii(getSingle(labels.typeOfWork)),
+    scopeOfWork: sanitizeTextPii(getSingle(labels.scopeOfWork)),
+    currentStatus: sanitizeTextPii(getSingle(labels.currentStatus)),
+    startDate: parseUsSlashDateToIso(getSingle(labels.startDate)),
+    completionDate: parseUsSlashDateToIso(getSingle(labels.completionDate)),
+    latestSourceArtifactHash: meta.sha256,
+    updatedAt: meta.nowIso,
+  });
+
+  if (!parsedProject.success) {
+    return {
+      ok: false,
+      invariantErrors: parsedProject.error.issues.map(
+        (issue) => `${issue.path.join(".") || "document"}: ${issue.message}`
+      ),
+    };
+  }
+
+  return { ok: true, project: parsedProject.data };
 }
 
 function parseUsSlashDateToIso(raw: string): string {
@@ -337,6 +437,8 @@ function buildSourceArtifact(params: {
     storageUri: `${ARTIFACT_BUCKET_URI}/${params.folder}/${params.sha256}.gz`,
     capturedAt: params.capturedAt,
     expiresAt: params.expiresAt,
+    referencedByMilestone:
+      params.folder === "quarantine" || params.expiresAt === null,
   });
 }
 
@@ -504,63 +606,15 @@ export async function ingestTdlrFiling(
       });
     };
 
-    if (response.body.trim().length === 0) {
-      return quarantineWithErrors(["Empty HTML document received from portal"]);
-    }
-
-    const { containerFound, fields } = extractDefinitionListFields(
-      response.body,
-      config
-    );
-    if (!containerFound) {
-      return quarantineWithErrors([
-        `Missing detailContainerSelector "${config.detailContainerSelector}" in portal HTML`,
-      ]);
-    }
-
-    const labels = config.fieldLabels;
-
-    const getSingle = (label: string): string =>
-      (fields.get(label) ?? [])[0] ?? "";
-    const rawDesignFirm = labels.designFirmName
-      ? getSingle(labels.designFirmName)
-      : "";
-    const sanitizedDesignFirm = rawDesignFirm
-      ? sanitizeTextPii(rawDesignFirm)
-      : undefined;
-
-    const estimatedCostUsd = parseCurrencyUsd(getSingle(labels.estimatedCost));
-    const squareFootage = parseSquareFootage(getSingle(labels.squareFootage));
-
-    const parsedProject = ProjectSchema.safeParse({
-      projectNumber: getSingle(labels.projectNumber),
-      projectName: sanitizeTextPii(getSingle(labels.projectName)),
-      facilityName: sanitizeTextPii(getSingle(labels.facilityName)),
-      ownerName: sanitizeTextPii(getSingle(labels.ownerName)),
-      ...(sanitizedDesignFirm ? { designFirmName: sanitizedDesignFirm } : {}),
-      locationAddress: sanitizeLocationAddressPii(
-        fields.get(labels.locationAddress) ?? []
-      ),
-      county: sanitizeTextPii(getSingle(labels.county)),
-      estimatedCostUsd,
-      squareFootage,
-      typeOfWork: sanitizeTextPii(getSingle(labels.typeOfWork)),
-      scopeOfWork: sanitizeTextPii(getSingle(labels.scopeOfWork)),
-      currentStatus: sanitizeTextPii(getSingle(labels.currentStatus)),
-      startDate: parseUsSlashDateToIso(getSingle(labels.startDate)),
-      completionDate: parseUsSlashDateToIso(getSingle(labels.completionDate)),
-      latestSourceArtifactHash: sha256,
-      updatedAt: nowIso,
+    const parsed = parseTdlrFilingHtml(response.body, config, {
+      sha256,
+      nowIso,
     });
-
-    if (!parsedProject.success) {
-      const invariantErrors = parsedProject.error.issues.map(
-        (issue) => `${issue.path.join(".") || "document"}: ${issue.message}`
-      );
-      return quarantineWithErrors(invariantErrors);
+    if (!parsed.ok) {
+      return quarantineWithErrors(parsed.invariantErrors);
     }
 
-    const project = parsedProject.data;
+    const project = parsed.project;
     const existingProject = await deps.repository.getProjectByNumber(
       project.projectNumber
     );

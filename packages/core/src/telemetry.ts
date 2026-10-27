@@ -34,6 +34,7 @@ export function calculateEstimatedCostSavedUsd(
 export function createCloudLoggingSpanSink(
   writer: (jsonLine: string) => void = (line) => {
     if (
+      !process.env.NODE_TEST_CONTEXT &&
       process.env.NODE_ENV !== "test" &&
       process.env.npm_lifecycle_event !== "test" &&
       !process.execArgv.includes("--test")
