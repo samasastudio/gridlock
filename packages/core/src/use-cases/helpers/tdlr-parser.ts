@@ -10,10 +10,7 @@ import {
   type TdlrSearchFilter,
   type TdlrSearchRow,
 } from "../../interfaces/index.ts";
-import {
-  sanitizeLocationAddressPii,
-  sanitizeTextPii,
-} from "./pii-sanitizer.ts";
+import { sanitizeLocationAddressPii, sanitizeTextPii } from "./pii-sanitizer.ts";
 
 function stripHtmlTags(html: string): string {
   return html
@@ -32,10 +29,7 @@ function escapeRegExp(literal: string): string {
   return literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function parseCssClassToken(selector: string): {
-  tagName: string | null;
-  className: string;
-} {
+function parseCssClassToken(selector: string): { tagName: string | null; className: string } {
   const trimmed = selector.trim();
   const dotIndex = trimmed.indexOf(".");
   if (dotIndex === -1) return { tagName: null, className: trimmed };
@@ -51,25 +45,28 @@ function splitSelectorList(selector: string, lowerCase = false): string[] {
     .filter(Boolean);
 }
 
+function findDetailContainerMatch(html: string, detailContainerSelector: string): RegExpExecArray | null {
+  return (
+    splitSelectorList(detailContainerSelector)
+      .map((alt) => {
+        const sel = parseCssClassToken(alt);
+        const tagPat = sel.tagName ? escapeRegExp(sel.tagName) : "[a-zA-Z0-9-]+";
+        const startPat = new RegExp(
+          `<${tagPat}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(sel.className)}\\b[^"']*["'][^>]*>`,
+          "i"
+        );
+        return startPat.exec(html);
+      })
+      .find((match): match is RegExpExecArray => match !== null) ?? null
+  );
+}
+
 function extractDefinitionListFields(
   html: string,
   config: ConnectorConfig
 ): { containerFound: boolean; fields: Map<string, string[]> } {
-  const fields = new Map<string, string[]>();
-  let containerMatch: RegExpExecArray | null = null;
-
-  for (const alt of splitSelectorList(config.detailContainerSelector)) {
-    const sel = parseCssClassToken(alt);
-    const tagPat = sel.tagName ? escapeRegExp(sel.tagName) : "[a-zA-Z0-9-]+";
-    const startPat = new RegExp(
-      `<${tagPat}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(sel.className)}\\b[^"']*["'][^>]*>`,
-      "i"
-    );
-    containerMatch = startPat.exec(html);
-    if (containerMatch) break;
-  }
-
-  if (!containerMatch) return { containerFound: false, fields };
+  const containerMatch = findDetailContainerMatch(html, config.detailContainerSelector);
+  if (!containerMatch) return { containerFound: false, fields: new Map() };
 
   const scopedHtml = html.slice(containerMatch.index);
   const termTags = splitSelectorList(config.termSelector, true);
@@ -77,40 +74,42 @@ function extractDefinitionListFields(
   const allTags = [...termTags, ...descTags].map(escapeRegExp).join("|");
   const tokenPattern = new RegExp(`<(${allTags})[^>]*>([\\s\\S]*?)<\\/\\1>`, "gi");
 
-  for (const dlAlt of splitSelectorList(config.definitionListSelector)) {
+  const dlInnerBlocks = splitSelectorList(config.definitionListSelector).flatMap((dlAlt) => {
     const dlSel = parseCssClassToken(dlAlt);
     const dlTag = escapeRegExp(dlSel.tagName ?? "dl");
     const dlPattern = new RegExp(
       `<${dlTag}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(dlSel.className)}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/${dlTag}>`,
       "gi"
     );
+    return Array.from(scopedHtml.matchAll(dlPattern), (m) => m[1] ?? "");
+  });
 
-    for (const dlMatch of scopedHtml.matchAll(dlPattern)) {
-      let currentTerm: string | null = null;
-      for (const tokenMatch of (dlMatch[1] ?? "").matchAll(tokenPattern)) {
-        const tag = (tokenMatch[1] ?? "").toLowerCase();
-        const text = stripHtmlTags(tokenMatch[2] ?? "");
-        if (termTags.includes(tag)) {
-          currentTerm = text;
-          if (!fields.has(currentTerm)) fields.set(currentTerm, []);
-        } else if (descTags.includes(tag) && currentTerm) {
-          const list = fields.get(currentTerm) ?? [];
-          if (text.length > 0) list.push(text);
-          fields.set(currentTerm, list);
-        }
+  const fields = dlInnerBlocks.reduce<Map<string, string[]>>((acc, dlHtml) => {
+    Array.from(dlHtml.matchAll(tokenPattern)).reduce<string | null>((currentTerm, tokenMatch) => {
+      const tag = (tokenMatch[1] ?? "").toLowerCase();
+      const text = stripHtmlTags(tokenMatch[2] ?? "");
+      if (termTags.includes(tag)) {
+        if (!acc.has(text)) acc.set(text, []);
+        return text;
       }
-    }
-  }
+      if (descTags.includes(tag) && currentTerm && text.length > 0) {
+        acc.set(currentTerm, [...(acc.get(currentTerm) ?? []), text]);
+      }
+      return currentTerm;
+    }, null);
+    return acc;
+  }, new Map<string, string[]>());
 
   return { containerFound: true, fields };
 }
 
 function getFieldList(fields: Map<string, string[]>, labelSpec: string): string[] {
-  for (const candidate of labelSpec.split("|")) {
-    const found = fields.get(candidate.trim());
-    if (found && found.length > 0) return found;
-  }
-  return [];
+  return (
+    labelSpec
+      .split("|")
+      .map((candidate) => fields.get(candidate.trim()) ?? [])
+      .find((list) => list.length > 0) ?? []
+  );
 }
 
 function parseUsSlashDateToIso(raw: string): string {
@@ -230,6 +229,44 @@ export function sanitizeDiscoverySearchFilters(filters: readonly TdlrSearchFilte
   });
 }
 
+function tryParseSearchRowsJson(rawJsonBody: string): unknown[] {
+  try {
+    const parsedJson: unknown = JSON.parse(rawJsonBody);
+    if (Array.isArray(parsedJson)) return parsedJson;
+    if (
+      parsedJson !== null &&
+      typeof parsedJson === "object" &&
+      Array.isArray((parsedJson as { data?: unknown }).data)
+    ) {
+      return (parsedJson as { data: unknown[] }).data;
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function isRowWithinDiscoveryWindow(
+  row: TdlrSearchRow,
+  params: {
+    mode: TdlrDiscoveryMode;
+    backfillStartYear: number;
+    backfillEndYear: number;
+    effectiveSinceDate: Date | undefined;
+  }
+): boolean {
+  const createdMs = Date.parse(row.ProjectCreatedOn);
+  if (params.mode === "backfill") {
+    if (Number.isNaN(createdMs)) return false;
+    const year = new Date(createdMs).getUTCFullYear();
+    if (year < params.backfillStartYear || year > params.backfillEndYear) return false;
+  }
+  if (params.effectiveSinceDate && (Number.isNaN(createdMs) || createdMs < params.effectiveSinceDate.getTime())) {
+    return false;
+  }
+  return true;
+}
+
 export function collectQualifyingDiscoveryRows(params: {
   rawJsonBody: string;
   mode: TdlrDiscoveryMode;
@@ -238,37 +275,19 @@ export function collectQualifyingDiscoveryRows(params: {
   effectiveSinceDate: Date | undefined;
   discoveredByNumber: Map<string, TdlrSearchRow>;
 }): void {
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(params.rawJsonBody);
-  } catch {
-    return;
-  }
-
-  const rawRows: unknown[] = Array.isArray(parsedJson)
-    ? parsedJson
-    : parsedJson !== null && typeof parsedJson === "object" && Array.isArray((parsedJson as { data?: unknown }).data)
-      ? (parsedJson as { data: unknown[] }).data
-      : [];
-
-  for (const rawRow of rawRows) {
-    const parsedRow = TdlrSearchRowSchema.safeParse(rawRow);
-    if (!parsedRow.success || !isComputeInfrastructureFiling(parsedRow.data)) continue;
-    const row = parsedRow.data;
-    const createdMs = Date.parse(row.ProjectCreatedOn);
-
-    if (params.mode === "backfill") {
-      if (Number.isNaN(createdMs)) continue;
-      const year = new Date(createdMs).getUTCFullYear();
-      if (year < params.backfillStartYear || year > params.backfillEndYear) continue;
-    }
-    if (params.effectiveSinceDate && (Number.isNaN(createdMs) || createdMs < params.effectiveSinceDate.getTime())) {
-      continue;
-    }
-    if (!params.discoveredByNumber.has(row.ProjectNumber)) {
-      params.discoveredByNumber.set(row.ProjectNumber, row);
-    }
-  }
+  tryParseSearchRowsJson(params.rawJsonBody)
+    .map((rawRow) => TdlrSearchRowSchema.safeParse(rawRow))
+    .filter(
+      (parsed): parsed is { success: true; data: TdlrSearchRow } =>
+        parsed.success &&
+        isComputeInfrastructureFiling(parsed.data) &&
+        isRowWithinDiscoveryWindow(parsed.data, params)
+    )
+    .forEach(({ data }) => {
+      if (!params.discoveredByNumber.has(data.ProjectNumber)) {
+        params.discoveredByNumber.set(data.ProjectNumber, data);
+      }
+    });
 }
 
 export function sortDiscoveryRowsChronologically(rows: Iterable<TdlrSearchRow>): TdlrSearchRow[] {

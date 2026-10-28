@@ -16,6 +16,18 @@ import {
   buildTelemetrySpan,
 } from "./helpers/telemetry-math.ts";
 
+async function resolveActiveConnectorConfig(
+  repository: GridlockRepository,
+  connectorId: string | undefined
+): Promise<ConnectorConfig | undefined> {
+  if (!connectorId) return undefined;
+  try {
+    return await repository.getActiveConnectorConfig(connectorId);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function recordStageTelemetry(
   input: {
     stage: string;
@@ -78,16 +90,10 @@ export async function recordStageTelemetry(
     recentSlice
   );
 
-  let activeConfig: ConnectorConfig | undefined;
-  if (run.connectorId) {
-    try {
-      activeConfig = await deps.repository.getActiveConnectorConfig(
-        run.connectorId
-      );
-    } catch {
-      activeConfig = undefined;
-    }
-  }
+  const activeConfig = await resolveActiveConnectorConfig(
+    deps.repository,
+    run.connectorId
+  );
 
   const currentChangelog = await deps.repository.listRepairChangelog();
   const amortized = applyHealAmortization({

@@ -8,6 +8,14 @@ import type { GridlockRepository } from "../interfaces/index.ts";
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
 import { handleGetEfficiencyTelemetry } from "./telemetry-controller.ts";
 
+function tryParseRequestUrl(rawUrl: string | undefined): URL | null {
+  try {
+    return new URL(rawUrl ?? "/", "http://localhost");
+  } catch {
+    return null;
+  }
+}
+
 export async function handleGridlockHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -21,10 +29,8 @@ export async function handleGridlockHttpRequest(
     return;
   }
 
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(req.url ?? "/", "http://localhost");
-  } catch {
+  const parsedUrl = tryParseRequestUrl(req.url);
+  if (!parsedUrl) {
     sendJson(res, 400, {
       error: "invalid_request_url",
       message: "Malformed request URL",
@@ -32,7 +38,7 @@ export async function handleGridlockHttpRequest(
     return;
   }
 
-  const pathname = parsedUrl.pathname;
+  const { pathname } = parsedUrl;
 
   if (pathname === "/api/telemetry/efficiency") {
     await handleGetEfficiencyTelemetry(req, res, parsedUrl, deps);

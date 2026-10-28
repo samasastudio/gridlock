@@ -105,6 +105,20 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
         }
       }
     }
+
+    lines.forEach((line, index) => {
+      const stripped = line.replace(/\/\/.*$/, "");
+      if (/^\s*let\s+/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Avoid mutable \`let\` bindings in favor of \`const\` and pure helpers/reduce (CODING_STANDARDS.md)`
+        );
+      }
+      if (/^\s*for\s*\(/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Avoid imperative \`for (...)\` loops in favor of declarative array methods (.map, .filter, .reduce, .find) (CODING_STANDARDS.md)`
+        );
+      }
+    });
   }
 
   lines.forEach((line, index) => {

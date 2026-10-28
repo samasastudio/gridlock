@@ -1,3 +1,4 @@
+import type { Buffer } from "node:buffer";
 import { gunzipSync } from "node:zlib";
 import {
   CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
@@ -16,6 +17,55 @@ import {
 import { evaluateSandboxReplayGate } from "./helpers/sandbox-replay.ts";
 import { applyConnectorPromotion } from "./helpers/telemetry-math.ts";
 import { recordAgenticStageTelemetry } from "./record-telemetry.ts";
+
+function tryDecompressQuarantinedHtml(
+  gzipBuffer: Buffer
+): { ok: true; html: string } | { ok: false; reason: string } {
+  try {
+    return { ok: true, html: gunzipSync(gzipBuffer).toString("utf-8") };
+  } catch {
+    return { ok: false, reason: "Corrupted gzip buffer in quarantined artifact" };
+  }
+}
+
+async function tryRequestRepairInteraction(
+  geminiClient: GeminiInteractionsClient,
+  prompt: string
+): Promise<
+  | { ok: true; interaction: GeminiInteractionResponse }
+  | { ok: false; reason: string }
+> {
+  try {
+    const interaction = await geminiClient.interactions.create({
+      model: REPAIR_AGENT_MODEL,
+      input: prompt,
+      response_format: {
+        type: "text",
+        mime_type: "application/json",
+        schema: CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
+      },
+    });
+    return { ok: true, interaction };
+  } catch (error) {
+    return {
+      ok: false,
+      reason:
+        error instanceof Error
+          ? error.message
+          : "Gemini interaction request failed",
+    };
+  }
+}
+
+function tryParseJsonPayload(
+  rawText: string
+): { ok: true; value: unknown } | { ok: false; reason: string } {
+  try {
+    return { ok: true, value: JSON.parse(rawText) };
+  } catch {
+    return { ok: false, reason: "Malformed JSON returned from Repair Agent" };
+  }
+}
 
 export async function runOutOfBandRepairAgent(
   input: {
@@ -86,12 +136,11 @@ export async function runOutOfBandRepairAgent(
     );
   }
 
-  let quarantinedHtml: string;
-  try {
-    quarantinedHtml = gunzipSync(gzipBuffer).toString("utf-8");
-  } catch {
-    return rejectFailClosed("Corrupted gzip buffer in quarantined artifact", 0);
+  const decompressed = tryDecompressQuarantinedHtml(gzipBuffer);
+  if (!decompressed.ok) {
+    return rejectFailClosed(decompressed.reason, 0);
   }
+  const quarantinedHtml = decompressed.html;
 
   const prompt = JSON.stringify({
     task: "Synthesize a backward-compatible ConnectorConfig selector patch for TDLR TABS HTML.",
@@ -100,23 +149,14 @@ export async function runOutOfBandRepairAgent(
     quarantinedHtml,
   });
 
-  let interaction: GeminiInteractionResponse;
-  try {
-    interaction = await deps.geminiClient.interactions.create({
-      model: REPAIR_AGENT_MODEL,
-      input: prompt,
-      response_format: {
-        type: "text",
-        mime_type: "application/json",
-        schema: CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
-      },
-    });
-  } catch (error) {
-    return rejectFailClosed(
-      error instanceof Error ? error.message : "Gemini interaction request failed",
-      0
-    );
+  const interactionOutcome = await tryRequestRepairInteraction(
+    deps.geminiClient,
+    prompt
+  );
+  if (!interactionOutcome.ok) {
+    return rejectFailClosed(interactionOutcome.reason, 0);
   }
+  const { interaction } = interactionOutcome;
 
   const repairTokensUsed = Math.max(0, interaction.usage?.total_tokens ?? 0);
   const interactionId = interaction.id || "inter_unknown";
@@ -129,18 +169,16 @@ export async function runOutOfBandRepairAgent(
     );
   }
 
-  let rawJson: unknown;
-  try {
-    rawJson = JSON.parse(interaction.output_text);
-  } catch {
+  const parsedJson = tryParseJsonPayload(interaction.output_text);
+  if (!parsedJson.ok) {
     return rejectFailClosed(
-      "Malformed JSON returned from Repair Agent",
+      parsedJson.reason,
       repairTokensUsed,
       interactionId
     );
   }
 
-  const parsedPatch = CandidateSelectorPatchSchema.safeParse(rawJson);
+  const parsedPatch = CandidateSelectorPatchSchema.safeParse(parsedJson.value);
   if (!parsedPatch.success) {
     return rejectFailClosed(
       `Candidate patch failed schema validation: ${parsedPatch.error.message}`,

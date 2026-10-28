@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import {
   ConnectorConfigSchema,
@@ -9,22 +10,24 @@ import {
 } from "../../interfaces/index.ts";
 import { parseTdlrFilingHtml } from "./tdlr-parser.ts";
 
-export function evaluateSandboxReplayGate(input: {
-  currentConfig: ConnectorConfig;
-  patch: CandidateSelectorPatch;
-  quarantinedHtml: string;
-  historicalFixtures: readonly string[];
-  nowIso: string;
-}): SandboxReplayResult {
-  const { currentConfig, patch, quarantinedHtml, historicalFixtures, nowIso } =
-    input;
+const TOP_SELECTOR_FIELDS = [
+  "detailContainerSelector",
+  "definitionListSelector",
+  "termSelector",
+  "descriptionSelector",
+] as const;
 
+function buildCandidateConfig(
+  currentConfig: ConnectorConfig,
+  patch: CandidateSelectorPatch,
+  nowIso: string
+): ConnectorConfig {
   const mergedLabels: TdlrFieldLabels = {
     ...currentConfig.fieldLabels,
     ...(patch.fieldLabels ?? {}),
   };
 
-  const candidateConfig = ConnectorConfigSchema.parse({
+  return ConnectorConfigSchema.parse({
     ...currentConfig,
     version: currentConfig.version + 1,
     status: "healthy",
@@ -38,75 +41,104 @@ export function evaluateSandboxReplayGate(input: {
     fieldLabels: mergedLabels,
     updatedAt: nowIso,
   });
+}
 
-  const selectorDiffs: SelectorDiffEntry[] = [];
-  const topFields = [
-    "detailContainerSelector",
-    "definitionListSelector",
-    "termSelector",
-    "descriptionSelector",
-  ] as const;
+function computeSelectorDiffs(
+  currentConfig: ConnectorConfig,
+  candidateConfig: ConnectorConfig
+): SelectorDiffEntry[] {
+  const topLevelDiffs: SelectorDiffEntry[] = TOP_SELECTOR_FIELDS.filter(
+    (field) => currentConfig[field] !== candidateConfig[field]
+  ).map((field) => ({
+    field,
+    before: currentConfig[field],
+    after: candidateConfig[field],
+  }));
 
-  for (const field of topFields) {
-    if (currentConfig[field] !== candidateConfig[field]) {
-      selectorDiffs.push({
-        field,
-        before: currentConfig[field],
-        after: candidateConfig[field],
-      });
-    }
-  }
-
-  for (const key of Object.keys(
+  const labelKeys = Object.keys(
     candidateConfig.fieldLabels
-  ) as Array<keyof TdlrFieldLabels>) {
-    const beforeVal = currentConfig.fieldLabels[key] ?? "";
-    const afterVal = candidateConfig.fieldLabels[key] ?? "";
-    if (beforeVal !== afterVal) {
-      selectorDiffs.push({
-        field: `fieldLabels.${key}`,
-        before: beforeVal,
-        after: afterVal,
-      });
-    }
-  }
+  ) as Array<keyof TdlrFieldLabels>;
 
-  const failureReasons: string[] = [];
-  if (selectorDiffs.length === 0) {
-    failureReasons.push("Candidate patch produced zero selector diffs");
-  }
-  if (historicalFixtures.length === 0) {
-    failureReasons.push(
-      "At least 1 historical fixture is required for Sandbox Replay Gate verification"
-    );
-  }
+  const fieldLabelDiffs: SelectorDiffEntry[] = labelKeys
+    .map((key) => ({
+      field: `fieldLabels.${key}`,
+      before: currentConfig.fieldLabels[key] ?? "",
+      after: candidateConfig.fieldLabels[key] ?? "",
+    }))
+    .filter((diff) => diff.before !== diff.after);
 
-  const replayFixture = (html: string) => {
-    const sha256 = createHash("sha256")
-      .update(Buffer.from(html, "utf-8"))
-      .digest("hex");
-    return parseTdlrFilingHtml(html, candidateConfig, { sha256, nowIso });
-  };
+  return [...topLevelDiffs, ...fieldLabelDiffs];
+}
 
-  const quarantinedParse = replayFixture(quarantinedHtml);
+function replayHtmlFixture(
+  html: string,
+  candidateConfig: ConnectorConfig,
+  nowIso: string
+) {
+  const sha256 = createHash("sha256")
+    .update(Buffer.from(html, "utf-8"))
+    .digest("hex");
+  return parseTdlrFilingHtml(html, candidateConfig, { sha256, nowIso });
+}
+
+export function evaluateSandboxReplayGate(input: {
+  currentConfig: ConnectorConfig;
+  patch: CandidateSelectorPatch;
+  quarantinedHtml: string;
+  historicalFixtures: readonly string[];
+  nowIso: string;
+}): SandboxReplayResult {
+  const { currentConfig, patch, quarantinedHtml, historicalFixtures, nowIso } =
+    input;
+
+  const candidateConfig = buildCandidateConfig(currentConfig, patch, nowIso);
+  const selectorDiffs = computeSelectorDiffs(currentConfig, candidateConfig);
+
+  const prerequisiteFailures = [
+    ...(selectorDiffs.length === 0
+      ? ["Candidate patch produced zero selector diffs"]
+      : []),
+    ...(historicalFixtures.length === 0
+      ? [
+          "At least 1 historical fixture is required for Sandbox Replay Gate verification",
+        ]
+      : []),
+  ];
+
+  const quarantinedParse = replayHtmlFixture(
+    quarantinedHtml,
+    candidateConfig,
+    nowIso
+  );
   const quarantinedPassed = quarantinedParse.ok;
-  if (!quarantinedParse.ok) {
-    failureReasons.push(
-      `Quarantined artifact failed replay: ${quarantinedParse.invariantErrors.join("; ")}`
-    );
-  }
+  const quarantinedFailures = quarantinedParse.ok
+    ? []
+    : [
+        `Quarantined artifact failed replay: ${quarantinedParse.invariantErrors.join("; ")}`,
+      ];
 
-  let historicalFixturesPassed = 0;
-  for (let i = 0; i < historicalFixtures.length; i += 1) {
-    const parsed = replayFixture(historicalFixtures[i]!);
-    if (parsed.ok) {
-      historicalFixturesPassed += 1;
-    } else {
-      failureReasons.push(
-        `Historical fixture #${i + 1} regressed: ${parsed.invariantErrors.join("; ")}`
-      );
-    }
-  }
+  const historicalOutcomes = historicalFixtures.map((fixtureHtml, index) => ({
+    index,
+    result: replayHtmlFixture(fixtureHtml, candidateConfig, nowIso),
+  }));
+
+  const historicalFixturesPassed = historicalOutcomes.filter(
+    (item) => item.result.ok
+  ).length;
+
+  const historicalFailures = historicalOutcomes.flatMap((item) =>
+    item.result.ok
+      ? []
+      : [
+          `Historical fixture #${item.index + 1} regressed: ${item.result.invariantErrors.join("; ")}`,
+        ]
+  );
+
+  const failureReasons = [
+    ...prerequisiteFailures,
+    ...quarantinedFailures,
+    ...historicalFailures,
+  ];
 
   const passed =
     selectorDiffs.length > 0 &&

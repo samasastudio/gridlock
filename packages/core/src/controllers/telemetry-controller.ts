@@ -33,10 +33,12 @@ export async function handleGetEfficiencyTelemetry(
     return;
   }
 
-  const rawQuery: Record<string, string> = {};
-  for (const [key, value] of parsedUrl.searchParams.entries()) {
-    rawQuery[key] = value;
-  }
+  const rawQuery = Array.from(parsedUrl.searchParams.entries()).reduce<
+    Record<string, string>
+  >((acc, [key, value]) => {
+    acc[key] = value;
+    return acc;
+  }, {});
 
   const parsedQuery = EfficiencyQueryParamsSchema.safeParse(rawQuery);
   if (!parsedQuery.success) {

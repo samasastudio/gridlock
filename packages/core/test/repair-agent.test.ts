@@ -401,6 +401,17 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       )
     );
 
+    const mutativeStyleViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/helpers/bad-style.ts",
+      "let count = 0;\nfor (const item of items) { count += item; }"
+    );
+    assert.ok(
+      mutativeStyleViolations.some((v) => v.includes("Avoid mutable `let`"))
+    );
+    assert.ok(
+      mutativeStyleViolations.some((v) => v.includes("Avoid imperative `for (...)`"))
+    );
+
     const impureHelperImportViolations = evaluateSourceFileLintRules(
       "packages/core/src/use-cases/helpers/bad-helper.ts",
       "import { defaultPageLoader } from \"../../adapters/http-loaders.ts\";"

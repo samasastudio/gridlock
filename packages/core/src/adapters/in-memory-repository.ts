@@ -34,15 +34,17 @@ export function createInMemoryGridlockRepository(
   const artifactBlobs = new Map<string, Buffer>();
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
-  let repairChangelog: RepairChangelogEntry[] = [];
   const telemetryRuns: TelemetryRun[] = [
     ...initialLedger.recentRuns.map((run) =>
       structuredClone(TelemetryRunSchema.parse(run))
     ),
   ];
-  let efficiencyLedger: EfficiencyLedger = structuredClone(
-    EfficiencyLedgerSchema.parse(initialLedger)
-  );
+  const state = {
+    repairChangelog: [] as RepairChangelogEntry[],
+    efficiencyLedger: structuredClone(
+      EfficiencyLedgerSchema.parse(initialLedger)
+    ),
+  };
 
   return {
     async getActiveConnectorConfig(connectorId: string): Promise<ConnectorConfig> {
@@ -119,16 +121,16 @@ export function createInMemoryGridlockRepository(
       const validatedRun = TelemetryRunSchema.parse(run);
       telemetryRuns.push(structuredClone(validatedRun));
       if (stateUpdate) {
-        efficiencyLedger = structuredClone(
+        state.efficiencyLedger = structuredClone(
           EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
         );
         if (stateUpdate.updatedChangelog) {
-          repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
+          state.repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
             structuredClone(RepairChangelogEntrySchema.parse(entry))
           );
         }
       }
-      return structuredClone(efficiencyLedger);
+      return structuredClone(state.efficiencyLedger);
     },
 
     async getEfficiencyLedger(
@@ -139,7 +141,7 @@ export function createInMemoryGridlockRepository(
         limit: options?.limit ?? 50,
       });
       return EfficiencyLedgerSchema.parse({
-        ...structuredClone(efficiencyLedger),
+        ...structuredClone(state.efficiencyLedger),
         recentRuns: boundedRuns,
       });
     },
@@ -166,7 +168,7 @@ export function createInMemoryGridlockRepository(
       const validatedConfig = ConnectorConfigSchema.parse(config);
       const validatedEntry = RepairChangelogEntrySchema.parse(changelogEntry);
       configs.set(validatedConfig.connectorId, structuredClone(validatedConfig));
-      repairChangelog.push(structuredClone(validatedEntry));
+      state.repairChangelog.push(structuredClone(validatedEntry));
 
       if (stateUpdate?.promotedArtifact) {
         artifacts.set(
@@ -175,7 +177,7 @@ export function createInMemoryGridlockRepository(
         );
       }
       if (stateUpdate) {
-        efficiencyLedger = structuredClone(
+        state.efficiencyLedger = structuredClone(
           EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
         );
       }
@@ -184,7 +186,7 @@ export function createInMemoryGridlockRepository(
     async listRepairChangelog(
       connectorId?: string
     ): Promise<RepairChangelogEntry[]> {
-      return repairChangelog
+      return state.repairChangelog
         .filter((entry) =>
           connectorId ? entry.connectorId === connectorId : true
         )

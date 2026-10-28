@@ -217,30 +217,37 @@ export function applyHealAmortization(params: {
     };
   }
 
-  for (let i = updatedChangelog.length - 1; i >= 0; i -= 1) {
-    const entry = updatedChangelog[i]!;
-    if (
+  const targetIndex = updatedChangelog.reduce(
+    (foundIdx, entry, idx) =>
       entry.connectorId === run.connectorId &&
       entry.promotedVersion === activeConfig.version
-    ) {
-      updatedChangelog[i] = RepairChangelogEntrySchema.parse({
-        ...entry,
-        subsequentDeterministicRunsServed:
-          entry.subsequentDeterministicRunsServed + 1,
-      });
-      const updatedLedger = EfficiencyLedgerSchema.parse({
-        ...ledger,
-        subsequentDeterministicRunsServed:
-          ledger.subsequentDeterministicRunsServed + 1,
-      });
-      return { updatedChangelog, updatedLedger };
-    }
+        ? idx
+        : foundIdx,
+    -1
+  );
+
+  if (targetIndex === -1) {
+    return {
+      updatedChangelog,
+      updatedLedger: structuredClone(ledger),
+    };
   }
 
-  return {
-    updatedChangelog,
-    updatedLedger: structuredClone(ledger),
-  };
+  const nextChangelog = updatedChangelog.map((entry, idx) =>
+    idx === targetIndex
+      ? RepairChangelogEntrySchema.parse({
+          ...entry,
+          subsequentDeterministicRunsServed:
+            entry.subsequentDeterministicRunsServed + 1,
+        })
+      : entry
+  );
+  const updatedLedger = EfficiencyLedgerSchema.parse({
+    ...ledger,
+    subsequentDeterministicRunsServed:
+      ledger.subsequentDeterministicRunsServed + 1,
+  });
+  return { updatedChangelog: nextChangelog, updatedLedger };
 }
 
 export function applyConnectorPromotion(params: {
