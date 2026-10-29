@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   ConnectorConfigSchema,
   DEFAULT_EFFICIENCY_LEDGER,
@@ -9,53 +10,18 @@ import {
   SourceArtifactSchema,
   TelemetryRunSchema,
   type ConnectorConfig,
+  type ConnectorPromotionStateUpdate,
   type ConnectorStatus,
   type EfficiencyLedger,
-  type ExecutionMode,
+  type GridlockRepository,
   type Observation,
   type Project,
   type RepairChangelogEntry,
   type SourceArtifact,
+  type TelemetryLedgerQueryOptions,
   type TelemetryRun,
-} from "./schemas.ts";
-import { applyTelemetryRunToLedger } from "./telemetry.ts";
-
-export interface TelemetryLedgerQueryOptions {
-  limit?: number;
-  executionMode?: ExecutionMode;
-}
-
-export interface GridlockRepository {
-  getActiveConnectorConfig(connectorId: string): Promise<ConnectorConfig>;
-  setConnectorStatus(
-    connectorId: string,
-    status: ConnectorStatus,
-    updatedAt: string
-  ): Promise<ConnectorConfig>;
-  getSourceArtifactByHash(sha256: string): Promise<SourceArtifact | null>;
-  saveSourceArtifact(
-    artifact: SourceArtifact,
-    gzipBuffer: Buffer
-  ): Promise<void>;
-  readArtifactGzip(sha256: string): Promise<Buffer | null>;
-  getProjectByNumber(projectNumber: string): Promise<Project | null>;
-  upsertProject(project: Project): Promise<void>;
-  appendObservation(observation: Observation): Promise<void>;
-  listObservationsByProject(projectNumber: string): Promise<Observation[]>;
-  listProjects(): Promise<Project[]>;
-  recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
-  getEfficiencyLedger(
-    options?: TelemetryLedgerQueryOptions
-  ): Promise<EfficiencyLedger>;
-  listTelemetryRuns(
-    options?: TelemetryLedgerQueryOptions
-  ): Promise<TelemetryRun[]>;
-  promoteConnectorConfig(
-    config: ConnectorConfig,
-    changelogEntry: RepairChangelogEntry
-  ): Promise<void>;
-  listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
-}
+  type TelemetryStateUpdate,
+} from "../interfaces/index.ts";
 
 export function createInMemoryGridlockRepository(
   initialConfig: ConnectorConfig = DEFAULT_TDLR_CONNECTOR_CONFIG,
@@ -68,15 +34,17 @@ export function createInMemoryGridlockRepository(
   const artifactBlobs = new Map<string, Buffer>();
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
-  const repairChangelog: RepairChangelogEntry[] = [];
   const telemetryRuns: TelemetryRun[] = [
     ...initialLedger.recentRuns.map((run) =>
       structuredClone(TelemetryRunSchema.parse(run))
     ),
   ];
-  let efficiencyLedger: EfficiencyLedger = structuredClone(
-    EfficiencyLedgerSchema.parse(initialLedger)
-  );
+  const state = {
+    repairChangelog: [] as RepairChangelogEntry[],
+    efficiencyLedger: structuredClone(
+      EfficiencyLedgerSchema.parse(initialLedger)
+    ),
+  };
 
   return {
     async getActiveConnectorConfig(connectorId: string): Promise<ConnectorConfig> {
@@ -146,45 +114,21 @@ export function createInMemoryGridlockRepository(
       return Array.from(projects.values()).map((proj) => structuredClone(proj));
     },
 
-    async recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger> {
+    async recordTelemetryRun(
+      run: TelemetryRun,
+      stateUpdate: TelemetryStateUpdate
+    ): Promise<EfficiencyLedger> {
       const validatedRun = TelemetryRunSchema.parse(run);
       telemetryRuns.push(structuredClone(validatedRun));
-      const recentSlice = telemetryRuns
-        .slice(-50)
-        .map((r) => structuredClone(r));
-      efficiencyLedger = applyTelemetryRunToLedger(
-        efficiencyLedger,
-        validatedRun,
-        recentSlice
+      state.efficiencyLedger = structuredClone(
+        EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
       );
-
-      if (
-        validatedRun.execution_mode === "deterministic" &&
-        (validatedRun.status === "ingested" ||
-          validatedRun.status === "unchanged_artifact") &&
-        validatedRun.connectorId
-      ) {
-        const activeConfig = configs.get(validatedRun.connectorId);
-        if (activeConfig) {
-          for (let i = repairChangelog.length - 1; i >= 0; i -= 1) {
-            const entry = repairChangelog[i]!;
-            if (
-              entry.connectorId === validatedRun.connectorId &&
-              entry.promotedVersion === activeConfig.version
-            ) {
-              entry.subsequentDeterministicRunsServed += 1;
-              efficiencyLedger = EfficiencyLedgerSchema.parse({
-                ...efficiencyLedger,
-                subsequentDeterministicRunsServed:
-                  efficiencyLedger.subsequentDeterministicRunsServed + 1,
-              });
-              break;
-            }
-          }
-        }
+      if (stateUpdate.updatedChangelog) {
+        state.repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
+          structuredClone(RepairChangelogEntrySchema.parse(entry))
+        );
       }
-
-      return structuredClone(efficiencyLedger);
+      return structuredClone(state.efficiencyLedger);
     },
 
     async getEfficiencyLedger(
@@ -195,7 +139,7 @@ export function createInMemoryGridlockRepository(
         limit: options?.limit ?? 50,
       });
       return EfficiencyLedgerSchema.parse({
-        ...structuredClone(efficiencyLedger),
+        ...structuredClone(state.efficiencyLedger),
         recentRuns: boundedRuns,
       });
     },
@@ -216,43 +160,29 @@ export function createInMemoryGridlockRepository(
 
     async promoteConnectorConfig(
       config: ConnectorConfig,
-      changelogEntry: RepairChangelogEntry
+      changelogEntry: RepairChangelogEntry,
+      stateUpdate: ConnectorPromotionStateUpdate
     ): Promise<void> {
       const validatedConfig = ConnectorConfigSchema.parse(config);
       const validatedEntry = RepairChangelogEntrySchema.parse(changelogEntry);
       configs.set(validatedConfig.connectorId, structuredClone(validatedConfig));
-      repairChangelog.push(structuredClone(validatedEntry));
-      const quarantinedArtifact = artifacts.get(
-        validatedEntry.quarantinedArtifactHash
-      );
-      if (quarantinedArtifact) {
+      state.repairChangelog.push(structuredClone(validatedEntry));
+
+      if (stateUpdate.promotedArtifact) {
         artifacts.set(
           validatedEntry.quarantinedArtifactHash,
-          SourceArtifactSchema.parse({
-            ...quarantinedArtifact,
-            referencedByMilestone: true,
-            expiresAt: null,
-          })
+          structuredClone(SourceArtifactSchema.parse(stateUpdate.promotedArtifact))
         );
       }
-      const totalMttrMs = repairChangelog.reduce(
-        (sum, item) => sum + item.mttrMs,
-        0
+      state.efficiencyLedger = structuredClone(
+        EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
       );
-      const averageRepairMttrMs = Number(
-        (totalMttrMs / repairChangelog.length).toFixed(2)
-      );
-      efficiencyLedger = EfficiencyLedgerSchema.parse({
-        ...efficiencyLedger,
-        averageRepairMttrMs,
-        updatedAt: validatedEntry.patchPromotedAt,
-      });
     },
 
     async listRepairChangelog(
       connectorId?: string
     ): Promise<RepairChangelogEntry[]> {
-      return repairChangelog
+      return state.repairChangelog
         .filter((entry) =>
           connectorId ? entry.connectorId === connectorId : true
         )

@@ -28,7 +28,7 @@ Never commit directly to `main` (enforced by `.githooks/pre-commit`). Every chan
   ```
 - **Make an issue a sub-issue of a parent**: `gh api --method POST repos/samasastudio/gridlock/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>`
 - **Blocking edges**: `gh api --method POST repos/samasastudio/gridlock/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>` (where `<blocker-db-id>` is `gh api repos/samasastudio/gridlock/issues/<n> --jq .id`).
-- **Comment / label / close**: `gh issue comment <number> --body "..."`, `gh issue edit <number> --add-label "..."`, `gh issue close <number> --comment "..."`.
+- **Comment / edit body / close (use `gh api -X PATCH` to edit issue/PR bodies and avoid classic Projects GraphQL errors)**: `gh issue comment <number> --body "..."`, `gh api repos/samasastudio/gridlock/issues/<number> -X PATCH -F body=@/tmp/body.md`, `gh api repos/samasastudio/gridlock/pulls/<number> -X PATCH -F body=@/tmp/body.md`, `gh issue close <number> --comment "..."`.
 
 ## Pull requests as a triage surface
 

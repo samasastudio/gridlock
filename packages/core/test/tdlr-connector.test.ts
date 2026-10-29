@@ -1,5 +1,3 @@
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
 import { gunzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { test, describe, beforeEach, afterEach } from "node:test";
@@ -16,124 +14,29 @@ import {
   SourceArtifactSchema,
   ConnectorConfigSchema,
 } from "../src/index.ts";
-
-const FROZEN_TABS_2027003697_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head><title>TDLR TABS - Project Details</title></head>
-<body>
-<div class="project-details">
-  <div class="project-details-header">
-    <h3>Architectural Barriers Project Details Page</h3>
-    <p><b>Project #:</b> TABS2027003697 <span class="pull-right"><b>Registration Date:</b> 10/15/2026</span></p>
-  </div>
-  <div class="project-details-body">
-    <div class="project-details-project">
-      <h4>PROJECT</h4>
-      <dl class="dl-horizontal">
-        <dt>Project Name:</dt>
-        <dd>Compass Datacenters - DFWIII-III - Building 10 - Interior / Tenant Fit Out</dd>
-        <dt>Project Number:</dt>
-        <dd>TABS2027003697</dd>
-        <dt>Facility Name:</dt>
-        <dd>DFWIII III - Building 10</dd>
-        <dt>Location Address:</dt>
-        <dd>590 Austin Blvd</dd>
-        <dd>Red Oak, TX 75154</dd>
-        <dt>Location County:</dt>
-        <dd>Ellis</dd>
-      </dl>
-      <dl class="dl-horizontal">
-        <dt>Start Date:</dt>
-        <dd>12/1/2024</dd>
-        <dt>Completion Date:</dt>
-        <dd>8/22/2028</dd>
-        <dt>Estimated Cost:</dt>
-        <dd>$100,000,000</dd>
-        <dt>Type of Work:</dt>
-        <dd>Renovation/Alteration</dd>
-        <dt>Scope of Work:</dt>
-        <dd>251,815 sq. ft of Interior / Tenant Fit-Out for construction of a new Data Center on a Data Center Campus.</dd>
-        <dt>Square Footage:</dt>
-        <dd>251,815 ft <sup>2</sup></dd>
-      </dl>
-      <dl class="dl-horizontal">
-        <dt>Current Status:</dt>
-        <dd>Project Registered</dd>
-      </dl>
-    </div>
-    <div class="project-details-owner">
-      <h4>OWNER</h4>
-      <dl class="dl-horizontal">
-        <dt>Owner Name:</dt>
-        <dd>COMPASS DATACENTERS DFW III-I LLC</dd>
-      </dl>
-    </div>
-  </div>
-</div>
-</body>
-</html>`;
+import { FROZEN_TABS_2027003697_HTML } from "./helpers/fixtures.ts";
+import {
+  startMockPortalServer,
+  type MockPortalRoute,
+  type MockPortalServerHarness,
+  type RecordedPortalRequest,
+} from "./helpers/mock-portal-server.ts";
 
 describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
-  let server: Server;
+  let harness: MockPortalServerHarness;
   let baseUrl: string;
-  let routeMap: Map<
-    string,
-    { status?: number; headers?: Record<string, string>; body: string }
-  >;
-  let recordedRequests: Array<{
-    method: string;
-    url: string;
-    headers: Record<string, string | string[] | undefined>;
-    body: string;
-  }>;
-  let currentInFlight: number;
-  let maxInFlightSeen: number;
+  let routeMap: Map<string, MockPortalRoute>;
+  let recordedRequests: RecordedPortalRequest[];
 
   beforeEach(async () => {
-    routeMap = new Map();
-    recordedRequests = [];
-    currentInFlight = 0;
-    maxInFlightSeen = 0;
-    server = createServer((req, res) => {
-      currentInFlight += 1;
-      if (currentInFlight > maxInFlightSeen) {
-        maxInFlightSeen = currentInFlight;
-      }
-      const chunks: Buffer[] = [];
-      req.on("data", (chunk: Buffer) => chunks.push(chunk));
-      req.on("end", () => {
-        const rawBody = Buffer.concat(chunks).toString("utf-8");
-        recordedRequests.push({
-          method: req.method ?? "GET",
-          url: req.url ?? "",
-          headers: req.headers,
-          body: rawBody,
-        });
-        const route = routeMap.get(req.url ?? "");
-        if (!route) {
-          currentInFlight -= 1;
-          res.writeHead(404, { "content-type": "text/plain" });
-          res.end("Not Found");
-          return;
-        }
-        res.writeHead(route.status ?? 200, {
-          "content-type": "text/html; charset=utf-8",
-          ...route.headers,
-        });
-        res.end(route.body, () => {
-          currentInFlight -= 1;
-        });
-      });
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address() as AddressInfo;
-    baseUrl = `http://127.0.0.1:${address.port}`;
+    harness = await startMockPortalServer();
+    baseUrl = harness.baseUrl;
+    routeMap = harness.routeMap;
+    recordedRequests = harness.recordedRequests;
   });
 
   afterEach(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve()))
-    );
+    await harness.close();
   });
 
   test("extracts valid Project and append-only Observation from frozen TDLR HTML and stores a gzipped SHA-256 SourceArtifact", async () => {
@@ -607,7 +510,7 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     ]);
 
     // Single-flight concurrency and >= 1,500ms delay between requests
-    assert.equal(maxInFlightSeen, 1);
+    assert.equal(harness.getMaxInFlightSeen(), 1);
     assert.ok(recordedSleeps.length >= 3);
     for (const delayMs of recordedSleeps) {
       assert.ok(

@@ -3,7 +3,7 @@
 ## Before exploring, read these
 
 - **[`GLOSSARY.md`](../../GLOSSARY.md)** at the repo root.
-- **[`docs/adr/`](../adr/)**: read the ADRs that touch the area you are working in (`0001` topology, `0002` Firestore/GCS spine, `0003` bounded Gemini Interactions API).
+- **[`docs/adr/`](../adr/)**: read the ADRs that touch the area you are working in (`0001` topology, `0002` Firestore/GCS spine, `0003` bounded Gemini Interactions API, `0004` Clean Architecture `packages/core` layout).
 
 ## File structure
 

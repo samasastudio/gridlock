@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { Buffer } from "node:buffer";
 import type { AddressInfo } from "node:net";
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
@@ -16,79 +16,26 @@ import {
   TelemetrySpanSchema,
   type TelemetrySpan,
 } from "../src/index.ts";
-
-const FROZEN_TABS_2027003697_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head><title>TDLR TABS - Project Details</title></head>
-<body>
-<div class="project-details">
-  <div class="project-details-project">
-    <dl class="dl-horizontal">
-      <dt>Project Name:</dt>
-      <dd>Compass Datacenters - DFWIII-III - Building 10</dd>
-      <dt>Project Number:</dt>
-      <dd>TABS2027003697</dd>
-      <dt>Facility Name:</dt>
-      <dd>DFWIII III - Building 10</dd>
-      <dt>Location Address:</dt>
-      <dd>590 Austin Blvd</dd>
-      <dd>Red Oak, TX 75154</dd>
-      <dt>Location County:</dt>
-      <dd>Ellis</dd>
-      <dt>Start Date:</dt>
-      <dd>12/1/2024</dd>
-      <dt>Completion Date:</dt>
-      <dd>8/22/2028</dd>
-      <dt>Estimated Cost:</dt>
-      <dd>$100,000,000</dd>
-      <dt>Type of Work:</dt>
-      <dd>Renovation/Alteration</dd>
-      <dt>Scope of Work:</dt>
-      <dd>251,815 sq. ft Data Center fit-out.</dd>
-      <dt>Square Footage:</dt>
-      <dd>251,815 ft <sup>2</sup></dd>
-      <dt>Current Status:</dt>
-      <dd>Project Registered</dd>
-      <dt>Owner Name:</dt>
-      <dd>COMPASS DATACENTERS DFW III-I LLC</dd>
-    </dl>
-  </div>
-</div>
-</body>
-</html>`;
+import { FROZEN_TABS_2027003697_HTML } from "./helpers/fixtures.ts";
+import {
+  startMockPortalServer,
+  type MockPortalRoute,
+  type MockPortalServerHarness,
+} from "./helpers/mock-portal-server.ts";
 
 describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
-  let server: Server;
+  let harness: MockPortalServerHarness;
   let baseUrl: string;
-  let routeMap: Map<
-    string,
-    { status?: number; headers?: Record<string, string>; body: string }
-  >;
+  let routeMap: Map<string, MockPortalRoute>;
 
   beforeEach(async () => {
-    routeMap = new Map();
-    server = createServer((req, res) => {
-      const route = routeMap.get(req.url ?? "");
-      if (!route) {
-        res.writeHead(404, { "content-type": "text/plain" });
-        res.end("Not Found");
-        return;
-      }
-      res.writeHead(route.status ?? 200, {
-        "content-type": "text/html; charset=utf-8",
-        ...(route.headers ?? {}),
-      });
-      res.end(route.body);
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address() as AddressInfo;
-    baseUrl = `http://127.0.0.1:${address.port}`;
+    harness = await startMockPortalServer();
+    baseUrl = harness.baseUrl;
+    routeMap = harness.routeMap;
   });
 
   afterEach(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((err) => (err ? reject(err) : resolve()))
-    );
+    await harness.close();
   });
 
   test("Happy Path: fresh deterministic extraction and duplicate SHA-256 short-circuit atomically increment naiveTokensAvoided, deterministicRunsCount, and estimatedCostSavedUsd, write permanent telemetry_runs (expiresAt: null), and emit execution_mode: 'deterministic' spans", async () => {

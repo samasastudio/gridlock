@@ -1,7 +1,7 @@
 # Gridlock — Execution Roadmap (`ROADMAP.md`)
 
 > **Parent Specification**: [`samasastudio/gridlock#1`](https://github.com/samasastudio/gridlock/issues/1)  
-> **Architecture & Domain**: [`GLOSSARY.md`](./GLOSSARY.md) · [`ADR-0001`](./docs/adr/0001-two-repo-google-cloud-topology.md) · [`ADR-0002`](./docs/adr/0002-firestore-and-cloud-storage-spine.md) · [`ADR-0003`](./docs/adr/0003-deterministic-first-bounded-ai.md) · [`TDLR Site Access & Cadence`](./docs/connectors/tdlr-site-access-and-cadence.md)
+> **Architecture & Domain**: [`GLOSSARY.md`](./GLOSSARY.md) · [`ADR-0001`](./docs/adr/0001-two-repo-google-cloud-topology.md) · [`ADR-0002`](./docs/adr/0002-firestore-and-cloud-storage-spine.md) · [`ADR-0003`](./docs/adr/0003-deterministic-first-bounded-ai.md) · [`ADR-0004`](./docs/adr/0004-clean-architecture-core-module-layout.md) · [`TDLR Site Access & Cadence`](./docs/connectors/tdlr-site-access-and-cadence.md)
 
 ---
 
@@ -30,15 +30,16 @@ flowchart TD
     T2["#2 Monorepo & Single-Filing TDLR Tracer (~350 LOC)"] --> T3["#3 Site Access Guard, PII Redactor & --backfill (~350 LOC)"]
   end
 
-  subgraph Wave2["Wave 2 — Parallel Telemetry & Agent Cores (Seam 2 & 3 Core)"]
+  subgraph Wave2["Wave 2 — Parallel Telemetry, Prefactor & Agent Cores (Seam 2 & 3 Core)"]
     T3 --> T4["#4 Efficiency Ledger & Telemetry API (~300 LOC)"]
     T3 --> T5["#5 Out-of-Band Repair Agent & Replay Gate (~350 LOC)"]
-    T3 --> T7["#7 Stateful Painter Agent (gemini-3-pro-image) (~350 LOC)"]
+    T4 --> T17["#17 Clean Architecture Core Module Layout & Guardrails"]
+    T5 --> T17
+    T17 --> T7["#7 Stateful Painter Agent (gemini-3-pro-image) (~350 LOC)"]
   end
 
   subgraph Wave3["Wave 3 — Parallel Storybook Widgets (Seam 2 & 3 UI)"]
-    T4 --> T6["#6 Repair Changelog API & <GridlockRepairLogWidget /> (~350 LOC)"]
-    T5 --> T6
+    T17 --> T6["#6 Repair Changelog API & <GridlockRepairLogWidget /> (~350 LOC)"]
     T7 --> T8["#8 Plate Lineage API & <GridlockPlateWidget /> (~400 LOC)"]
   end
 
@@ -98,8 +99,16 @@ flowchart TD
     - [x] **Happy Path**: Feeding a mutated TDLR HTML fixture triggers `selector_anomaly`, invokes the **Repair Agent**, verifies the candidate selector patch against 100% of historical fixtures + the mutated artifact in the **Sandbox Replay Gate**, promotes the new `ConnectorConfig` version, writes a `RepairChangelogEntry` (`mttrMs`, `repairTokensUsed`), and increments `subsequentDeterministicRunsServed` on following deterministic sweeps.
     - [x] **Sad Path (Fail-Closed)**: When the **Repair Agent** returns a candidate patch that fixes the quarantined artifact but regresses even 1 historical fixture—or returns malformed/unparseable JSON or times out—the **Sandbox Replay Gate** rejects the patch, leaves the connector in `selector_anomaly`, and performs zero config promotion or unverified data writes.
 
+- [x] **[`gridlock#17`](https://github.com/samasastudio/gridlock/issues/17) — Prefactor: Clean Architecture Module Layout & Guardrails in `packages/core`** (`ADR-0004`)
+  - **Blocked by**: [`#4`](https://github.com/samasastudio/gridlock/issues/4), [`#5`](https://github.com/samasastudio/gridlock/issues/5)
+  - **Unlocks**: `#6`, `#7`
+  - **Delivers**: Reorganizes `@samasastudio/gridlock-core` into four Clean Architecture layers (`interfaces/`, `use-cases/` + `use-cases/helpers/`, `adapters/`, `controllers/`), extracts pure deterministic state transitions (`applyHealAmortization`, `applyConnectorPromotion`) from the repository adapter, deduplicates test fixtures and mock HTTP server harnesses, and enforces `<= 300` lines/file + inward layer imports in `scripts/lint-checks.mjs`.
+  - **Testing Validation Gate**:
+    - [x] **Happy Path**: All `@samasastudio/gridlock-core` modules live under `interfaces/`, `use-cases/` (and `use-cases/helpers/`), `adapters/`, or `controllers/`; all existing **Connector**, **Efficiency Ledger**, and **Repair Agent** public-seam tests pass without breaking public exports; shared test fixtures and mock portal server helpers eliminate duplicated HTML fixtures across test suites.
+    - [x] **Sad Path**: `npm run lint` (`evaluateSourceFileLintRules`) deterministically fails if any file under `packages/core/src` exceeds `300` lines, lives outside the four permitted layer directories (other than `src/index.ts`), uses `let` bindings or imperative `for` loops, or violates inward layer import seams (`interfaces/` importing from `use-cases/`/`adapters/`/`controllers/`, `adapters/` importing from `use-cases/`/`controllers/`, `use-cases/` or `use-cases/helpers/` importing from `adapters/`/`controllers/`, or `controllers/` importing from `use-cases/helpers/` or `adapters/`).
+
 - [ ] **[`gridlock#7`](https://github.com/samasastudio/gridlock/issues/7) — Stateful Painter Agent (`gemini-3-pro-image`) & Lineage Chaining (Seam 3 Core)** (`~350 LOC`)
-  - **Blocked by**: [`#3`](https://github.com/samasastudio/gridlock/issues/3)
+  - **Blocked by**: [`#3`](https://github.com/samasastudio/gridlock/issues/3), [`#17`](https://github.com/samasastudio/gridlock/issues/17)
   - **Unlocks**: `#8`
   - **Delivers**: Deterministic milestone gate (`imageGenerationsAvoided`), `bootstrapCanvas`, `paintMilestoneDelta` (`previous_interaction_id` chaining), `.webp` encoding, expired `interaction_id` fallback from cached `.webp` parent buffers, and `branchLineage` watermarked as `"Scenario Branch / Unverified Projection"`.
   - **Testing Validation Gate**:
@@ -111,7 +120,7 @@ flowchart TD
 ### Wave 3 — Parallel Embeddable Widgets in Storybook (Seam 2 & Seam 3 UI)
 
 - [ ] **[`gridlock#6`](https://github.com/samasastudio/gridlock/issues/6) — `GET /api/repairs/changelog` & `<GridlockRepairLogWidget />` (Seam 2 UI)** (`~350 LOC`)
-  - **Blocked by**: [`#4`](https://github.com/samasastudio/gridlock/issues/4), [`#5`](https://github.com/samasastudio/gridlock/issues/5)
+  - **Blocked by**: [`#4`](https://github.com/samasastudio/gridlock/issues/4), [`#5`](https://github.com/samasastudio/gridlock/issues/5), [`#17`](https://github.com/samasastudio/gridlock/issues/17)
   - **Unlocks**: `#9` (alongside `#8`)
   - **Delivers**: Exposes `GET /api/repairs/changelog` (JSON + Markdown) and ships `<GridlockRepairLogWidget />` in `@samasastudio/gridlock-widgets` with Storybook stories displaying selector diffs, MTTR, heal amortization, and the Efficiency Ledger scorecard.
   - **Testing Validation Gate**:

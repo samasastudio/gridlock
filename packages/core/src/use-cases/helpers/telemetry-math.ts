@@ -1,19 +1,20 @@
 import { randomBytes } from "node:crypto";
 import {
   EfficiencyLedgerSchema,
+  NAIVE_COST_PER_TOKEN_USD,
+  RepairChangelogEntrySchema,
+  SourceArtifactSchema,
   TelemetryRunSchema,
   TelemetrySpanSchema,
+  type ConnectorConfig,
   type EfficiencyLedger,
   type ExecutionMode,
+  type RepairChangelogEntry,
+  type SourceArtifact,
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
-} from "./schemas.ts";
-
-export const NAIVE_COST_PER_TOKEN_USD = 0.0000025;
-export const DEFAULT_GCP_PROJECT_ID = "gridlock-civic-atlas";
-
-export type TelemetrySpanSink = (span: TelemetrySpan) => void;
+} from "../../interfaces/index.ts";
 
 export function calculateNaiveTokensAvoided(rawByteLength: number): number {
   if (!Number.isFinite(rawByteLength) || rawByteLength <= 0) {
@@ -30,54 +31,6 @@ export function calculateEstimatedCostSavedUsd(
   }
   return Number((naiveTokensAvoided * NAIVE_COST_PER_TOKEN_USD).toFixed(8));
 }
-
-export function createCloudLoggingSpanSink(
-  writer: (jsonLine: string) => void = (line) => {
-    if (
-      !process.env.NODE_TEST_CONTEXT &&
-      process.env.NODE_ENV !== "test" &&
-      process.env.npm_lifecycle_event !== "test" &&
-      !process.execArgv.includes("--test")
-    ) {
-      process.stdout.write(`${line}\n`);
-    }
-  },
-  projectId: string = process.env.GOOGLE_CLOUD_PROJECT ?? DEFAULT_GCP_PROJECT_ID
-): TelemetrySpanSink {
-  return (span: TelemetrySpan) => {
-    const validated = TelemetrySpanSchema.parse(span);
-    const isError =
-      validated.status === "blocked_by_waf" ||
-      validated.status === "selector_anomaly" ||
-      validated.status === "aborted" ||
-      validated.status === "agentic_failed";
-
-    const cloudLogEntry: Record<string, unknown> = {
-      severity: isError ? "WARNING" : "INFO",
-      message: `[Gridlock Telemetry] stage=${validated.stage} mode=${validated.execution_mode} status=${validated.status} durationMs=${validated.durationMs} naiveTokensAvoided=${validated.naiveTokensAvoided} tokensUsed=${validated.tokensUsed}`,
-      "logging.googleapis.com/trace": `projects/${projectId}/traces/${validated.traceId}`,
-      "logging.googleapis.com/spanId": validated.spanId,
-      stage: validated.stage,
-      status: validated.status,
-      execution_mode: validated.execution_mode,
-      durationMs: validated.durationMs,
-      tokensUsed: validated.tokensUsed,
-      naiveTokensAvoided: validated.naiveTokensAvoided,
-      startedAt: validated.startedAt,
-      endedAt: validated.endedAt,
-      ...(validated.interactionId !== undefined
-        ? { interactionId: validated.interactionId }
-        : {}),
-      ...(validated.attributes !== undefined
-        ? { attributes: validated.attributes }
-        : {}),
-    };
-
-    writer(JSON.stringify(cloudLogEntry));
-  };
-}
-
-export const defaultSpanSink: TelemetrySpanSink = createCloudLoggingSpanSink();
 
 export function buildTelemetrySpan(params: {
   stage: string;
@@ -238,113 +191,99 @@ export function applyTelemetryRunToLedger(
   });
 }
 
-export async function recordStageTelemetry(
-  input: {
-    stage: string;
-    connectorId?: string;
-    projectNumber?: string;
-    sourceArtifactHash?: string;
-    execution_mode: ExecutionMode;
-    status: TelemetryRunStatus;
-    rawByteLength: number;
-    tokensUsed: number;
-    naiveTokensAvoided: number;
-    estimatedCostSavedUsd?: number;
-    interactionId?: string;
-    startedAt: Date;
-    endedAt: Date;
-    recordedAt?: string;
-    attributes?: Record<string, string | number | boolean | null>;
-  },
-  deps: {
-    repository: {
-      recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
-    };
-    spanSink?: TelemetrySpanSink;
-  }
-): Promise<{ run: TelemetryRun; span: TelemetrySpan; ledger: EfficiencyLedger }> {
-  const durationMs = Math.max(
-    0,
-    input.endedAt.getTime() - input.startedAt.getTime()
+export function applyHealAmortization(params: {
+  run: TelemetryRun;
+  activeConfig: ConnectorConfig | undefined;
+  repairChangelog: readonly RepairChangelogEntry[];
+  ledger: EfficiencyLedger;
+}): {
+  updatedChangelog: RepairChangelogEntry[];
+  updatedLedger: EfficiencyLedger;
+} {
+  const { run, activeConfig, repairChangelog, ledger } = params;
+  const updatedChangelog = repairChangelog.map((entry) =>
+    structuredClone(entry)
   );
-  const run = buildTelemetryRun({
-    stage: input.stage,
-    ...(input.connectorId !== undefined
-      ? { connectorId: input.connectorId }
-      : {}),
-    ...(input.projectNumber !== undefined
-      ? { projectNumber: input.projectNumber }
-      : {}),
-    ...(input.sourceArtifactHash !== undefined
-      ? { sourceArtifactHash: input.sourceArtifactHash }
-      : {}),
-    execution_mode: input.execution_mode,
-    status: input.status,
-    durationMs,
-    rawByteLength: input.rawByteLength,
-    tokensUsed: input.tokensUsed,
-    naiveTokensAvoided: input.naiveTokensAvoided,
-    ...(input.estimatedCostSavedUsd !== undefined
-      ? { estimatedCostSavedUsd: input.estimatedCostSavedUsd }
-      : {}),
-    ...(input.interactionId !== undefined
-      ? { interactionId: input.interactionId }
-      : {}),
-    recordedAt: input.recordedAt ?? input.endedAt.toISOString(),
+
+  if (
+    run.execution_mode !== "deterministic" ||
+    (run.status !== "ingested" && run.status !== "unchanged_artifact") ||
+    !run.connectorId ||
+    !activeConfig
+  ) {
+    return {
+      updatedChangelog,
+      updatedLedger: structuredClone(ledger),
+    };
+  }
+
+  const targetIndex = updatedChangelog.reduce(
+    (foundIdx, entry, idx) =>
+      entry.connectorId === run.connectorId &&
+      entry.promotedVersion === activeConfig.version
+        ? idx
+        : foundIdx,
+    -1
+  );
+
+  if (targetIndex === -1) {
+    return {
+      updatedChangelog,
+      updatedLedger: structuredClone(ledger),
+    };
+  }
+
+  const nextChangelog = updatedChangelog.map((entry, idx) =>
+    idx === targetIndex
+      ? RepairChangelogEntrySchema.parse({
+          ...entry,
+          subsequentDeterministicRunsServed:
+            entry.subsequentDeterministicRunsServed + 1,
+        })
+      : entry
+  );
+  const updatedLedger = EfficiencyLedgerSchema.parse({
+    ...ledger,
+    subsequentDeterministicRunsServed:
+      ledger.subsequentDeterministicRunsServed + 1,
   });
-
-  const ledger = await deps.repository.recordTelemetryRun(run);
-  const span = buildTelemetrySpan({
-    stage: input.stage,
-    execution_mode: input.execution_mode,
-    status: input.status,
-    startedAt: input.startedAt,
-    endedAt: input.endedAt,
-    tokensUsed: input.tokensUsed,
-    naiveTokensAvoided: input.naiveTokensAvoided,
-    ...(input.interactionId !== undefined
-      ? { interactionId: input.interactionId }
-      : {}),
-    ...(input.attributes !== undefined
-      ? { attributes: input.attributes }
-      : {}),
-  });
-
-  const sink = deps.spanSink ?? defaultSpanSink;
-  sink(span);
-
-  return { run, span, ledger };
+  return { updatedChangelog: nextChangelog, updatedLedger };
 }
 
-export async function recordAgenticStageTelemetry(
-  input: {
-    stage: string;
-    connectorId?: string;
-    projectNumber?: string;
-    sourceArtifactHash?: string;
-    status: "agentic_completed" | "agentic_failed";
-    tokensUsed: number;
-    interactionId?: string;
-    rawByteLength?: number;
-    startedAt: Date;
-    endedAt: Date;
-    attributes?: Record<string, string | number | boolean | null>;
-  },
-  deps: {
-    repository: {
-      recordTelemetryRun(run: TelemetryRun): Promise<EfficiencyLedger>;
-    };
-    spanSink?: TelemetrySpanSink;
-  }
-): Promise<{ run: TelemetryRun; span: TelemetrySpan; ledger: EfficiencyLedger }> {
-  return recordStageTelemetry(
-    {
-      ...input,
-      execution_mode: "agentic",
-      rawByteLength: input.rawByteLength ?? 0,
-      naiveTokensAvoided: 0,
-      estimatedCostSavedUsd: 0,
-    },
-    deps
+export function applyConnectorPromotion(params: {
+  changelogEntry: RepairChangelogEntry;
+  allChangelogEntries: readonly RepairChangelogEntry[];
+  quarantinedArtifact: SourceArtifact | undefined;
+  ledger: EfficiencyLedger;
+}): {
+  promotedArtifact: SourceArtifact | undefined;
+  updatedLedger: EfficiencyLedger;
+} {
+  const { changelogEntry, allChangelogEntries, quarantinedArtifact, ledger } =
+    params;
+
+  const promotedArtifact = quarantinedArtifact
+    ? SourceArtifactSchema.parse({
+        ...quarantinedArtifact,
+        referencedByMilestone: true,
+        expiresAt: null,
+      })
+    : undefined;
+
+  const totalMttrMs = allChangelogEntries.reduce(
+    (sum, item) => sum + item.mttrMs,
+    0
   );
+  const averageRepairMttrMs =
+    allChangelogEntries.length > 0
+      ? Number((totalMttrMs / allChangelogEntries.length).toFixed(2))
+      : 0;
+
+  const updatedLedger = EfficiencyLedgerSchema.parse({
+    ...ledger,
+    averageRepairMttrMs,
+    updatedAt: changelogEntry.patchPromotedAt,
+  });
+
+  return { promotedArtifact, updatedLedger };
 }
