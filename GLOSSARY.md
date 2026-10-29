@@ -1,6 +1,6 @@
 # Gridlock
 
-An investigative telemetry and visualization system tracking the physical buildout of compute and electric grid infrastructure across Texas public filings, built on the principle that deterministic code handles routine execution while AI agents operate strictly at uncertainty and synthesis boundaries.
+An investigative telemetry and visualization system tracking the physical buildout of compute and electric grid infrastructure across Texas public filings, built on the principle that deterministic code handles routine execution while AI agents operate strictly at uncertainty and synthesis seams.
 
 ## Language
 
@@ -37,7 +37,7 @@ _Avoid_: Error log, stack trace dump
 ### Stateful Visual Synthesis
 
 **Stateful Painter Agent**:
-An agentic service using the Gemini Interactions API (`previous_interaction_id`) to evolve a Visual Plate across time by painting only incremental deltas triggered by new Observations rather than regenerating images from scratch.
+A deep agentic module using the Gemini Interactions API (`previous_interaction_id`) to evolve a Visual Plate across time by painting only incremental deltas triggered by new Observations rather than regenerating images from scratch.
 _Avoid_: Stateless image generator, tile server
 
 **Visual Plate**:
