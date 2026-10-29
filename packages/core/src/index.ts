@@ -1,3 +1,20 @@
+import {
+  defaultPageLoader,
+  defaultSearchLoader,
+} from "./adapters/http-loaders.ts";
+import { ingestTdlrFiling as ingestTdlrFilingUseCase } from "./use-cases/ingest-tdlr-filing.ts";
+import { runTdlrDiscoverySweep as runTdlrDiscoverySweepUseCase } from "./use-cases/run-tdlr-discovery.ts";
+import type {
+  GridlockRepository,
+  IngestFilingResult,
+  PageLoader,
+  SearchLoader,
+  TdlrDiscoveryMode,
+  TdlrDiscoverySweepResult,
+  TdlrSearchFilter,
+  TelemetrySpanSink,
+} from "./interfaces/index.ts";
+
 export {
   ARTIFACT_BUCKET_URI,
   CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
@@ -36,7 +53,6 @@ export {
   TelemetrySpanSchema,
   type CandidateSelectorPatch,
   type ConnectorConfig,
-  type ConnectorPromotionStateUpdate,
   type ConnectorStatus,
   type EfficiencyLedger,
   type ExecutionMode,
@@ -49,7 +65,6 @@ export {
   type Observation,
   type PageLoader,
   type PageLoaderResponse,
-  type PlaywrightPageLike,
   type Project,
   type RepairAgentResult,
   type RepairChangelogEntry,
@@ -71,7 +86,6 @@ export {
   type TelemetryRunStatus,
   type TelemetrySpan,
   type TelemetrySpanSink,
-  type TelemetryStateUpdate,
 } from "./interfaces/index.ts";
 
 export {
@@ -82,7 +96,7 @@ export {
   createPlaywrightPageLoader,
   defaultPageLoader,
   defaultSearchLoader,
-  headersToRecord,
+  type PlaywrightPageLike,
 } from "./adapters/http-loaders.ts";
 export { createInMemoryGridlockRepository } from "./adapters/in-memory-repository.ts";
 
@@ -98,32 +112,73 @@ export {
 export {
   isComputeInfrastructureFiling,
   parseTdlrCliArgs,
-  parseTdlrFilingHtml,
-} from "./use-cases/helpers/tdlr-parser.ts";
+} from "./use-cases/helpers/tdlr-discovery-filter.ts";
+export { parseTdlrFilingHtml } from "./use-cases/helpers/tdlr-parser.ts";
 export {
   applyConnectorPromotion,
   applyHealAmortization,
-  applyTelemetryRunToLedger,
-  buildTelemetryRun,
-  buildTelemetrySpan,
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
 } from "./use-cases/helpers/telemetry-math.ts";
 
 export {
-  getEfficiencyScorecard,
-  type GetEfficiencyScorecardResult,
-} from "./use-cases/get-efficiency-scorecard.ts";
-export {
   recordAgenticStageTelemetry,
   recordStageTelemetry,
 } from "./use-cases/record-telemetry.ts";
-export { ingestTdlrFiling } from "./use-cases/ingest-tdlr-filing.ts";
-export { runTdlrDiscoverySweep } from "./use-cases/run-tdlr-discovery.ts";
 export { runOutOfBandRepairAgent } from "./use-cases/run-repair-agent.ts";
+
+export async function ingestTdlrFiling(
+  input: {
+    projectNumber: string;
+    baseUrl?: string;
+    now?: Date;
+    robotsTxt?: string;
+  },
+  deps: {
+    repository: GridlockRepository;
+    pageLoader?: PageLoader;
+    spanSink?: TelemetrySpanSink;
+  }
+): Promise<IngestFilingResult> {
+  return ingestTdlrFilingUseCase(input, {
+    repository: deps.repository,
+    pageLoader: deps.pageLoader ?? defaultPageLoader,
+    ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+  });
+}
+
+export async function runTdlrDiscoverySweep(
+  input: {
+    mode?: TdlrDiscoveryMode;
+    baseUrl?: string;
+    now?: Date;
+    sinceDate?: Date;
+    searchFilters?: readonly TdlrSearchFilter[];
+    backfillStartYear?: number;
+    backfillEndYear?: number;
+    minDelayMs?: number;
+    maxRecordsPerRun?: number;
+  },
+  deps: {
+    repository: GridlockRepository;
+    pageLoader?: PageLoader;
+    searchLoader?: SearchLoader;
+    sleep?: (ms: number) => Promise<void>;
+    jitterMs?: () => number;
+    spanSink?: TelemetrySpanSink;
+  }
+): Promise<TdlrDiscoverySweepResult> {
+  return runTdlrDiscoverySweepUseCase(input, {
+    repository: deps.repository,
+    pageLoader: deps.pageLoader ?? defaultPageLoader,
+    searchLoader: deps.searchLoader ?? defaultSearchLoader,
+    ...(deps.sleep !== undefined ? { sleep: deps.sleep } : {}),
+    ...(deps.jitterMs !== undefined ? { jitterMs: deps.jitterMs } : {}),
+    ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+  });
+}
 
 export {
   createGridlockHttpServer,
   handleGridlockHttpRequest,
 } from "./controllers/http-server.ts";
-export { handleGetEfficiencyTelemetry } from "./controllers/telemetry-controller.ts";

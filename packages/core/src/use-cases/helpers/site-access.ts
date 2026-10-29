@@ -1,7 +1,5 @@
 import {
   GRIDLOCK_USER_AGENT,
-  type GridlockRepository,
-  type PageLoader,
   type SiteAccessCheckResult,
   type SiteAccessInput,
 } from "../../interfaces/index.ts";
@@ -33,7 +31,11 @@ function getLongestMatchingPrefixLength(normalizedPath: string, prefixes: readon
     .reduce((maxLen, prefix) => Math.max(maxLen, prefix.length), -1);
 }
 
-function evaluateRulePrefixes(normalizedPath: string, disallowPrefixes: readonly string[], allowPrefixes: readonly string[]): boolean {
+function evaluateRulePrefixes(
+  normalizedPath: string,
+  disallowPrefixes: readonly string[],
+  allowPrefixes: readonly string[]
+): boolean {
   const longestDisallow = getLongestMatchingPrefixLength(normalizedPath, disallowPrefixes);
   if (longestDisallow === -1) return true;
   const longestAllow = getLongestMatchingPrefixLength(normalizedPath, allowPrefixes);
@@ -41,13 +43,13 @@ function evaluateRulePrefixes(normalizedPath: string, disallowPrefixes: readonly
 }
 
 interface RobotsParseAccumulator {
-  currentAgents: string[];
-  seenRuleInGroup: boolean;
-  matchedSpecificGroup: boolean;
-  specificDisallow: string[];
-  specificAllow: string[];
-  wildcardDisallow: string[];
-  wildcardAllow: string[];
+  readonly currentAgents: readonly string[];
+  readonly seenRuleInGroup: boolean;
+  readonly matchedSpecificGroup: boolean;
+  readonly specificDisallow: readonly string[];
+  readonly specificAllow: readonly string[];
+  readonly wildcardDisallow: readonly string[];
+  readonly wildcardAllow: readonly string[];
 }
 
 function parseRobotsDirective(rawLine: string): { directive: string; value: string } | null {
@@ -65,27 +67,34 @@ function doesAgentTokenMatchBot(agentToken: string, uaLower: string, botProductT
   return agentToken !== "*" && (uaLower.includes(agentToken) || botProductToken.includes(agentToken));
 }
 
-function applyRobotsLine(state: RobotsParseAccumulator, rawLine: string, uaLower: string, botProductToken: string): RobotsParseAccumulator {
+function applyRobotsLine(
+  state: RobotsParseAccumulator,
+  rawLine: string,
+  uaLower: string,
+  botProductToken: string
+): RobotsParseAccumulator {
   const parsed = parseRobotsDirective(rawLine);
   if (!parsed) return state;
 
   if (parsed.directive === "blank") {
-    state.currentAgents = [];
-    state.seenRuleInGroup = false;
-    return state;
+    return {
+      ...state,
+      currentAgents: [],
+      seenRuleInGroup: false,
+    };
   }
 
   if (parsed.directive === "user-agent") {
-    if (state.seenRuleInGroup) {
-      state.currentAgents = [];
-      state.seenRuleInGroup = false;
-    }
+    const baseAgents = state.seenRuleInGroup ? [] : state.currentAgents;
     const agentToken = parsed.value.toLowerCase();
-    state.currentAgents.push(agentToken);
-    if (doesAgentTokenMatchBot(agentToken, uaLower, botProductToken)) {
-      state.matchedSpecificGroup = true;
-    }
-    return state;
+    return {
+      ...state,
+      currentAgents: [...baseAgents, agentToken],
+      seenRuleInGroup: false,
+      matchedSpecificGroup:
+        state.matchedSpecificGroup ||
+        doesAgentTokenMatchBot(agentToken, uaLower, botProductToken),
+    };
   }
 
   if (
@@ -95,21 +104,34 @@ function applyRobotsLine(state: RobotsParseAccumulator, rawLine: string, uaLower
     return state;
   }
 
-  state.seenRuleInGroup = true;
   const isSpecific = state.currentAgents.some((ua) =>
     doesAgentTokenMatchBot(ua, uaLower, botProductToken)
   );
   const isWildcard = state.currentAgents.includes("*");
 
   if (parsed.directive === "disallow") {
-    if (isSpecific) state.specificDisallow.push(parsed.value);
-    if (isWildcard) state.wildcardDisallow.push(parsed.value);
-    return state;
+    return {
+      ...state,
+      seenRuleInGroup: true,
+      specificDisallow: isSpecific
+        ? [...state.specificDisallow, parsed.value]
+        : state.specificDisallow,
+      wildcardDisallow: isWildcard
+        ? [...state.wildcardDisallow, parsed.value]
+        : state.wildcardDisallow,
+    };
   }
 
-  if (isSpecific) state.specificAllow.push(parsed.value);
-  if (isWildcard) state.wildcardAllow.push(parsed.value);
-  return state;
+  return {
+    ...state,
+    seenRuleInGroup: true,
+    specificAllow: isSpecific
+      ? [...state.specificAllow, parsed.value]
+      : state.specificAllow,
+    wildcardAllow: isWildcard
+      ? [...state.wildcardAllow, parsed.value]
+      : state.wildcardAllow,
+  };
 }
 
 export function isPathAllowedByRobotsTxt(
@@ -208,76 +230,4 @@ export function verifySiteAccess(input: SiteAccessInput): SiteAccessCheckResult 
   }
 
   return { allowed: true, status: "ok", tokensUsed: 0 };
-}
-
-export async function markBlockedByWaf(
-  repository: GridlockRepository,
-  connectorId: string,
-  nowIso: string,
-  access: Extract<SiteAccessCheckResult, { allowed: false }>
-): Promise<{
-  status: "blocked_by_waf";
-  reason: string;
-  retryAfterSeconds?: number;
-  tokensUsed: 0;
-}> {
-  await repository.setConnectorStatus(connectorId, "blocked_by_waf", nowIso);
-  return {
-    status: "blocked_by_waf",
-    reason: access.reason,
-    ...(access.retryAfterSeconds !== undefined ? { retryAfterSeconds: access.retryAfterSeconds } : {}),
-    tokensUsed: 0,
-  };
-}
-
-async function resolveRobotsTxtContent(params: {
-  baseUrl: string;
-  providedRobotsTxt?: string;
-  pageLoader: PageLoader;
-  now: Date;
-}): Promise<
-  | { allowed: true; robotsTxt: string }
-  | { allowed: false; access: Extract<SiteAccessCheckResult, { allowed: false }> }
-> {
-  if (params.providedRobotsTxt !== undefined) {
-    return { allowed: true, robotsTxt: params.providedRobotsTxt };
-  }
-  try {
-    const robotsRes = await params.pageLoader(`${params.baseUrl}/robots.txt`);
-    const robotsAccess = verifySiteAccess({
-      status: robotsRes.status === 404 ? 200 : robotsRes.status,
-      headers: robotsRes.headers,
-      body: robotsRes.status === 404 ? "" : robotsRes.body,
-      now: params.now,
-    });
-    if (!robotsAccess.allowed) return { allowed: false, access: robotsAccess };
-    return { allowed: true, robotsTxt: robotsRes.status === 200 ? robotsRes.body : "" };
-  } catch {
-    return { allowed: true, robotsTxt: "" };
-  }
-}
-
-export async function preflightRobotsTxt(params: {
-  baseUrl: string;
-  targetPath: string;
-  providedRobotsTxt?: string;
-  pageLoader: PageLoader;
-  now: Date;
-}): Promise<
-  | { allowed: true; robotsTxt: string }
-  | { allowed: false; access: Extract<SiteAccessCheckResult, { allowed: false }> }
-> {
-  const resolved = await resolveRobotsTxtContent(params);
-  if (!resolved.allowed) return resolved;
-
-  const pathCheck = verifySiteAccess({
-    status: 200,
-    body: "",
-    robotsTxt: resolved.robotsTxt,
-    targetPath: params.targetPath,
-    now: params.now,
-  });
-  return pathCheck.allowed
-    ? { allowed: true, robotsTxt: resolved.robotsTxt }
-    : { allowed: false, access: pathCheck };
 }

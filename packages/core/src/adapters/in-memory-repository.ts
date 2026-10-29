@@ -116,19 +116,17 @@ export function createInMemoryGridlockRepository(
 
     async recordTelemetryRun(
       run: TelemetryRun,
-      stateUpdate?: TelemetryStateUpdate
+      stateUpdate: TelemetryStateUpdate
     ): Promise<EfficiencyLedger> {
       const validatedRun = TelemetryRunSchema.parse(run);
       telemetryRuns.push(structuredClone(validatedRun));
-      if (stateUpdate) {
-        state.efficiencyLedger = structuredClone(
-          EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
+      state.efficiencyLedger = structuredClone(
+        EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
+      );
+      if (stateUpdate.updatedChangelog) {
+        state.repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
+          structuredClone(RepairChangelogEntrySchema.parse(entry))
         );
-        if (stateUpdate.updatedChangelog) {
-          state.repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
-            structuredClone(RepairChangelogEntrySchema.parse(entry))
-          );
-        }
       }
       return structuredClone(state.efficiencyLedger);
     },
@@ -163,24 +161,22 @@ export function createInMemoryGridlockRepository(
     async promoteConnectorConfig(
       config: ConnectorConfig,
       changelogEntry: RepairChangelogEntry,
-      stateUpdate?: ConnectorPromotionStateUpdate
+      stateUpdate: ConnectorPromotionStateUpdate
     ): Promise<void> {
       const validatedConfig = ConnectorConfigSchema.parse(config);
       const validatedEntry = RepairChangelogEntrySchema.parse(changelogEntry);
       configs.set(validatedConfig.connectorId, structuredClone(validatedConfig));
       state.repairChangelog.push(structuredClone(validatedEntry));
 
-      if (stateUpdate?.promotedArtifact) {
+      if (stateUpdate.promotedArtifact) {
         artifacts.set(
           validatedEntry.quarantinedArtifactHash,
           structuredClone(SourceArtifactSchema.parse(stateUpdate.promotedArtifact))
         );
       }
-      if (stateUpdate) {
-        state.efficiencyLedger = structuredClone(
-          EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
-        );
-      }
+      state.efficiencyLedger = structuredClone(
+        EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
+      );
     },
 
     async listRepairChangelog(

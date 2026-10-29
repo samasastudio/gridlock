@@ -1,4 +1,3 @@
-import { defaultSpanSink } from "../adapters/cloud-logging-sink.ts";
 import {
   type ConnectorConfig,
   type EfficiencyLedger,
@@ -15,6 +14,8 @@ import {
   buildTelemetryRun,
   buildTelemetrySpan,
 } from "./helpers/telemetry-math.ts";
+
+const noopSpanSink: TelemetrySpanSink = () => {};
 
 async function resolveActiveConnectorConfig(
   repository: GridlockRepository,
@@ -124,7 +125,7 @@ export async function recordStageTelemetry(
       : {}),
   });
 
-  const sink = deps.spanSink ?? defaultSpanSink;
+  const sink = deps.spanSink ?? noopSpanSink;
   sink(span);
 
   return { run, span, ledger };

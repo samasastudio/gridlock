@@ -49,7 +49,7 @@ export interface GridlockRepository {
   listProjects(): Promise<Project[]>;
   recordTelemetryRun(
     run: TelemetryRun,
-    stateUpdate?: TelemetryStateUpdate
+    stateUpdate: TelemetryStateUpdate
   ): Promise<EfficiencyLedger>;
   getEfficiencyLedger(
     options?: TelemetryLedgerQueryOptions
@@ -60,7 +60,7 @@ export interface GridlockRepository {
   promoteConnectorConfig(
     config: ConnectorConfig,
     changelogEntry: RepairChangelogEntry,
-    stateUpdate?: ConnectorPromotionStateUpdate
+    stateUpdate: ConnectorPromotionStateUpdate
   ): Promise<void>;
   listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
 }
@@ -73,17 +73,6 @@ export interface PageLoaderResponse {
 }
 
 export type PageLoader = (url: string) => Promise<PageLoaderResponse>;
-
-export interface PlaywrightPageLike {
-  goto(
-    url: string,
-    options?: { waitUntil?: "domcontentloaded" | "load" | "networkidle" }
-  ): Promise<{
-    status(): number;
-    headers(): Record<string, string>;
-  } | null>;
-  content(): Promise<string>;
-}
 
 export type SearchLoader = (
   url: string,

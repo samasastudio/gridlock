@@ -1,5 +1,3 @@
-import { defaultSpanSink } from "../adapters/cloud-logging-sink.ts";
-import { defaultPageLoader, defaultSearchLoader } from "../adapters/http-loaders.ts";
 import {
   DEFAULT_DAILY_LOOKBACK_MS,
   DEFAULT_TDLR_BASE_URL,
@@ -17,22 +15,24 @@ import {
   type TdlrSearchRow,
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
-import { markBlockedByWaf, preflightRobotsTxt, verifySiteAccess } from "./helpers/site-access.ts";
+import { verifySiteAccess } from "./helpers/site-access.ts";
 import {
-  collectQualifyingDiscoveryRows,
+  extractQualifyingDiscoveryRows,
   sanitizeDiscoverySearchFilters,
   sortDiscoveryRowsChronologically,
-} from "./helpers/tdlr-parser.ts";
+} from "./helpers/tdlr-discovery-filter.ts";
 import { buildTelemetrySpan, calculateNaiveTokensAvoided } from "./helpers/telemetry-math.ts";
 import { ingestTdlrFiling } from "./ingest-tdlr-filing.ts";
+import { markBlockedByWaf, preflightRobotsTxt } from "./preflight-site-access.ts";
 import { recordStageTelemetry } from "./record-telemetry.ts";
 
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 const defaultJitterMs = (): number => Math.floor(Math.random() * 250);
+const noopSpanSink: TelemetrySpanSink = () => {};
 
 type SearchSweepOutcome =
-  | { blocked: false }
+  | { blocked: false; discoveredRows: readonly TdlrSearchRow[] }
   | { blocked: true; access: Extract<SiteAccessCheckResult, { allowed: false }> };
 
 async function executeSearchFilterSweep(params: {
@@ -49,7 +49,6 @@ async function executeSearchFilterSweep(params: {
   backfillStartYear: number;
   backfillEndYear: number;
   effectiveSinceDate: Date | undefined;
-  discoveredByNumber: Map<string, TdlrSearchRow>;
 }): Promise<SearchSweepOutcome> {
   return params.safeFilters.reduce<Promise<SearchSweepOutcome>>(
     async (prevPromise, filter, index) => {
@@ -76,17 +75,22 @@ async function executeSearchFilterSweep(params: {
       });
       if (!searchAccess.allowed) return { blocked: true, access: searchAccess };
 
-      collectQualifyingDiscoveryRows({
+      const matchingRows = extractQualifyingDiscoveryRows({
         rawJsonBody: searchRes.body,
         mode: params.mode,
         backfillStartYear: params.backfillStartYear,
         backfillEndYear: params.backfillEndYear,
         effectiveSinceDate: params.effectiveSinceDate,
-        discoveredByNumber: params.discoveredByNumber,
       });
-      return { blocked: false };
+      const existingNumbers = new Set(prev.discoveredRows.map((r) => r.ProjectNumber));
+      const newUniqueRows = matchingRows.filter((r) => !existingNumbers.has(r.ProjectNumber));
+
+      return {
+        blocked: false,
+        discoveredRows: [...prev.discoveredRows, ...newUniqueRows],
+      };
     },
-    Promise.resolve({ blocked: false })
+    Promise.resolve({ blocked: false, discoveredRows: [] })
   );
 }
 
@@ -104,8 +108,8 @@ export async function runTdlrDiscoverySweep(
   },
   deps: {
     repository: GridlockRepository;
-    pageLoader?: PageLoader;
-    searchLoader?: SearchLoader;
+    pageLoader: PageLoader;
+    searchLoader: SearchLoader;
     sleep?: (ms: number) => Promise<void>;
     jitterMs?: () => number;
     spanSink?: TelemetrySpanSink;
@@ -116,8 +120,7 @@ export async function runTdlrDiscoverySweep(
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
-  const pageLoader = deps.pageLoader ?? defaultPageLoader;
-  const searchLoader = deps.searchLoader ?? defaultSearchLoader;
+  const { pageLoader, searchLoader } = deps;
   const sleep = deps.sleep ?? defaultSleep;
   const jitterMs = deps.jitterMs ?? defaultJitterMs;
   const baseDelayMs = Math.max(MIN_POLITE_DELAY_MS, input.minDelayMs ?? MIN_POLITE_DELAY_MS);
@@ -158,11 +161,9 @@ export async function runTdlrDiscoverySweep(
     );
   };
 
-  const discoveredByNumber = new Map<string, TdlrSearchRow>();
-
   const runSearchPhase = async (): Promise<
     | { ok: false; blockedResult: Extract<TdlrDiscoverySweepResult, { status: "blocked_by_waf" }> }
-    | { ok: true; robotsTxt: string }
+    | { ok: true; robotsTxt: string; discoveredRows: readonly TdlrSearchRow[] }
   > => {
     const preflight = await preflightRobotsTxt({ baseUrl, targetPath: searchPath, pageLoader, now });
     if (!preflight.allowed) {
@@ -186,14 +187,17 @@ export async function runTdlrDiscoverySweep(
       backfillStartYear,
       backfillEndYear,
       effectiveSinceDate,
-      discoveredByNumber,
     });
     if (sweepOutcome.blocked) {
       const blocked = await markBlockedByWaf(deps.repository, config.connectorId, nowIso, sweepOutcome.access);
       await recordDiscoveryFailureTelemetry("blocked_by_waf");
       return { ok: false, blockedResult: { ...blocked, mode } };
     }
-    return { ok: true, robotsTxt: preflight.robotsTxt };
+    return {
+      ok: true,
+      robotsTxt: preflight.robotsTxt,
+      discoveredRows: sweepOutcome.discoveredRows,
+    };
   };
 
   const searchPhaseOutcome = await runSearchPhase().catch(async (error) => {
@@ -202,7 +206,7 @@ export async function runTdlrDiscoverySweep(
   });
   if (!searchPhaseOutcome.ok) return searchPhaseOutcome.blockedResult;
 
-  const chronologicalRows = sortDiscoveryRowsChronologically(discoveredByNumber.values());
+  const chronologicalRows = sortDiscoveryRowsChronologically(searchPhaseOutcome.discoveredRows);
   const discoveredCount = chronologicalRows.length;
   const circuitBreakerTripped = discoveredCount > maxRecordsPerRun;
   const skippedByCircuitBreakerCount = circuitBreakerTripped ? discoveredCount - maxRecordsPerRun : 0;
@@ -262,7 +266,7 @@ export async function runTdlrDiscoverySweep(
     }
     return sum;
   }, 0);
-  const sink = deps.spanSink ?? defaultSpanSink;
+  const sink = deps.spanSink ?? noopSpanSink;
   sink(
     buildTelemetrySpan({
       stage: "tdlr_discovery_sweep",

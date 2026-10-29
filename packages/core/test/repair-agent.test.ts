@@ -387,7 +387,47 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     );
     assert.ok(
       controllerAdapterImportViolations.some((v) =>
-        v.includes("controllers/ must delegate to use-cases/ and not import from adapters/")
+        v.includes("controllers/ must delegate to use-cases/ orchestrators and not import from adapters/")
+      )
+    );
+
+    const controllerHelperBypassViolations = evaluateSourceFileLintRules(
+      "packages/core/src/controllers/bad-controller-2.ts",
+      "import { verifySiteAccess } from \"../use-cases/helpers/site-access.ts\";"
+    );
+    assert.ok(
+      controllerHelperBypassViolations.some((v) =>
+        v.includes("controllers/ must delegate to use-cases/ orchestrators and not import from use-cases/helpers/")
+      )
+    );
+
+    const useCaseAdapterImportViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/bad-use-case.ts",
+      "import { defaultPageLoader } from \"../adapters/http-loaders.ts\";"
+    );
+    assert.ok(
+      useCaseAdapterImportViolations.some((v) =>
+        v.includes("use-cases/ must not import from outer adapters/")
+      )
+    );
+
+    const rootBarrelBypassViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/bad-barrel.ts",
+      "import { defaultPageLoader } from \"../index.ts\";"
+    );
+    assert.ok(
+      rootBarrelBypassViolations.some((v) =>
+        v.includes("internal modules must not import the root barrel")
+      )
+    );
+
+    const dotDotSlashBypassViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/helpers/bad-helper-path.ts",
+      "import { recordStageTelemetry } from \"./../record-telemetry.ts\";"
+    );
+    assert.ok(
+      dotDotSlashBypassViolations.some((v) =>
+        v.includes("use-cases/helpers/ must remain pure")
       )
     );
 

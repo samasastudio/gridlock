@@ -63,7 +63,6 @@ export type {
   GridlockRepository,
   PageLoader,
   PageLoaderResponse,
-  PlaywrightPageLike,
   SearchLoader,
   TelemetryLedgerQueryOptions,
   TelemetrySpanSink,

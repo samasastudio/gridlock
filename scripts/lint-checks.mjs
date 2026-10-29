@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, posix, relative } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
@@ -26,7 +26,7 @@ export const ALLOWED_CORE_TOP_DIRS = new Set([
 function extractImportSpecifiers(content) {
   const specifiers = [];
   const staticImportRegex =
-    /\b(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g;
+    /\b(?:import|export)\s+(?:[^;'"`]*?\s+from\s+)?["']([^"']+)["']/g;
   const dynamicImportRegex = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
   for (const regex of [staticImportRegex, dynamicImportRegex]) {
     for (const match of content.matchAll(regex)) {
@@ -36,6 +36,20 @@ function extractImportSpecifiers(content) {
     }
   }
   return specifiers;
+}
+
+function classifyCoreLayer(normalizedSubPath) {
+  if (normalizedSubPath === "index.ts" || normalizedSubPath === "index.js") {
+    return "root-barrel";
+  }
+  if (normalizedSubPath.startsWith("use-cases/helpers/")) {
+    return "use-cases/helpers";
+  }
+  const topSegment = normalizedSubPath.split("/")[0] ?? "";
+  if (ALLOWED_CORE_TOP_DIRS.has(topSegment)) {
+    return topSegment;
+  }
+  return "outside";
 }
 
 export function evaluateSourceFileLintRules(relPathRaw, content) {
@@ -66,42 +80,57 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
         );
       }
 
+      const sourceLayer = classifyCoreLayer(subPath);
       const specifiers = extractImportSpecifiers(content);
       for (const spec of specifiers) {
         if (!spec.startsWith(".")) continue;
-        if (topDir === "interfaces") {
-          if (/(?:^|\b)(?:use-cases|adapters|controllers)(?:\/|$)/.test(spec)) {
-            violations.push(
-              `${relPath}: Clean Architecture violation — interfaces/ must not import from "${spec}" (ADR-0004)`
-            );
-          }
-        } else if (topDir === "adapters") {
-          if (/(?:^|\b)(?:use-cases|controllers)(?:\/|$)/.test(spec)) {
-            violations.push(
-              `${relPath}: Clean Architecture violation — adapters/ must only import from interfaces/, not "${spec}" (ADR-0004)`
-            );
-          }
-        } else if (subPath.startsWith("use-cases/helpers/")) {
-          if (
-            /(?:^|\b)(?:adapters|controllers)(?:\/|$)/.test(spec) ||
-            (spec.startsWith("../") && !spec.startsWith("../../interfaces/"))
-          ) {
-            violations.push(
-              `${relPath}: Clean Architecture violation — use-cases/helpers/ must remain pure and not import from "${spec}" (ADR-0004)`
-            );
-          }
-        } else if (topDir === "use-cases") {
-          if (/(?:^|\b)controllers(?:\/|$)/.test(spec)) {
-            violations.push(
-              `${relPath}: Clean Architecture violation — use-cases/ must not import from controllers/ ("${spec}") (ADR-0004)`
-            );
-          }
-        } else if (topDir === "controllers") {
-          if (/(?:^|\b)adapters(?:\/|$)/.test(spec)) {
-            violations.push(
-              `${relPath}: Clean Architecture violation — controllers/ must delegate to use-cases/ and not import from adapters/ ("${spec}") (ADR-0004)`
-            );
-          }
+        const resolvedSubPath = posix.normalize(
+          posix.join(posix.dirname(subPath), spec)
+        );
+        const targetLayer = classifyCoreLayer(resolvedSubPath);
+
+        if (targetLayer === "root-barrel" || resolvedSubPath.startsWith("..")) {
+          violations.push(
+            `${relPath}: Clean Architecture violation — internal modules must not import the root barrel or outside packages/core/src ("${spec}") (ADR-0004)`
+          );
+        } else if (sourceLayer === "interfaces" && targetLayer !== "interfaces") {
+          violations.push(
+            `${relPath}: Clean Architecture violation — interfaces/ must not import from "${spec}" (ADR-0004)`
+          );
+        } else if (
+          sourceLayer === "use-cases/helpers" &&
+          targetLayer !== "use-cases/helpers" &&
+          targetLayer !== "interfaces"
+        ) {
+          violations.push(
+            `${relPath}: Clean Architecture violation — use-cases/helpers/ must remain pure and not import from "${spec}" (ADR-0004)`
+          );
+        } else if (
+          sourceLayer === "use-cases" &&
+          targetLayer !== "use-cases" &&
+          targetLayer !== "use-cases/helpers" &&
+          targetLayer !== "interfaces"
+        ) {
+          violations.push(
+            `${relPath}: Clean Architecture violation — use-cases/ must not import from outer ${targetLayer}/ ("${spec}") (ADR-0004)`
+          );
+        } else if (
+          sourceLayer === "adapters" &&
+          targetLayer !== "adapters" &&
+          targetLayer !== "interfaces"
+        ) {
+          violations.push(
+            `${relPath}: Clean Architecture violation — adapters/ must only import from interfaces/, not "${spec}" (ADR-0004)`
+          );
+        } else if (
+          sourceLayer === "controllers" &&
+          targetLayer !== "controllers" &&
+          targetLayer !== "use-cases" &&
+          targetLayer !== "interfaces"
+        ) {
+          violations.push(
+            `${relPath}: Clean Architecture violation — controllers/ must delegate to use-cases/ orchestrators and not import from ${targetLayer}/ ("${spec}") (ADR-0004)`
+          );
         }
       }
     }

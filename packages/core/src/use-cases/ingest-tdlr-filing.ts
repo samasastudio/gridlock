@@ -1,7 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { defaultPageLoader } from "../adapters/http-loaders.ts";
 import {
   DEFAULT_TDLR_BASE_URL,
   MILESTONE_COST_THRESHOLD_USD,
@@ -13,11 +12,7 @@ import {
   type PageLoader,
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
-import {
-  markBlockedByWaf,
-  preflightRobotsTxt,
-  verifySiteAccess,
-} from "./helpers/site-access.ts";
+import { verifySiteAccess } from "./helpers/site-access.ts";
 import {
   buildSourceArtifact,
   parseTdlrFilingHtml,
@@ -26,6 +21,10 @@ import {
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
 } from "./helpers/telemetry-math.ts";
+import {
+  markBlockedByWaf,
+  preflightRobotsTxt,
+} from "./preflight-site-access.ts";
 import { recordStageTelemetry } from "./record-telemetry.ts";
 
 export async function ingestTdlrFiling(
@@ -37,7 +36,7 @@ export async function ingestTdlrFiling(
   },
   deps: {
     repository: GridlockRepository;
-    pageLoader?: PageLoader;
+    pageLoader: PageLoader;
     spanSink?: TelemetrySpanSink;
   }
 ): Promise<IngestFilingResult> {
@@ -45,7 +44,7 @@ export async function ingestTdlrFiling(
   const baseUrl = (input.baseUrl ?? DEFAULT_TDLR_BASE_URL).replace(/\/+$/, "");
   const now = input.now ?? new Date();
   const nowIso = now.toISOString();
-  const pageLoader = deps.pageLoader ?? defaultPageLoader;
+  const pageLoader = deps.pageLoader;
   const targetPath = `/TABS/Search/Project/${encodeURIComponent(input.projectNumber)}`;
   const sourceUrl = `${baseUrl}${targetPath}`;
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");

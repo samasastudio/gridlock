@@ -2,9 +2,19 @@ import {
   GRIDLOCK_USER_AGENT,
   type PageLoader,
   type PageLoaderResponse,
-  type PlaywrightPageLike,
   type SearchLoader,
 } from "../interfaces/index.ts";
+
+export interface PlaywrightPageLike {
+  goto(
+    url: string,
+    options?: { waitUntil?: "domcontentloaded" | "load" | "networkidle" }
+  ): Promise<{
+    status(): number;
+    headers(): Record<string, string>;
+  } | null>;
+  content(): Promise<string>;
+}
 
 export function headersToRecord(headers: Headers): Record<string, string> {
   const result: Record<string, string> = {};

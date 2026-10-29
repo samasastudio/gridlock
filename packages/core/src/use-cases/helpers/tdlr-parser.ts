@@ -2,13 +2,9 @@ import {
   ARTIFACT_BUCKET_URI,
   ProjectSchema,
   SourceArtifactSchema,
-  TdlrSearchRowSchema,
   type ConnectorConfig,
   type Project,
   type SourceArtifact,
-  type TdlrDiscoveryMode,
-  type TdlrSearchFilter,
-  type TdlrSearchRow,
 } from "../../interfaces/index.ts";
 import { sanitizeLocationAddressPii, sanitizeTextPii } from "./pii-sanitizer.ts";
 
@@ -61,6 +57,63 @@ function findDetailContainerMatch(html: string, detailContainerSelector: string)
   );
 }
 
+interface DefinitionToken {
+  readonly tag: string;
+  readonly text: string;
+}
+
+function extractDefinitionListBlocks(scopedHtml: string, definitionListSelector: string): string[] {
+  return splitSelectorList(definitionListSelector).flatMap((dlSelector) => {
+    const { tagName, className } = parseCssClassToken(dlSelector);
+    const dlTag = escapeRegExp(tagName ?? "dl");
+    const dlPattern = new RegExp(
+      `<${dlTag}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(className)}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/${dlTag}>`,
+      "gi"
+    );
+    return Array.from(scopedHtml.matchAll(dlPattern), (match) => match[1] ?? "");
+  });
+}
+
+function tokenizeDefinitionListBlocks(
+  dlBlocks: readonly string[],
+  termTags: readonly string[],
+  descTags: readonly string[]
+): DefinitionToken[] {
+  const allTags = [...termTags, ...descTags].map(escapeRegExp).join("|");
+  const tokenPattern = new RegExp(`<(${allTags})[^>]*>([\\s\\S]*?)<\\/\\1>`, "gi");
+  return dlBlocks.flatMap((dlHtml) =>
+    Array.from(dlHtml.matchAll(tokenPattern), (match) => ({
+      tag: (match[1] ?? "").toLowerCase(),
+      text: stripHtmlTags(match[2] ?? ""),
+    }))
+  );
+}
+
+function groupTokensByTerm(
+  tokens: readonly DefinitionToken[],
+  termTags: readonly string[],
+  descTags: readonly string[]
+): Map<string, string[]> {
+  const grouped = tokens.reduce<{ currentTerm: string | null; entries: Record<string, string[]> }>(
+    (state, token) => {
+      if (termTags.includes(token.tag)) {
+        const existing = state.entries[token.text] ?? [];
+        return { currentTerm: token.text, entries: { ...state.entries, [token.text]: existing } };
+      }
+      if (descTags.includes(token.tag) && state.currentTerm && token.text.length > 0) {
+        const existing = state.entries[state.currentTerm] ?? [];
+        return {
+          currentTerm: state.currentTerm,
+          entries: { ...state.entries, [state.currentTerm]: [...existing, token.text] },
+        };
+      }
+      return state;
+    },
+    { currentTerm: null, entries: {} }
+  );
+  return new Map(Object.entries(grouped.entries));
+}
+
 function extractDefinitionListFields(
   html: string,
   config: ConnectorConfig
@@ -71,34 +124,9 @@ function extractDefinitionListFields(
   const scopedHtml = html.slice(containerMatch.index);
   const termTags = splitSelectorList(config.termSelector, true);
   const descTags = splitSelectorList(config.descriptionSelector, true);
-  const allTags = [...termTags, ...descTags].map(escapeRegExp).join("|");
-  const tokenPattern = new RegExp(`<(${allTags})[^>]*>([\\s\\S]*?)<\\/\\1>`, "gi");
-
-  const dlInnerBlocks = splitSelectorList(config.definitionListSelector).flatMap((dlAlt) => {
-    const dlSel = parseCssClassToken(dlAlt);
-    const dlTag = escapeRegExp(dlSel.tagName ?? "dl");
-    const dlPattern = new RegExp(
-      `<${dlTag}\\b[^>]*class=["'][^"']*\\b${escapeRegExp(dlSel.className)}\\b[^"']*["'][^>]*>([\\s\\S]*?)<\\/${dlTag}>`,
-      "gi"
-    );
-    return Array.from(scopedHtml.matchAll(dlPattern), (m) => m[1] ?? "");
-  });
-
-  const fields = dlInnerBlocks.reduce<Map<string, string[]>>((acc, dlHtml) => {
-    Array.from(dlHtml.matchAll(tokenPattern)).reduce<string | null>((currentTerm, tokenMatch) => {
-      const tag = (tokenMatch[1] ?? "").toLowerCase();
-      const text = stripHtmlTags(tokenMatch[2] ?? "");
-      if (termTags.includes(tag)) {
-        if (!acc.has(text)) acc.set(text, []);
-        return text;
-      }
-      if (descTags.includes(tag) && currentTerm && text.length > 0) {
-        acc.set(currentTerm, [...(acc.get(currentTerm) ?? []), text]);
-      }
-      return currentTerm;
-    }, null);
-    return acc;
-  }, new Map<string, string[]>());
+  const dlBlocks = extractDefinitionListBlocks(scopedHtml, config.definitionListSelector);
+  const tokens = tokenizeDefinitionListBlocks(dlBlocks, termTags, descTags);
+  const fields = groupTokensByTerm(tokens, termTags, descTags);
 
   return { containerFound: true, fields };
 }
@@ -197,102 +225,4 @@ export function parseTdlrFilingHtml(
   }
 
   return { ok: true, project: parsedProject.data };
-}
-
-export function parseTdlrCliArgs(argv: readonly string[]): { mode: TdlrDiscoveryMode } {
-  return { mode: argv.includes("--backfill") ? "backfill" : "daily" };
-}
-
-const COMPUTE_INFRASTRUCTURE_KEYWORDS =
-  /\b(?:data\s*centers?|datacenters?|qts|cyrusone|compass\s+datacenters?|colovore|substation|semiconductor|hyperscale|server\s+farm|colocation|ai\s+campus|compute)\b/i;
-
-const NON_COMPUTE_FALSE_POSITIVE_PATTERN =
-  /\b(?:shopping|community|fitness|daycare|recreation|senior|convention|retail)\s+center\b/i;
-
-export function isComputeInfrastructureFiling(row: {
-  ProjectName: string;
-  FacilityName?: string;
-  OwnerName?: string;
-  ScopeOfWork?: string;
-}): boolean {
-  const combined = [row.ProjectName, row.FacilityName ?? "", row.OwnerName ?? "", row.ScopeOfWork ?? ""].join(" ");
-  if (NON_COMPUTE_FALSE_POSITIVE_PATTERN.test(combined) && !/\b(?:data\s*centers?|datacenters?)\b/i.test(combined)) {
-    return false;
-  }
-  return COMPUTE_INFRASTRUCTURE_KEYWORDS.test(combined);
-}
-
-export function sanitizeDiscoverySearchFilters(filters: readonly TdlrSearchFilter[]): TdlrSearchFilter[] {
-  return filters.filter((filter) => {
-    const trimmed = filter.value.trim();
-    return Boolean(trimmed) && !(filter.field === "OwnerName" && /\s/.test(trimmed));
-  });
-}
-
-function tryParseSearchRowsJson(rawJsonBody: string): unknown[] {
-  try {
-    const parsedJson: unknown = JSON.parse(rawJsonBody);
-    if (Array.isArray(parsedJson)) return parsedJson;
-    if (
-      parsedJson !== null &&
-      typeof parsedJson === "object" &&
-      Array.isArray((parsedJson as { data?: unknown }).data)
-    ) {
-      return (parsedJson as { data: unknown[] }).data;
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function isRowWithinDiscoveryWindow(
-  row: TdlrSearchRow,
-  params: {
-    mode: TdlrDiscoveryMode;
-    backfillStartYear: number;
-    backfillEndYear: number;
-    effectiveSinceDate: Date | undefined;
-  }
-): boolean {
-  const createdMs = Date.parse(row.ProjectCreatedOn);
-  if (params.mode === "backfill") {
-    if (Number.isNaN(createdMs)) return false;
-    const year = new Date(createdMs).getUTCFullYear();
-    if (year < params.backfillStartYear || year > params.backfillEndYear) return false;
-  }
-  if (params.effectiveSinceDate && (Number.isNaN(createdMs) || createdMs < params.effectiveSinceDate.getTime())) {
-    return false;
-  }
-  return true;
-}
-
-export function collectQualifyingDiscoveryRows(params: {
-  rawJsonBody: string;
-  mode: TdlrDiscoveryMode;
-  backfillStartYear: number;
-  backfillEndYear: number;
-  effectiveSinceDate: Date | undefined;
-  discoveredByNumber: Map<string, TdlrSearchRow>;
-}): void {
-  tryParseSearchRowsJson(params.rawJsonBody)
-    .map((rawRow) => TdlrSearchRowSchema.safeParse(rawRow))
-    .filter(
-      (parsed): parsed is { success: true; data: TdlrSearchRow } =>
-        parsed.success &&
-        isComputeInfrastructureFiling(parsed.data) &&
-        isRowWithinDiscoveryWindow(parsed.data, params)
-    )
-    .forEach(({ data }) => {
-      if (!params.discoveredByNumber.has(data.ProjectNumber)) {
-        params.discoveredByNumber.set(data.ProjectNumber, data);
-      }
-    });
-}
-
-export function sortDiscoveryRowsChronologically(rows: Iterable<TdlrSearchRow>): TdlrSearchRow[] {
-  return Array.from(rows).sort((a, b) => {
-    const diff = Date.parse(a.ProjectCreatedOn) - Date.parse(b.ProjectCreatedOn);
-    return diff !== 0 && !Number.isNaN(diff) ? diff : a.ProjectNumber.localeCompare(b.ProjectNumber);
-  });
 }
