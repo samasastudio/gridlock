@@ -13,6 +13,7 @@ import type {
   TelemetrySpan,
 } from "./telemetry-models.ts";
 import type { RepairChangelogEntry } from "./repair-models.ts";
+import type { VisualPlate } from "./painter-models.ts";
 
 export interface TelemetryStateUpdate {
   updatedLedger: EfficiencyLedger;
@@ -63,6 +64,13 @@ export interface GridlockRepository {
     stateUpdate: ConnectorPromotionStateUpdate
   ): Promise<void>;
   listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
+  saveVisualPlate(plate: VisualPlate, webpBuffer: Buffer): Promise<void>;
+  getVisualPlateById(plateId: string): Promise<VisualPlate | null>;
+  getVisualPlateByInteractionId(
+    interactionId: string
+  ): Promise<VisualPlate | null>;
+  listVisualPlatesByLineage(lineageId?: string): Promise<VisualPlate[]>;
+  readVisualPlateWebp(plateId: string): Promise<Buffer | null>;
 }
 
 export interface PageLoaderResponse {
@@ -81,9 +89,16 @@ export type SearchLoader = (
 
 export type TelemetrySpanSink = (span: TelemetrySpan) => void;
 
+export interface GeminiInteractionImageBlock {
+  data?: string;
+  mime_type?: string;
+}
+
 export interface GeminiInteractionCreateRequest {
   model: string;
   input: string | Array<Record<string, unknown>>;
+  previous_interaction_id?: string;
+  store?: boolean;
   response_format?: {
     type: "text";
     mime_type: "application/json";
@@ -94,7 +109,9 @@ export interface GeminiInteractionCreateRequest {
 export interface GeminiInteractionResponse {
   id: string;
   status?: string;
+  previous_interaction_id?: string;
   output_text?: string | null;
+  output_image?: GeminiInteractionImageBlock | null;
   usage?: {
     total_tokens?: number;
   };

@@ -45,6 +45,8 @@ export async function recordStageTelemetry(
     startedAt: Date;
     endedAt: Date;
     recordedAt?: string;
+    imageGenerationsAvoidedDelta?: number;
+    visualPlateCacheHitsDelta?: number;
     attributes?: Record<string, string | number | boolean | null>;
   },
   deps: {
@@ -88,7 +90,15 @@ export async function recordStageTelemetry(
   const ledgerAfterRun = applyTelemetryRunToLedger(
     currentLedger,
     run,
-    recentSlice
+    recentSlice,
+    {
+      ...(input.imageGenerationsAvoidedDelta !== undefined
+        ? { imageGenerationsAvoidedDelta: input.imageGenerationsAvoidedDelta }
+        : {}),
+      ...(input.visualPlateCacheHitsDelta !== undefined
+        ? { visualPlateCacheHitsDelta: input.visualPlateCacheHitsDelta }
+        : {}),
+    }
   );
 
   const activeConfig = await resolveActiveConnectorConfig(
@@ -141,6 +151,7 @@ export async function recordAgenticStageTelemetry(
     tokensUsed: number;
     interactionId?: string;
     rawByteLength?: number;
+    visualPlateCacheHitsDelta?: number;
     startedAt: Date;
     endedAt: Date;
     attributes?: Record<string, string | number | boolean | null>;

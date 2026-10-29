@@ -20,6 +20,14 @@ export const MAX_CONCURRENCY = 1;
 export const NAIVE_COST_PER_TOKEN_USD = 0.0000025;
 export const DEFAULT_GCP_PROJECT_ID = "gridlock-civic-atlas";
 export const REPAIR_AGENT_MODEL = "gemini-3.8-flash" as const;
+export const PAINTER_AGENT_MODEL = "gemini-3-pro-image" as const;
+export const DEFAULT_LINEAGE_ID = "texas-corridor-main" as const;
+export const SCENARIO_BRANCH_WATERMARK =
+  "Scenario Branch / Unverified Projection" as const;
+export const CANONICAL_MILESTONE_LABEL =
+  "Canonical Filing Milestone" as const;
+export const MAX_SCENARIO_PROMPT_LENGTH = 1_000;
+export const DEFAULT_MAX_BRANCHES_PER_LINEAGE = 25;
 
 export const DEFAULT_TDLR_SEARCH_FILTERS: readonly TdlrSearchFilter[] = [
   { field: "ProjectName", value: "Data Center" },
