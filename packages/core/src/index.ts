@@ -94,6 +94,7 @@ export {
   type TdlrSearchFilter,
   type TdlrSearchRow,
   type TelemetryLedgerQueryOptions,
+  type TelemetryPainterDeltas,
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
@@ -112,8 +113,6 @@ export {
   type PlaywrightPageLike,
 } from "./adapters/http-loaders.ts";
 export { createInMemoryGridlockRepository } from "./adapters/in-memory-repository.ts";
-
-export { evaluateMilestoneObservations } from "./use-cases/helpers/painter-helpers.ts";
 
 export {
   sanitizeLocationAddressPii,
@@ -136,6 +135,10 @@ export {
   calculateNaiveTokensAvoided,
 } from "./use-cases/helpers/telemetry-math.ts";
 
+export {
+  evaluatePainterMilestoneGate,
+  type PainterMilestoneGateOutcome,
+} from "./use-cases/painter-turn-runner.ts";
 export {
   recordAgenticStageTelemetry,
   recordStageTelemetry,

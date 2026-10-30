@@ -55,6 +55,7 @@ export const DEFAULT_EFFICIENCY_LEDGER: EfficiencyLedger = {
   actualCostUsd: 0,
   imageGenerationsAvoided: 0,
   visualPlateCacheHits: 0,
+  uncachedImageGenerationsCount: 0,
   visualPlateCacheEfficiencyPercentage: 100,
   averageRepairMttrMs: 0,
   subsequentDeterministicRunsServed: 0,

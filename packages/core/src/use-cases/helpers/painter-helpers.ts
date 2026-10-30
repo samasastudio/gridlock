@@ -10,14 +10,21 @@ export function evaluateMilestoneObservations(
       .flatMap((plate) => plate.triggeringObservationIds)
   );
 
-  return observations.filter(
-    (obs) => obs.isMilestone && !alreadyPaintedIds.has(obs.id)
-  );
+  return observations.filter((obs) => obs.isMilestone && !alreadyPaintedIds.has(obs.id));
 }
 
-export function selectActiveCanonicalPlate(
-  existingPlates: readonly VisualPlate[]
-): VisualPlate | null {
-  const canonicalPlates = existingPlates.filter((plate) => !plate.isBranch);
-  return canonicalPlates.at(-1) ?? null;
+export function comparePlatesChronologically(a: VisualPlate, b: VisualPlate): number {
+  return a.turnNumber !== b.turnNumber
+    ? a.turnNumber - b.turnNumber
+    : a.createdAt.localeCompare(b.createdAt);
+}
+
+export function selectActiveCanonicalPlate(existingPlates: readonly VisualPlate[]): VisualPlate | null {
+  return existingPlates
+    .filter((plate) => !plate.isBranch)
+    .reduce<VisualPlate | null>(
+      (latest, candidate) =>
+        latest === null || comparePlatesChronologically(latest, candidate) <= 0 ? candidate : latest,
+      null
+    );
 }

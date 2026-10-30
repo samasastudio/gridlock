@@ -75,6 +75,7 @@ export type {
   PageLoaderResponse,
   SearchLoader,
   TelemetryLedgerQueryOptions,
+  TelemetryPainterDeltas,
   TelemetrySpanSink,
   TelemetryStateUpdate,
 } from "./adapter-contracts.ts";

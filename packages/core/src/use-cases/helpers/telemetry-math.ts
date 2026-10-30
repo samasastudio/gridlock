@@ -11,6 +11,7 @@ import {
   type ExecutionMode,
   type RepairChangelogEntry,
   type SourceArtifact,
+  type TelemetryPainterDeltas,
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
@@ -121,7 +122,7 @@ export function applyTelemetryRunToLedger(
   current: EfficiencyLedger,
   run: TelemetryRun,
   recentRuns: TelemetryRun[],
-  deltas?: { imageGenerationsAvoidedDelta?: number; visualPlateCacheHitsDelta?: number }
+  deltas?: TelemetryPainterDeltas
 ): EfficiencyLedger {
   const isSuccessDet =
     run.execution_mode === "deterministic" &&
@@ -143,10 +144,24 @@ export function applyTelemetryRunToLedger(
   const actualCostUsd = Number(
     (current.actualCostUsd + run.tokensUsed * NAIVE_COST_PER_TOKEN_USD).toFixed(8)
   );
-  const imageGenerationsAvoided =
-    current.imageGenerationsAvoided + Math.max(0, deltas?.imageGenerationsAvoidedDelta ?? 0);
-  const visualPlateCacheHits =
-    current.visualPlateCacheHits + Math.max(0, deltas?.visualPlateCacheHitsDelta ?? 0);
+
+  const avoidedAdded = isSuccessDet ? Math.max(0, deltas?.imageGenerationsAvoidedDelta ?? 0) : 0;
+  const cacheHitsAdded = !isFailedOrBlocked
+    ? Math.max(0, deltas?.visualPlateCacheHitsDelta ?? 0)
+    : 0;
+  const uncachedAdded =
+    isSuccessAgentic && run.stage.startsWith("painter_") && cacheHitsAdded === 0 ? 1 : 0;
+
+  const imageGenerationsAvoided = current.imageGenerationsAvoided + avoidedAdded;
+  const visualPlateCacheHits = current.visualPlateCacheHits + cacheHitsAdded;
+  const uncachedImageGenerationsCount =
+    (current.uncachedImageGenerationsCount ?? 0) + uncachedAdded;
+  const avoidedOrCached = imageGenerationsAvoided + visualPlateCacheHits;
+  const painterDemand = avoidedOrCached + uncachedImageGenerationsCount;
+  const visualPlateCacheEfficiencyPercentage =
+    painterDemand === 0
+      ? 100
+      : Number(((avoidedOrCached / painterDemand) * 100).toFixed(2));
 
   const completedDenom = deterministicRunsCount + agenticRunsCount;
   const deterministicExecutionRatio =
@@ -171,6 +186,8 @@ export function applyTelemetryRunToLedger(
     actualCostUsd,
     imageGenerationsAvoided,
     visualPlateCacheHits,
+    uncachedImageGenerationsCount,
+    visualPlateCacheEfficiencyPercentage,
     updatedAt: run.recordedAt,
     expiresAt: null,
     recentRuns,

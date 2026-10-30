@@ -3,6 +3,7 @@ import {
   type EfficiencyLedger,
   type ExecutionMode,
   type GridlockRepository,
+  type TelemetryPainterDeltas,
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
@@ -30,7 +31,7 @@ async function resolveActiveConnectorConfig(
 }
 
 export async function recordStageTelemetry(
-  input: {
+  input: TelemetryPainterDeltas & {
     stage: string;
     connectorId?: string;
     projectNumber?: string;
@@ -45,8 +46,6 @@ export async function recordStageTelemetry(
     startedAt: Date;
     endedAt: Date;
     recordedAt?: string;
-    imageGenerationsAvoidedDelta?: number;
-    visualPlateCacheHitsDelta?: number;
     attributes?: Record<string, string | number | boolean | null>;
   },
   deps: {
@@ -91,14 +90,7 @@ export async function recordStageTelemetry(
     currentLedger,
     run,
     recentSlice,
-    {
-      ...(input.imageGenerationsAvoidedDelta !== undefined
-        ? { imageGenerationsAvoidedDelta: input.imageGenerationsAvoidedDelta }
-        : {}),
-      ...(input.visualPlateCacheHitsDelta !== undefined
-        ? { visualPlateCacheHitsDelta: input.visualPlateCacheHitsDelta }
-        : {}),
-    }
+    input
   );
 
   const activeConfig = await resolveActiveConnectorConfig(

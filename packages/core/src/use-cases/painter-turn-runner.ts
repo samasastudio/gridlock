@@ -6,7 +6,10 @@ import {
   type TelemetrySpanSink,
   type VisualPlate,
 } from "../interfaces/index.ts";
-import { selectActiveCanonicalPlate } from "./helpers/painter-helpers.ts";
+import {
+  evaluateMilestoneObservations,
+  selectActiveCanonicalPlate,
+} from "./helpers/painter-helpers.ts";
 import { recordStageTelemetry } from "./record-telemetry.ts";
 
 export interface PainterTurnContext {
@@ -16,6 +19,15 @@ export interface PainterTurnContext {
   repository: GridlockRepository;
   spanSink?: TelemetrySpanSink;
 }
+
+export type PainterMilestoneGateOutcome =
+  | { shouldPaint: false; result: StatefulPainterResult }
+  | {
+      shouldPaint: true;
+      ctx: PainterTurnContext;
+      existingPlates: VisualPlate[];
+      milestoneObservations: Observation[];
+    };
 
 export async function preparePainterTurn(
   input: { lineageId?: string; now?: Date },
@@ -47,10 +59,7 @@ function telemetryDeps(ctx: PainterTurnContext) {
 function observationTelemetryRef(observations: readonly Observation[]) {
   const firstObs = observations[0];
   return firstObs !== undefined
-    ? {
-        projectNumber: firstObs.projectNumber,
-        sourceArtifactHash: firstObs.sourceArtifactHash,
-      }
+    ? { projectNumber: firstObs.projectNumber, sourceArtifactHash: firstObs.sourceArtifactHash }
     : {};
 }
 
@@ -86,4 +95,16 @@ export async function recordMilestoneSkip(
     imageGenerationsAvoided: ledger.imageGenerationsAvoided,
     activePlate: ctx.activePlate,
   };
+}
+
+export async function evaluatePainterMilestoneGate(
+  input: { lineageId?: string; observations: readonly Observation[]; now?: Date },
+  deps: { repository: GridlockRepository; spanSink?: TelemetrySpanSink }
+): Promise<PainterMilestoneGateOutcome> {
+  const { ctx, existingPlates } = await preparePainterTurn(input, deps);
+  const milestoneObservations = evaluateMilestoneObservations(input.observations, existingPlates);
+  if (milestoneObservations.length === 0) {
+    return { shouldPaint: false, result: await recordMilestoneSkip(ctx, input.observations) };
+  }
+  return { shouldPaint: true, ctx, existingPlates, milestoneObservations };
 }

@@ -15,6 +15,11 @@ import type {
 import type { RepairChangelogEntry } from "./repair-models.ts";
 import type { VisualPlate } from "./painter-models.ts";
 
+export interface TelemetryPainterDeltas {
+  imageGenerationsAvoidedDelta?: number;
+  visualPlateCacheHitsDelta?: number;
+}
+
 export interface TelemetryStateUpdate {
   updatedLedger: EfficiencyLedger;
   updatedChangelog?: readonly RepairChangelogEntry[];

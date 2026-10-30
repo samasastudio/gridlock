@@ -221,6 +221,11 @@ export function createInMemoryGridlockRepository(
     ): Promise<VisualPlate[]> {
       return Array.from(visualPlates.values())
         .filter((plate) => (lineageId ? plate.lineageId === lineageId : true))
+        .sort((a, b) =>
+          a.turnNumber !== b.turnNumber
+            ? a.turnNumber - b.turnNumber
+            : a.createdAt.localeCompare(b.createdAt)
+        )
         .map((plate) => structuredClone(plate));
     },
 
