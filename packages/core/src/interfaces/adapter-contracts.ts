@@ -99,6 +99,14 @@ export interface GeminiInteractionImageBlock {
   mime_type?: string;
 }
 
+export type PainterImageEncodeResult =
+  | { ok: true; webpBuffer: Buffer; sha256: string }
+  | { ok: false; reason: string };
+
+export type PainterImageEncoder = (
+  outputImage: GeminiInteractionImageBlock | null | undefined
+) => PainterImageEncodeResult;
+
 export interface GeminiInteractionCreateRequest {
   model: string;
   input: string | Array<Record<string, unknown>>;

@@ -73,6 +73,8 @@ export type {
   GridlockRepository,
   PageLoader,
   PageLoaderResponse,
+  PainterImageEncodeResult,
+  PainterImageEncoder,
   SearchLoader,
   TelemetryLedgerQueryOptions,
   TelemetryPainterDeltas,
