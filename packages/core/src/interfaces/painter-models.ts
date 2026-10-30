@@ -79,6 +79,8 @@ export const VisualPlateSchema = z
 export type VisualPlate = z.infer<typeof VisualPlateSchema>;
 
 export type PainterErrorCode =
+  | "lineage_already_bootstrapped"
+  | "invalid_base_canvas"
   | "parent_not_found"
   | "invalid_scenario_prompt"
   | "branch_quota_exceeded"

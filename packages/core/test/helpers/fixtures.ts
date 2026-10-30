@@ -1,4 +1,8 @@
 import { Buffer } from "node:buffer";
+import { crc32, deflateSync } from "node:zlib";
+import { createCorridorBaseCanvasWebp, isWebpBuffer, ObservationSchema, type Observation } from "../../src/index.ts";
+
+export { isWebpBuffer };
 
 export const FROZEN_TABS_2027003697_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -63,32 +67,35 @@ export const MUTATED_PORTAL_V2_HTML = HISTORICAL_FIXTURE_V1_HTML
   .replace("<dt>Estimated Cost:</dt>", "<dt>Total Estimated Cost:</dt>")
   .replace("<dd>TABS2027003697</dd>", "<dd>TABS2027009888</dd>");
 
-export function createFixtureWebpBuffer(
-  payloadTag = "gridlock-corridor-v1"
-): Buffer {
-  const payload = Buffer.from(`WEBP_VP8L_${payloadTag}`, "utf-8");
-  const pad =
-    payload.byteLength % 2 === 1 ? Buffer.from([0x00]) : Buffer.alloc(0);
-  const sizeBuf = Buffer.alloc(4);
-  sizeBuf.writeUInt32LE(payload.byteLength, 0);
-  const vp8lChunk = Buffer.concat([
-    Buffer.from("VP8L", "ascii"),
-    sizeBuf,
-    payload,
-    pad,
-  ]);
-  const body = Buffer.concat([Buffer.from("WEBP", "ascii"), vp8lChunk]);
-  const header = Buffer.alloc(8);
-  header.write("RIFF", 0, "ascii");
-  header.writeUInt32LE(body.byteLength, 4);
-  return Buffer.concat([header, body]);
+export function createFixtureWebpBuffer(payloadTag = "gridlock-corridor-v1"): Buffer {
+  return createCorridorBaseCanvasWebp(payloadTag);
 }
 
-export function isWebpBuffer(buf: Buffer): boolean {
-  if (buf.byteLength < 16) return false;
-  return (
-    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
-    buf.subarray(8, 12).toString("ascii") === "WEBP" &&
-    buf.readUInt32LE(4) === buf.byteLength - 8
+function pngChunk(type: string, data: Buffer): Buffer {
+  const [body, len, crc] = [Buffer.concat([Buffer.from(type, "ascii"), data]), Buffer.alloc(4), Buffer.alloc(4)];
+  len.writeUInt32BE(data.byteLength, 0);
+  crc.writeUInt32BE(crc32(body) >>> 0, 0);
+  return Buffer.concat([len, body, crc]);
+}
+
+export function createSamplePngBuffer(width = 16, height = 9): Buffer {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const scanlines = Buffer.concat(
+    Array.from({ length: height }, (_, y) => {
+      const row = Buffer.alloc(1 + width * 4);
+      Array.from({ length: width }, (__, x) => row.set([245, (242 - y * 4) & 0xff, (235 - x * 3) & 0xff, 255], 1 + x * 4));
+      return row;
+    })
   );
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), pngChunk("IHDR", ihdr), pngChunk("IDAT", deflateSync(scanlines)), pngChunk("IEND", Buffer.alloc(0))]);
+}
+
+export function createPainterTestObservations(): { routineObs: Observation; milestoneObs: Observation } {
+  return {
+    routineObs: ObservationSchema.parse({ id: "obs_TABS2027001111_routine", projectNumber: "TABS2027001111", sourceArtifactHash: "1".repeat(64), observedAt: "2026-10-27T14:00:00.000Z", status: "Project Registered", estimatedCostUsd: 2_500_000, squareFootage: 12_000, scopeOfWork: "Minor interior office remodel", isMilestone: false }),
+    milestoneObs: ObservationSchema.parse({ id: "obs_TABS2027003697_m1", projectNumber: "TABS2027003697", sourceArtifactHash: "a".repeat(64), observedAt: "2026-10-27T14:05:00.000Z", status: "Project Registered", estimatedCostUsd: 125_000_000, squareFootage: 250_000, scopeOfWork: "New 250,000 sq ft hyperscale data center shell", isMilestone: true }),
+  };
 }
