@@ -76,6 +76,8 @@ export {
   type PageLoader,
   type PageLoaderResponse,
   type PainterErrorCode,
+  type PainterImageEncodeResult,
+  type PainterImageEncoder,
   type Project,
   type RepairAgentResult,
   type RepairChangelogEntry,
@@ -134,6 +136,10 @@ export {
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
 } from "./use-cases/helpers/telemetry-math.ts";
+export {
+  createCorridorBaseCanvasWebp,
+  isWebpBuffer,
+} from "./use-cases/helpers/webp-codec.ts";
 
 export {
   evaluatePainterMilestoneGate,
@@ -143,6 +149,10 @@ export {
   recordAgenticStageTelemetry,
   recordStageTelemetry,
 } from "./use-cases/record-telemetry.ts";
+export {
+  bootstrapCanvas,
+  type PainterDeps,
+} from "./use-cases/run-painter-agent.ts";
 export { runOutOfBandRepairAgent } from "./use-cases/run-repair-agent.ts";
 
 export async function ingestTdlrFiling(
