@@ -74,6 +74,7 @@ export const EfficiencyLedgerSchema = z.object({
   actualCostUsd: z.number().nonnegative(),
   imageGenerationsAvoided: z.number().int().nonnegative(),
   visualPlateCacheHits: z.number().int().nonnegative(),
+  uncachedImageGenerationsCount: z.number().int().nonnegative().default(0),
   visualPlateCacheEfficiencyPercentage: z.number().min(0).max(100),
   averageRepairMttrMs: z.number().nonnegative(),
   subsequentDeterministicRunsServed: z.number().int().nonnegative(),

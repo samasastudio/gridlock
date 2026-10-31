@@ -11,6 +11,7 @@ import {
   type ExecutionMode,
   type RepairChangelogEntry,
   type SourceArtifact,
+  type TelemetryPainterDeltas,
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
@@ -120,57 +121,55 @@ export function buildTelemetryRun(params: {
 export function applyTelemetryRunToLedger(
   current: EfficiencyLedger,
   run: TelemetryRun,
-  recentRuns: TelemetryRun[]
+  recentRuns: TelemetryRun[],
+  deltas?: TelemetryPainterDeltas
 ): EfficiencyLedger {
-  const isSuccessfulDeterministic =
+  const isSuccessDet =
     run.execution_mode === "deterministic" &&
     (run.status === "ingested" || run.status === "unchanged_artifact");
-
-  const isSuccessfulAgentic =
+  const isSuccessAgentic =
     run.execution_mode === "agentic" && run.status === "agentic_completed";
+  const isFailedOrBlocked = !isSuccessDet && !isSuccessAgentic;
 
-  const isFailedOrBlocked = !isSuccessfulDeterministic && !isSuccessfulAgentic;
-
-  const deterministicRunsCount =
-    current.deterministicRunsCount + (isSuccessfulDeterministic ? 1 : 0);
-  const agenticRunsCount =
-    current.agenticRunsCount + (isSuccessfulAgentic ? 1 : 0);
-  const failedOrBlockedRunsCount =
-    current.failedOrBlockedRunsCount + (isFailedOrBlocked ? 1 : 0);
+  const deterministicRunsCount = current.deterministicRunsCount + (isSuccessDet ? 1 : 0);
+  const agenticRunsCount = current.agenticRunsCount + (isSuccessAgentic ? 1 : 0);
+  const failedOrBlockedRunsCount = current.failedOrBlockedRunsCount + (isFailedOrBlocked ? 1 : 0);
   const totalRunsCount = current.totalRunsCount + 1;
 
-  const naiveTokensAvoided =
-    current.naiveTokensAvoided +
-    (isSuccessfulDeterministic ? run.naiveTokensAvoided : 0);
+  const naiveTokensAvoided = current.naiveTokensAvoided + (isSuccessDet ? run.naiveTokensAvoided : 0);
   const actualTokensUsed = current.actualTokensUsed + run.tokensUsed;
-
   const estimatedCostSavedUsd = Number(
-    (
-      current.estimatedCostSavedUsd +
-      (isSuccessfulDeterministic ? run.estimatedCostSavedUsd : 0)
-    ).toFixed(8)
+    (current.estimatedCostSavedUsd + (isSuccessDet ? run.estimatedCostSavedUsd : 0)).toFixed(8)
   );
   const actualCostUsd = Number(
-    (
-      current.actualCostUsd +
-      run.tokensUsed * NAIVE_COST_PER_TOKEN_USD
-    ).toFixed(8)
+    (current.actualCostUsd + run.tokensUsed * NAIVE_COST_PER_TOKEN_USD).toFixed(8)
   );
 
-  const completedRunsDenom = deterministicRunsCount + agenticRunsCount;
+  const avoidedAdded = isSuccessDet ? Math.max(0, deltas?.imageGenerationsAvoidedDelta ?? 0) : 0;
+  const cacheHitsAdded = !isFailedOrBlocked
+    ? Math.max(0, deltas?.visualPlateCacheHitsDelta ?? 0)
+    : 0;
+  const uncachedAdded =
+    isSuccessAgentic && run.stage.startsWith("painter_") && cacheHitsAdded === 0 ? 1 : 0;
+
+  const imageGenerationsAvoided = current.imageGenerationsAvoided + avoidedAdded;
+  const visualPlateCacheHits = current.visualPlateCacheHits + cacheHitsAdded;
+  const uncachedImageGenerationsCount =
+    (current.uncachedImageGenerationsCount ?? 0) + uncachedAdded;
+  const avoidedOrCached = imageGenerationsAvoided + visualPlateCacheHits;
+  const painterDemand = avoidedOrCached + uncachedImageGenerationsCount;
+  const visualPlateCacheEfficiencyPercentage =
+    painterDemand === 0
+      ? 100
+      : Number(((avoidedOrCached / painterDemand) * 100).toFixed(2));
+
+  const completedDenom = deterministicRunsCount + agenticRunsCount;
   const deterministicExecutionRatio =
-    completedRunsDenom === 0
-      ? 1
-      : Number((deterministicRunsCount / completedRunsDenom).toFixed(6));
-  const deterministicExecutionPercentage = Number(
-    (deterministicExecutionRatio * 100).toFixed(2)
-  );
-
+    completedDenom === 0 ? 1 : Number((deterministicRunsCount / completedDenom).toFixed(6));
+  const deterministicExecutionPercentage = Number((deterministicExecutionRatio * 100).toFixed(2));
   const tokenDenom = naiveTokensAvoided + actualTokensUsed;
   const tokenReductionPercentage =
-    tokenDenom === 0
-      ? 100
-      : Number(((naiveTokensAvoided / tokenDenom) * 100).toFixed(2));
+    tokenDenom === 0 ? 100 : Number(((naiveTokensAvoided / tokenDenom) * 100).toFixed(2));
 
   return EfficiencyLedgerSchema.parse({
     ...current,
@@ -185,6 +184,10 @@ export function applyTelemetryRunToLedger(
     tokenReductionPercentage,
     estimatedCostSavedUsd,
     actualCostUsd,
+    imageGenerationsAvoided,
+    visualPlateCacheHits,
+    uncachedImageGenerationsCount,
+    visualPlateCacheEfficiencyPercentage,
     updatedAt: run.recordedAt,
     expiresAt: null,
     recentRuns,

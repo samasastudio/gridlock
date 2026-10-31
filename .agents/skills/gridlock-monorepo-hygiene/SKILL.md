@@ -20,7 +20,8 @@ description: >-
    - Test only at the pre-agreed public seam (`packages/core` or `packages/widgets`), one Red → Green vertical slice at a time.
    - Verify both the **Happy Path** and **Sad Path** gates in [`ROADMAP.md`](../../../ROADMAP.md) and check off their boxes (`- [x]`).
 3. **Run Two-Axis `/code-review`, Open a PR (`/pr`), and Stop for Human Review**:
-   - Run `/code-review` against `main...HEAD` (**Standards** via [`CODING_STANDARDS.md`](../../../CODING_STANDARDS.md) + **Spec** via the GitHub Issue) and resolve any findings before opening the PR.
+   - Run `/code-review` against `<base>...HEAD` (**Standards** via [`CODING_STANDARDS.md`](../../../CODING_STANDARDS.md) + **Spec** via the GitHub Issue) and resolve any findings before opening the PR.
+   - Keep every PR `<= 700` changed lines (`git diff --stat <base>...HEAD`); if a ticket exceeds `700` lines, break it into stacked vertical PRs (`#N part 1/k..k/k`).
    - Format the PR description using `/pr` (`## Summary`, `## Evidence`, `## Merge Danger`), push the branch, and create the PR via `gh pr create`.
    - **Never run `gh pr merge`**: Stop after `gh pr create` and present the PR URL so the user can review and merge it into `main`.
 

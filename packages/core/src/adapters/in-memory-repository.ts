@@ -9,6 +9,7 @@ import {
   RepairChangelogEntrySchema,
   SourceArtifactSchema,
   TelemetryRunSchema,
+  VisualPlateSchema,
   type ConnectorConfig,
   type ConnectorPromotionStateUpdate,
   type ConnectorStatus,
@@ -21,6 +22,7 @@ import {
   type TelemetryLedgerQueryOptions,
   type TelemetryRun,
   type TelemetryStateUpdate,
+  type VisualPlate,
 } from "../interfaces/index.ts";
 
 export function createInMemoryGridlockRepository(
@@ -32,6 +34,8 @@ export function createInMemoryGridlockRepository(
   ]);
   const artifacts = new Map<string, SourceArtifact>();
   const artifactBlobs = new Map<string, Buffer>();
+  const visualPlates = new Map<string, VisualPlate>();
+  const visualPlateWebpBlobs = new Map<string, Buffer>();
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
   const telemetryRuns: TelemetryRun[] = [
@@ -187,6 +191,47 @@ export function createInMemoryGridlockRepository(
           connectorId ? entry.connectorId === connectorId : true
         )
         .map((entry) => structuredClone(entry));
+    },
+
+    async saveVisualPlate(
+      plate: VisualPlate,
+      webpBuffer: Buffer
+    ): Promise<void> {
+      const validated = VisualPlateSchema.parse(plate);
+      visualPlates.set(validated.plateId, structuredClone(validated));
+      visualPlateWebpBlobs.set(validated.plateId, Buffer.from(webpBuffer));
+    },
+
+    async getVisualPlateById(plateId: string): Promise<VisualPlate | null> {
+      const found = visualPlates.get(plateId);
+      return found ? structuredClone(found) : null;
+    },
+
+    async getVisualPlateByInteractionId(
+      interactionId: string
+    ): Promise<VisualPlate | null> {
+      const found = Array.from(visualPlates.values()).find(
+        (plate) => plate.interactionId === interactionId
+      );
+      return found ? structuredClone(found) : null;
+    },
+
+    async listVisualPlatesByLineage(
+      lineageId?: string
+    ): Promise<VisualPlate[]> {
+      return Array.from(visualPlates.values())
+        .filter((plate) => (lineageId ? plate.lineageId === lineageId : true))
+        .sort((a, b) =>
+          a.turnNumber !== b.turnNumber
+            ? a.turnNumber - b.turnNumber
+            : a.createdAt.localeCompare(b.createdAt)
+        )
+        .map((plate) => structuredClone(plate));
+    },
+
+    async readVisualPlateWebp(plateId: string): Promise<Buffer | null> {
+      const blob = visualPlateWebpBlobs.get(plateId);
+      return blob ? Buffer.from(blob) : null;
     },
   };
 }

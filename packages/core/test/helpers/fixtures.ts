@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+
 export const FROZEN_TABS_2027003697_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head><title>TDLR TABS - Project Details</title></head>
@@ -60,3 +62,33 @@ export const MUTATED_PORTAL_V2_HTML = HISTORICAL_FIXTURE_V1_HTML
   .replace('<div class="project-details">', '<div class="tabs-project-details-v2">')
   .replace("<dt>Estimated Cost:</dt>", "<dt>Total Estimated Cost:</dt>")
   .replace("<dd>TABS2027003697</dd>", "<dd>TABS2027009888</dd>");
+
+export function createFixtureWebpBuffer(
+  payloadTag = "gridlock-corridor-v1"
+): Buffer {
+  const payload = Buffer.from(`WEBP_VP8L_${payloadTag}`, "utf-8");
+  const pad =
+    payload.byteLength % 2 === 1 ? Buffer.from([0x00]) : Buffer.alloc(0);
+  const sizeBuf = Buffer.alloc(4);
+  sizeBuf.writeUInt32LE(payload.byteLength, 0);
+  const vp8lChunk = Buffer.concat([
+    Buffer.from("VP8L", "ascii"),
+    sizeBuf,
+    payload,
+    pad,
+  ]);
+  const body = Buffer.concat([Buffer.from("WEBP", "ascii"), vp8lChunk]);
+  const header = Buffer.alloc(8);
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(body.byteLength, 4);
+  return Buffer.concat([header, body]);
+}
+
+export function isWebpBuffer(buf: Buffer): boolean {
+  if (buf.byteLength < 16) return false;
+  return (
+    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buf.subarray(8, 12).toString("ascii") === "WEBP" &&
+    buf.readUInt32LE(4) === buf.byteLength - 8
+  );
+}

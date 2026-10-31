@@ -55,9 +55,19 @@ export {
   type SelectorDiffEntry,
 } from "./repair-models.ts";
 
+export {
+  EpistemicPlateLabelSchema,
+  VisualPlateSchema,
+  type EpistemicPlateLabel,
+  type PainterErrorCode,
+  type StatefulPainterResult,
+  type VisualPlate,
+} from "./painter-models.ts";
+
 export type {
   ConnectorPromotionStateUpdate,
   GeminiInteractionCreateRequest,
+  GeminiInteractionImageBlock,
   GeminiInteractionResponse,
   GeminiInteractionsClient,
   GridlockRepository,
@@ -65,6 +75,7 @@ export type {
   PageLoaderResponse,
   SearchLoader,
   TelemetryLedgerQueryOptions,
+  TelemetryPainterDeltas,
   TelemetrySpanSink,
   TelemetryStateUpdate,
 } from "./adapter-contracts.ts";
@@ -72,18 +83,24 @@ export type {
 export {
   ARTIFACT_BUCKET_URI,
   CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
+  CANONICAL_MILESTONE_LABEL,
   DEFAULT_DAILY_LOOKBACK_MS,
   DEFAULT_EFFICIENCY_LEDGER,
   DEFAULT_GCP_PROJECT_ID,
+  DEFAULT_LINEAGE_ID,
+  DEFAULT_MAX_BRANCHES_PER_LINEAGE,
   DEFAULT_TDLR_BASE_URL,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   DEFAULT_TDLR_SEARCH_FILTERS,
   GRIDLOCK_USER_AGENT,
   MAX_CONCURRENCY,
   MAX_RECORDS_PER_RUN,
+  MAX_SCENARIO_PROMPT_LENGTH,
   MILESTONE_COST_THRESHOLD_USD,
   MIN_POLITE_DELAY_MS,
   NAIVE_COST_PER_TOKEN_USD,
   NINETY_DAYS_MS,
+  PAINTER_AGENT_MODEL,
   REPAIR_AGENT_MODEL,
+  SCENARIO_BRANCH_WATERMARK,
 } from "./constants.ts";
