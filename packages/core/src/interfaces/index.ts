@@ -67,6 +67,7 @@ export {
 export type {
   ConnectorPromotionStateUpdate,
   GeminiInteractionCreateRequest,
+  GeminiInteractionError,
   GeminiInteractionImageBlock,
   GeminiInteractionResponse,
   GeminiInteractionsClient,
