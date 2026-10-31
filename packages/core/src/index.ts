@@ -66,6 +66,7 @@ export {
   type EpistemicPlateLabel,
   type ExecutionMode,
   type GeminiInteractionCreateRequest,
+  type GeminiInteractionError,
   type GeminiInteractionImageBlock,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
@@ -76,6 +77,8 @@ export {
   type PageLoader,
   type PageLoaderResponse,
   type PainterErrorCode,
+  type PainterImageEncodeResult,
+  type PainterImageEncoder,
   type Project,
   type RepairAgentResult,
   type RepairChangelogEntry,
@@ -134,6 +137,10 @@ export {
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
 } from "./use-cases/helpers/telemetry-math.ts";
+export {
+  createCorridorBaseCanvasWebp,
+  isWebpBuffer,
+} from "./use-cases/helpers/webp-codec.ts";
 
 export {
   evaluatePainterMilestoneGate,
@@ -143,6 +150,15 @@ export {
   recordAgenticStageTelemetry,
   recordStageTelemetry,
 } from "./use-cases/record-telemetry.ts";
+export {
+  bootstrapCanvas,
+  branchLineage,
+  paintMilestoneDelta,
+  type BootstrapCanvasInput,
+  type BranchLineageInput,
+  type PainterDeps,
+  type PaintMilestoneDeltaInput,
+} from "./use-cases/run-painter-agent.ts";
 export { runOutOfBandRepairAgent } from "./use-cases/run-repair-agent.ts";
 
 export async function ingestTdlrFiling(
