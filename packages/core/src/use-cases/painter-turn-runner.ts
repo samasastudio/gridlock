@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import {
   DEFAULT_LINEAGE_ID,
   PAINTER_AGENT_MODEL,
+  SCENARIO_BRANCH_WATERMARK,
   SourceArtifactSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionsClient,
@@ -26,7 +28,11 @@ import {
   type PainterTurnAttemptResult,
   type VisualPlateTurnSpec,
 } from "./helpers/painter-helpers.ts";
-import { defaultPainterImageEncoder, isWebpBuffer } from "./helpers/webp-codec.ts";
+import {
+  applyScenarioBranchWatermarkToWebp,
+  defaultPainterImageEncoder,
+  isWebpBuffer,
+} from "./helpers/webp-codec.ts";
 import { recordAgenticStageTelemetry, recordStageTelemetry } from "./record-telemetry.ts";
 
 export interface PainterTurnContext {
@@ -69,6 +75,15 @@ export async function preparePainterTurn(
     },
     existingPlates,
   };
+}
+
+export async function loadObservationsByIdForPlates(
+  repository: GridlockRepository,
+  plates: readonly VisualPlate[]
+): Promise<Map<string, Observation>> {
+  const projectNumbers = Array.from(new Set(plates.flatMap((plate) => plate.projectNumbers)));
+  const lists = await Promise.all(projectNumbers.map((pn) => repository.listObservationsByProject(pn)));
+  return new Map(lists.flat().map((obs) => [obs.id, obs]));
 }
 
 function turnEndedAt(ctx: PainterTurnContext): Date {
@@ -240,9 +255,13 @@ export async function finalizePaintedPlateTurn(
   if (!encoded.ok) {
     return failClosedPainter(ctx, { stage: params.stage, reason: encoded.reason, errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
-  const plate = buildVisualPlateRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: encoded.webpBuffer, sha256: encoded.sha256, createdAt: ctx.now.toISOString() });
-  await ctx.repository.saveVisualPlate(plate, encoded.webpBuffer);
-  await pinMilestoneSourceArtifacts(ctx.repository, plate.sourceArtifactHashes);
+  const finalWebp = params.isBranch
+    ? applyScenarioBranchWatermarkToWebp(encoded.webpBuffer, SCENARIO_BRANCH_WATERMARK)
+    : encoded.webpBuffer;
+  const finalSha256 = params.isBranch ? createHash("sha256").update(finalWebp).digest("hex") : encoded.sha256;
+  const plate = buildVisualPlateRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: finalWebp, sha256: finalSha256, createdAt: ctx.now.toISOString() });
+  await ctx.repository.saveVisualPlate(plate, finalWebp);
+  if (!params.isBranch) await pinMilestoneSourceArtifacts(ctx.repository, plate.sourceArtifactHashes);
   await recordAgenticStageTelemetry(
     {
       stage: params.stage,
@@ -250,13 +269,13 @@ export async function finalizePaintedPlateTurn(
       status: "agentic_completed",
       tokensUsed,
       interactionId,
-      rawByteLength: encoded.webpBuffer.byteLength,
+      rawByteLength: finalWebp.byteLength,
       ...(rebootstrappedFromParentWebp ? { visualPlateCacheHitsDelta: 1 } : {}),
       startedAt: ctx.now,
       endedAt: turnEndedAt(ctx),
-      attributes: { lineageId: ctx.lineageId, plateId: plate.plateId, turnNumber: plate.turnNumber },
+      attributes: { lineageId: ctx.lineageId, plateId: plate.plateId, turnNumber: plate.turnNumber, isBranch: plate.isBranch },
     },
     telemetryDeps(ctx)
   );
-  return { status: "plate_painted", operation: params.operation, lineageId: ctx.lineageId, plate, webpBuffer: encoded.webpBuffer, tokensUsed, rebootstrappedFromParentWebp };
+  return { status: "plate_painted", operation: params.operation, lineageId: ctx.lineageId, plate, webpBuffer: finalWebp, tokensUsed, rebootstrappedFromParentWebp };
 }

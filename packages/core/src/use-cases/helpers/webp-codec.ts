@@ -80,7 +80,15 @@ export function isWebpBuffer(buf: Buffer): boolean {
     return false;
   }
   const chunks = readRiffChunks(buf);
-  return chunks?.length === 1 ? parseBitstreamDims(chunks[0]!) !== null : false;
+  if (!chunks || chunks.length === 0) return false;
+  if (chunks.length === 1) return parseBitstreamDims(chunks[0]!) !== null;
+  const vp8x = chunks[0]?.fourCc === "VP8X" && chunks[0].data.byteLength === 10 ? chunks[0].data : null;
+  if (!vp8x || ((vp8x[0] ?? 0xff) & 0xc3) !== 0 || (vp8x.readUInt32LE(0) >>> 8) !== 0) return false;
+  const [cw, ch] = [((vp8x[4] ?? 0) | ((vp8x[5] ?? 0) << 8) | ((vp8x[6] ?? 0) << 16)) + 1, ((vp8x[7] ?? 0) | ((vp8x[8] ?? 0) << 8) | ((vp8x[9] ?? 0) << 16)) + 1];
+  const imgChunks = chunks.slice(1).filter((c) => c.fourCc === "VP8L" || c.fourCc === "VP8 ");
+  const hasXmpChunk = chunks.slice(1).some((c) => c.fourCc === "XMP " && c.data.byteLength > 0);
+  const dims = imgChunks.length === 1 ? parseBitstreamDims(imgChunks[0]!) : null;
+  return Boolean(dims && dims.width === cw && dims.height === ch && Boolean((vp8x[0] ?? 0) & 0x04) === hasXmpChunk);
 }
 
 export function encodeRgbaToLosslessWebp(width: number, height: number, rgba: Buffer): Buffer {
@@ -94,6 +102,39 @@ export function encodeRgbaToLosslessWebp(width: number, height: number, rgba: Bu
     })
   );
   return wrapRiffWebpChunks([buildRiffChunk("VP8L", Buffer.concat([vp8lHeader, VP8L_FLAT_TREE_HEADER, pixelBytes]))]);
+}
+
+export function applyScenarioBranchWatermarkToWebp(webpBuffer: Buffer, watermarkText: string): Buffer {
+  const chunks = readRiffChunks(webpBuffer) ?? [];
+  const primary = chunks.find((c) => c.fourCc === "VP8L" || c.fourCc === "VP8 ");
+  const dims = primary ? parseBitstreamDims(primary) : null;
+  if (!primary || !dims) return webpBuffer;
+  const flatPrefixLen = 5 + VP8L_FLAT_TREE_HEADER.byteLength;
+  const stampedPrimary =
+    primary.fourCc === "VP8L" &&
+    primary.data.byteLength === flatPrefixLen + dims.width * dims.height * 4 &&
+    primary.data.subarray(5, flatPrefixLen).equals(VP8L_FLAT_TREE_HEADER)
+      ? (() => {
+          const rgba = Buffer.alloc(dims.width * dims.height * 4);
+          const bandH = Math.max(3, Math.min(8, Math.ceil(dims.height * 0.16)));
+          Array.from({ length: dims.width * dims.height }).forEach((_, pxIdx) => {
+            const [x, y, off] = [pxIdx % dims.width, Math.floor(pxIdx / dims.width), flatPrefixLen + pxIdx * 4];
+            if (y < bandH || y >= dims.height - 2) {
+              rgba.set((x + y) % 4 < 2 ? [158, 42, 43, 255] : [245, 242, 235, 255], pxIdx * 4);
+            } else {
+              rgba.set([BIT_REV_8[primary.data[off + 1] ?? 0] ?? 0, BIT_REV_8[primary.data[off] ?? 0] ?? 0, BIT_REV_8[primary.data[off + 2] ?? 0] ?? 0, BIT_REV_8[primary.data[off + 3] ?? 255] ?? 255], pxIdx * 4);
+            }
+          });
+          return readRiffChunks(encodeRgbaToLosslessWebp(dims.width, dims.height, rgba))?.[0] ?? primary;
+        })()
+      : primary;
+  const vp8x = Buffer.alloc(10);
+  vp8x[0] = 0x04 | (dims.hasAlpha || stampedPrimary.fourCc === "VP8L" ? 0x10 : 0x00);
+  const [wm1, hm1] = [dims.width - 1, dims.height - 1];
+  vp8x.set([wm1 & 0xff, (wm1 >>> 8) & 0xff, (wm1 >>> 16) & 0xff, hm1 & 0xff, (hm1 >>> 8) & 0xff, (hm1 >>> 16) & 0xff], 4);
+  const escaped = watermarkText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const xmp = Buffer.from(`<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:rights>${escaped}</dc:rights></rdf:Description></rdf:RDF></x:xmpmeta>`, "utf-8");
+  return wrapRiffWebpChunks([buildRiffChunk("VP8X", vp8x), buildRiffChunk(stampedPrimary.fourCc, stampedPrimary.data), buildRiffChunk("XMP ", xmp)]);
 }
 
 export function createCorridorBaseCanvasWebp(lineageSeed = "texas-corridor-main"): Buffer {
