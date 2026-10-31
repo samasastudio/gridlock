@@ -119,12 +119,18 @@ export interface GeminiInteractionCreateRequest {
   };
 }
 
+export interface GeminiInteractionError {
+  code?: string;
+  message?: string;
+}
+
 export interface GeminiInteractionResponse {
   id: string;
   status?: string;
   previous_interaction_id?: string;
   output_text?: string | null;
   output_image?: GeminiInteractionImageBlock | null;
+  errors?: readonly GeminiInteractionError[];
   usage?: {
     total_tokens?: number;
   };
