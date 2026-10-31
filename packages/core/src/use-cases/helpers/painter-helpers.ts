@@ -1,8 +1,10 @@
 import type { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import {
   ARTIFACT_BUCKET_URI,
   CANONICAL_MILESTONE_LABEL,
   PAINTER_AGENT_MODEL,
+  SCENARIO_BRANCH_WATERMARK,
   VisualPlateSchema,
   type GeminiInteractionResponse,
   type Observation,
@@ -154,13 +156,22 @@ export function synthesizeMilestoneDeltaPrompt(
   return `Paint incremental milestone delta onto corridor lineage "${lineageId}" from parent plate ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
 }
 
-export interface VisualPlateTurnSpec {
-  turnNumber: number;
-  parentInteractionId: string | null;
-  parentPlateId: string | null;
+export function isVisualPlateActiveAt(plate: VisualPlate, now: Date): boolean {
+  return plate.expiresAt === null || Date.parse(plate.expiresAt) > now.getTime();
+}
+
+export function synthesizeScenarioBranchPrompt(parentPlate: VisualPlate, scenarioPrompt: string): string {
+  return `Fork speculative scenario branch from parent plate ${parentPlate.plateId} (interaction ${parentPlate.interactionId}) with watermark "${SCENARIO_BRANCH_WATERMARK}", preserving parent camera angle, topography, and Atlas Dossier typography: ${scenarioPrompt}`;
+}
+
+export type VisualPlateTurnSpec = {
+  parentPlate: VisualPlate | null;
   observations: readonly Observation[];
   prompt: string;
-}
+} & (
+  | { isBranch: false }
+  | { isBranch: true; scenarioPrompt: string; expiresAt: string }
+);
 
 export function buildVisualPlateRecord(
   params: VisualPlateTurnSpec & {
@@ -172,28 +183,48 @@ export function buildVisualPlateRecord(
     createdAt: string;
   }
 ): VisualPlate {
-  const plateId = `plate_${params.lineageId}_t${params.turnNumber}_${params.sha256.slice(0, 8)}`;
+  const turnNumber = params.parentPlate ? params.parentPlate.turnNumber + 1 : 1;
+  const interactionTag = createHash("sha256").update(params.interactionId).digest("hex").slice(0, 8);
+  const variant = params.isBranch
+    ? {
+        prefix: "branch",
+        storageDir: "branches/ephemeral",
+        epistemicLabel: SCENARIO_BRANCH_WATERMARK,
+        watermarkText: SCENARIO_BRANCH_WATERMARK,
+        expiresAt: params.expiresAt,
+        extra: { scenarioPrompt: params.scenarioPrompt },
+      }
+    : {
+        prefix: "plate",
+        storageDir: "plates",
+        epistemicLabel: CANONICAL_MILESTONE_LABEL,
+        watermarkText: null,
+        expiresAt: null,
+        extra: {},
+      };
+  const plateId = `${variant.prefix}_${params.lineageId}_t${turnNumber}_${interactionTag}_${params.sha256.slice(0, 8)}`;
   return VisualPlateSchema.parse({
     plateId,
     lineageId: params.lineageId,
-    turnNumber: params.turnNumber,
+    turnNumber,
     model: PAINTER_AGENT_MODEL,
     interactionId: params.interactionId,
-    parentInteractionId: params.parentInteractionId,
-    parentPlateId: params.parentPlateId,
+    parentInteractionId: params.parentPlate?.interactionId ?? null,
+    parentPlateId: params.parentPlate?.plateId ?? null,
     rebootstrappedFromParentWebp: params.rebootstrappedFromParentWebp,
     projectNumbers: Array.from(new Set(params.observations.map((obs) => obs.projectNumber))),
     triggeringObservationIds: params.observations.map((obs) => obs.id),
     sourceArtifactHashes: Array.from(new Set(params.observations.map((obs) => obs.sourceArtifactHash))),
     prompt: params.prompt,
-    storageUri: `${ARTIFACT_BUCKET_URI}/plates/${params.lineageId}/${plateId}.webp`,
+    storageUri: `${ARTIFACT_BUCKET_URI}/${variant.storageDir}/${params.lineageId}/${plateId}.webp`,
     mimeType: "image/webp",
     byteLength: params.webpBuffer.byteLength,
     sha256: params.sha256,
-    isBranch: false,
-    epistemicLabel: CANONICAL_MILESTONE_LABEL,
-    watermarkText: null,
+    isBranch: params.isBranch,
+    ...variant.extra,
+    epistemicLabel: variant.epistemicLabel,
+    watermarkText: variant.watermarkText,
     createdAt: params.createdAt,
-    expiresAt: null,
+    expiresAt: variant.expiresAt,
   });
 }

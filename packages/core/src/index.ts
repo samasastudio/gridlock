@@ -152,8 +152,10 @@ export {
 } from "./use-cases/record-telemetry.ts";
 export {
   bootstrapCanvas,
+  branchLineage,
   paintMilestoneDelta,
   type BootstrapCanvasInput,
+  type BranchLineageInput,
   type PainterDeps,
   type PaintMilestoneDeltaInput,
 } from "./use-cases/run-painter-agent.ts";

@@ -5,6 +5,20 @@ import type { GeminiInteractionImageBlock, PainterImageEncodeResult } from "../.
 
 const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const VP8X_RESERVED_OR_ANIM_MASK = 0xc3;
+const VP8X_ICCP_FLAG = 0x20;
+const VP8X_ALPHA_FLAG = 0x10;
+const VP8X_EXIF_FLAG = 0x08;
+const VP8X_XMP_FLAG = 0x04;
+
+const GLYPH_3X5: Readonly<Record<string, number>> = {
+  A: 0o25755, B: 0o65656, C: 0o34443, D: 0o65556, E: 0o74647, F: 0o74644, G: 0o34553,
+  H: 0o55755, I: 0o72227, J: 0o11152, K: 0o55655, L: 0o44447, M: 0o57755, N: 0o65555,
+  O: 0o25552, P: 0o65644, Q: 0o25531, R: 0o65665, S: 0o34216, T: 0o72222, U: 0o55557,
+  V: 0o55552, W: 0o55775, X: 0o55255, Y: 0o55222, Z: 0o71247, "/": 0o11244, "-": 0o00700,
+  ":": 0o02020, ".": 0o00002, "0": 0o75557, "1": 0o26227, "2": 0o71747, "3": 0o71717,
+  "4": 0o55711, "5": 0o74716, "6": 0o34757, "7": 0o71122, "8": 0o75757, "9": 0o75716,
+};
 
 export const BIT_REV_8 = Uint8Array.from({ length: 256 }, (_, b) => {
   const x1 = ((b & 0xf0) >>> 4) | ((b & 0x0f) << 4);
@@ -80,7 +94,26 @@ export function isWebpBuffer(buf: Buffer): boolean {
     return false;
   }
   const chunks = readRiffChunks(buf);
-  return chunks?.length === 1 ? parseBitstreamDims(chunks[0]!) !== null : false;
+  if (!chunks || chunks.length === 0) return false;
+  if (chunks.length === 1) return parseBitstreamDims(chunks[0]!) !== null;
+  const vp8x = chunks[0]?.fourCc === "VP8X" && chunks[0].data.byteLength === 10 ? chunks[0].data : null;
+  const flags = vp8x?.[0] ?? 0xff;
+  if (!vp8x || (flags & VP8X_RESERVED_OR_ANIM_MASK) !== 0 || (vp8x.readUInt32LE(0) >>> 8) !== 0) return false;
+  const canvasWidth = ((vp8x[4] ?? 0) | ((vp8x[5] ?? 0) << 8) | ((vp8x[6] ?? 0) << 16)) + 1;
+  const canvasHeight = ((vp8x[7] ?? 0) | ((vp8x[8] ?? 0) << 8) | ((vp8x[9] ?? 0) << 16)) + 1;
+  const bodyChunks = chunks.slice(1);
+  const imgChunks = bodyChunks.filter((c) => c.fourCc === "VP8L" || c.fourCc === "VP8 ");
+  const primary = imgChunks.length === 1 ? imgChunks[0]! : null;
+  const dims = primary ? parseBitstreamDims(primary) : null;
+  if (!primary || !dims || dims.width !== canvasWidth || dims.height !== canvasHeight) return false;
+  const hasChunk = (fourCc: string) => bodyChunks.some((c) => c.fourCc === fourCc && c.data.byteLength > 0);
+  const expectedAlpha = dims.hasAlpha || (primary.fourCc === "VP8 " && hasChunk("ALPH"));
+  return (
+    Boolean(flags & VP8X_ICCP_FLAG) === hasChunk("ICCP") &&
+    Boolean(flags & VP8X_ALPHA_FLAG) === expectedAlpha &&
+    Boolean(flags & VP8X_EXIF_FLAG) === hasChunk("EXIF") &&
+    Boolean(flags & VP8X_XMP_FLAG) === hasChunk("XMP ")
+  );
 }
 
 export function encodeRgbaToLosslessWebp(width: number, height: number, rgba: Buffer): Buffer {
@@ -94,6 +127,83 @@ export function encodeRgbaToLosslessWebp(width: number, height: number, rgba: Bu
     })
   );
   return wrapRiffWebpChunks([buildRiffChunk("VP8L", Buffer.concat([vp8lHeader, VP8L_FLAT_TREE_HEADER, pixelBytes]))]);
+}
+
+function wrapWatermarkLines(text: string, maxCharsPerLine: number): string[] {
+  const words = text.trim().toUpperCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0 || maxCharsPerLine <= 0) return [];
+  return words.reduce<string[]>((lines, word) => {
+    const slices = Array.from({ length: Math.ceil(word.length / maxCharsPerLine) }, (_, idx) =>
+      word.slice(idx * maxCharsPerLine, (idx + 1) * maxCharsPerLine)
+    );
+    return slices.reduce<string[]>((acc, slice) => {
+      const current = acc.at(-1);
+      return current !== undefined && current.length + 1 + slice.length <= maxCharsPerLine
+        ? [...acc.slice(0, -1), `${current} ${slice}`]
+        : [...acc, slice];
+    }, lines);
+  }, []);
+}
+
+function isWatermarkGlyphInk(lines: readonly string[], x: number, y: number): boolean {
+  if (x < 2 || y < 1) return false;
+  const [lineIdx, glyphY, charIdx, glyphX] = [Math.floor((y - 1) / 6), (y - 1) % 6, Math.floor((x - 2) / 4), (x - 2) % 4];
+  const ch = lines[lineIdx]?.[charIdx];
+  if (!ch || ch === " " || glyphY >= 5 || glyphX >= 3) return false;
+  return (((GLYPH_3X5[ch] ?? 0o75557) >>> ((4 - glyphY) * 3 + (2 - glyphX))) & 1) === 1;
+}
+
+function stampFlatVp8lWatermarkBanner(primary: RiffChunk, dims: { width: number; height: number }, watermarkText: string): RiffChunk {
+  const flatPrefixLen = 5 + VP8L_FLAT_TREE_HEADER.byteLength;
+  const isFlatVp8l =
+    primary.fourCc === "VP8L" &&
+    primary.data.byteLength === flatPrefixLen + dims.width * dims.height * 4 &&
+    primary.data.subarray(5, flatPrefixLen).equals(VP8L_FLAT_TREE_HEADER);
+  if (!isFlatVp8l) return primary;
+  const visibleLines = wrapWatermarkLines(watermarkText, Math.max(1, Math.floor((dims.width - 3) / 4))).slice(
+    0,
+    Math.max(1, Math.floor((dims.height - 1) / 6))
+  );
+  const bannerHeight = visibleLines.length > 0 ? Math.min(dims.height, visibleLines.length * 6 + 1) : 0;
+  const rgba = Buffer.from(
+    Uint8Array.from({ length: dims.width * dims.height * 4 }, (_, byteIdx) => {
+      const [pxIdx, channel] = [byteIdx >>> 2, byteIdx & 3];
+      const [x, y] = [pxIdx % dims.width, Math.floor(pxIdx / dims.width)];
+      if (y < bannerHeight) return (isWatermarkGlyphInk(visibleLines, x, y) ? [245, 242, 235, 255] : [158, 42, 43, 255])[channel] ?? 255;
+      const srcOff = flatPrefixLen + pxIdx * 4;
+      const encodedOffset = channel === 0 ? srcOff + 1 : channel === 1 ? srcOff : srcOff + channel;
+      return BIT_REV_8[primary.data[encodedOffset] ?? (channel === 3 ? 255 : 0)] ?? 0;
+    })
+  );
+  return readRiffChunks(encodeRgbaToLosslessWebp(dims.width, dims.height, rgba))?.[0] ?? primary;
+}
+
+export function applyScenarioBranchWatermarkToWebp(webpBuffer: Buffer, watermarkText: string): Buffer {
+  const chunks = readRiffChunks(webpBuffer) ?? [];
+  const primary = chunks.find((c) => c.fourCc === "VP8L" || c.fourCc === "VP8 ");
+  const primaryDims = primary ? parseBitstreamDims(primary) : null;
+  if (!primary || !primaryDims) return webpBuffer;
+  const stampedPrimary = stampFlatVp8lWatermarkBanner(primary, primaryDims, watermarkText);
+  const stampedDims = parseBitstreamDims(stampedPrimary) ?? primaryDims;
+  const iccpChunk = chunks.find((c) => c.fourCc === "ICCP" && c.data.byteLength > 0);
+  const alphChunk = chunks.find((c) => c.fourCc === "ALPH" && c.data.byteLength > 0);
+  const exifChunk = chunks.find((c) => c.fourCc === "EXIF" && c.data.byteLength > 0);
+  const hasLossyAlpha = stampedPrimary.fourCc === "VP8 " && alphChunk !== undefined;
+  const hasAlpha = stampedDims.hasAlpha || hasLossyAlpha;
+  const vp8x = Buffer.alloc(10);
+  vp8x[0] = VP8X_XMP_FLAG | (iccpChunk ? VP8X_ICCP_FLAG : 0) | (hasAlpha ? VP8X_ALPHA_FLAG : 0) | (exifChunk ? VP8X_EXIF_FLAG : 0);
+  const [widthMinusOne, heightMinusOne] = [stampedDims.width - 1, stampedDims.height - 1];
+  vp8x.set([widthMinusOne & 0xff, (widthMinusOne >>> 8) & 0xff, (widthMinusOne >>> 16) & 0xff, heightMinusOne & 0xff, (heightMinusOne >>> 8) & 0xff, (heightMinusOne >>> 16) & 0xff], 4);
+  const escaped = watermarkText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const xmp = Buffer.from(`<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:rights>${escaped}</dc:rights></rdf:Description></rdf:RDF></x:xmpmeta>`, "utf-8");
+  return wrapRiffWebpChunks([
+    buildRiffChunk("VP8X", vp8x),
+    ...(iccpChunk ? [buildRiffChunk("ICCP", iccpChunk.data)] : []),
+    ...(hasLossyAlpha ? [buildRiffChunk("ALPH", alphChunk.data)] : []),
+    buildRiffChunk(stampedPrimary.fourCc, stampedPrimary.data),
+    ...(exifChunk ? [buildRiffChunk("EXIF", exifChunk.data)] : []),
+    buildRiffChunk("XMP ", xmp),
+  ]);
 }
 
 export function createCorridorBaseCanvasWebp(lineageSeed = "texas-corridor-main"): Buffer {

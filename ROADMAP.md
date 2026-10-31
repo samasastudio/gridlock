@@ -107,13 +107,13 @@ flowchart TD
     - [x] **Happy Path**: All `@samasastudio/gridlock-core` modules live under `interfaces/`, `use-cases/` (and `use-cases/helpers/`), `adapters/`, or `controllers/`; all existing **Connector**, **Efficiency Ledger**, and **Repair Agent** public-seam tests pass without breaking public exports; shared test fixtures and mock portal server helpers eliminate duplicated HTML fixtures across test suites.
     - [x] **Sad Path**: `npm run lint` (`evaluateSourceFileLintRules`) deterministically fails if any file under `packages/core/src` exceeds `300` lines, lives outside the four permitted layer directories (other than `src/index.ts`), uses `let` bindings or imperative `for` loops, or violates inward layer import seams (`interfaces/` importing from `use-cases/`/`adapters/`/`controllers/`, `adapters/` importing from `use-cases/`/`controllers/`, `use-cases/` or `use-cases/helpers/` importing from `adapters/`/`controllers/`, or `controllers/` importing from `use-cases/helpers/` or `adapters/`).
 
-- [ ] **[`gridlock#7`](https://github.com/samasastudio/gridlock/issues/7) — Stateful Painter Agent (`gemini-3-pro-image`) & Lineage Chaining (Seam 3 Core)** (`~350 LOC`)
+- [x] **[`gridlock#7`](https://github.com/samasastudio/gridlock/issues/7) — Stateful Painter Agent (`gemini-3-pro-image`) & Lineage Chaining (Seam 3 Core)** (`~350 LOC`)
   - **Blocked by**: [`#3`](https://github.com/samasastudio/gridlock/issues/3), [`#17`](https://github.com/samasastudio/gridlock/issues/17)
   - **Unlocks**: `#8`
   - **Delivers**: Deterministic milestone gate (`imageGenerationsAvoided`), `bootstrapCanvas`, `paintMilestoneDelta` (`previous_interaction_id` chaining), `.webp` encoding, expired `interaction_id` fallback from cached `.webp` parent buffers, and `branchLineage` watermarked as `"Scenario Branch / Unverified Projection"`.
   - **Testing Validation Gate**:
-    - [ ] **Happy Path**: Crossing a visual milestone executes Turn 1 `bootstrapCanvas` and Turn 2+ `paintMilestoneDelta` (passing `previous_interaction_id`), encodes `.webp` plates to Cloud Storage, links `VisualPlate` nodes in Firestore, and watermarks/labels `branchLineage` plates as `"Scenario Branch / Unverified Projection"`.
-    - [ ] **Sad Path**: Non-milestone observations short-circuit at `0` image tokens (`imageGenerationsAvoided++`); if `@google/genai` rejects an expired `previous_interaction_id`, the agent automatically falls back to re-bootstrapping from the parent's cached `.webp` buffer in Cloud Storage without breaking the **Lineage**; empty/corrupt image responses fail closed without overwriting the active plate.
+    - [x] **Happy Path**: Crossing a visual milestone executes Turn 1 `bootstrapCanvas` and Turn 2+ `paintMilestoneDelta` (passing `previous_interaction_id`), encodes `.webp` plates to Cloud Storage, links `VisualPlate` nodes in Firestore, and watermarks/labels `branchLineage` plates as `"Scenario Branch / Unverified Projection"`.
+    - [x] **Sad Path**: Non-milestone observations short-circuit at `0` image tokens (`imageGenerationsAvoided++`); if `@google/genai` rejects an expired `previous_interaction_id`, the agent automatically falls back to re-bootstrapping from the parent's cached `.webp` buffer in Cloud Storage without breaking the **Lineage**; empty/corrupt image responses fail closed without overwriting the active plate.
 
 ---
 
