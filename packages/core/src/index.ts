@@ -35,8 +35,6 @@ export {
   ExecutionModeSchema,
   GRIDLOCK_USER_AGENT,
   IsoCalendarDateSchema,
-  LineageEdgeSchema,
-  LineageNodeSchema,
   MAX_CONCURRENCY,
   MAX_RECORDS_PER_RUN,
   MAX_SCENARIO_PROMPT_LENGTH,
@@ -60,7 +58,6 @@ export {
   TelemetryRunSchema,
   TelemetryRunStatusSchema,
   TelemetrySpanSchema,
-  VisualPlateLineageSchema,
   VisualPlateSchema,
   type CandidateSelectorPatch,
   type ConnectorConfig,
@@ -76,8 +73,6 @@ export {
   type GridlockRepository,
   type IngestFilingResult,
   type IsoCalendarDate,
-  type LineageEdge,
-  type LineageNode,
   type Observation,
   type PageLoader,
   type PageLoaderResponse,
@@ -108,7 +103,6 @@ export {
   type TelemetrySpan,
   type TelemetrySpanSink,
   type VisualPlate,
-  type VisualPlateLineage,
 } from "./interfaces/index.ts";
 
 export {
@@ -144,12 +138,10 @@ export {
   calculateNaiveTokensAvoided,
 } from "./use-cases/helpers/telemetry-math.ts";
 export {
-  applyScenarioBranchWatermarkToWebp,
   createCorridorBaseCanvasWebp,
   isWebpBuffer,
 } from "./use-cases/helpers/webp-codec.ts";
 
-export { getVisualPlateLineage } from "./use-cases/get-visual-plate-lineage.ts";
 export {
   evaluatePainterMilestoneGate,
   type PainterMilestoneGateOutcome,

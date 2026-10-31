@@ -5,7 +5,6 @@ import {
   MAX_SCENARIO_PROMPT_LENGTH,
   SCENARIO_BRANCH_WATERMARK,
 } from "./constants.ts";
-import { ObservationSchema } from "./filing-models.ts";
 import { Sha256HashSchema, TdlrProjectNumberSchema } from "./primitives.ts";
 
 export const EpistemicPlateLabelSchema = z.enum([
@@ -78,34 +77,6 @@ export const VisualPlateSchema = z
   });
 
 export type VisualPlate = z.infer<typeof VisualPlateSchema>;
-
-export const LineageEdgeSchema = z.object({
-  fromInteractionId: z.string().min(1),
-  toInteractionId: z.string().min(1),
-  fromPlateId: z.string().min(1),
-  toPlateId: z.string().min(1),
-  isBranch: z.boolean(),
-});
-
-export type LineageEdge = z.infer<typeof LineageEdgeSchema>;
-
-export const LineageNodeSchema = z.object({
-  plate: VisualPlateSchema,
-  observations: z.array(ObservationSchema),
-  childInteractionIds: z.array(z.string().min(1)),
-});
-
-export type LineageNode = z.infer<typeof LineageNodeSchema>;
-
-export const VisualPlateLineageSchema = z.object({
-  lineageId: z.string().min(1),
-  rootInteractionId: z.string().min(1).nullable(),
-  activeCanonicalPlateId: z.string().min(1).nullable(),
-  nodes: z.array(LineageNodeSchema),
-  edges: z.array(LineageEdgeSchema),
-});
-
-export type VisualPlateLineage = z.infer<typeof VisualPlateLineageSchema>;
 
 export type PainterErrorCode =
   | "lineage_already_bootstrapped"

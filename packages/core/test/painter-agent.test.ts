@@ -10,7 +10,7 @@ import {
   createCorridorBaseCanvasWebp,
   createInMemoryGridlockRepository,
   evaluatePainterMilestoneGate,
-  getVisualPlateLineage,
+  MAX_SCENARIO_PROMPT_LENGTH,
   NINETY_DAYS_MS,
   ObservationSchema,
   PAINTER_AGENT_MODEL,
@@ -19,7 +19,6 @@ import {
   recordStageTelemetry,
   SCENARIO_BRANCH_WATERMARK,
   SourceArtifactSchema,
-  VisualPlateLineageSchema,
   VisualPlateSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
@@ -452,20 +451,73 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(recordedRequests.length, callsBeforeMissingCache + 1);
   });
 
-  test("Part 4 (branchLineage Ephemeral Scenario Forking, VP8X+XMP+Visible Watermark & Directed Lineage Graph): forks ephemeral +90d branch with visible caution band + VP8X/XMP watermark, enforces quota/prompt/lineage guards, and builds VisualPlateLineage", async () => {
+  test("Part 4 (branchLineage Ephemeral Scenario Forking, Pixel+XMP Watermark, Chunk Preservation, Sibling Isolation & +90d TTL): stamps legible watermark glyphs, preserves extended WebP chunks, isolates sibling plateIds, and enforces TTL/quota without unbounded rejection telemetry", async () => {
     const repository = createInMemoryGridlockRepository();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const { milestoneObs: rootObs } = createPainterTestObservations();
     await repository.appendObservation(rootObs);
 
+    const riffChunk = (fourCc: string, payload: Buffer): Buffer => {
+      const hdr = Buffer.alloc(8);
+      hdr.write(fourCc.padEnd(4, " ").slice(0, 4), 0, "ascii");
+      hdr.writeUInt32LE(payload.byteLength, 4);
+      return Buffer.concat([hdr, payload, payload.byteLength % 2 === 1 ? Buffer.from([0]) : Buffer.alloc(0)]);
+    };
+    const wrapWebp = (chunks: readonly Buffer[]): Buffer => {
+      const body = Buffer.concat([Buffer.from("WEBP", "ascii"), ...chunks]);
+      const hdr = Buffer.alloc(8);
+      hdr.write("RIFF", 0, "ascii");
+      hdr.writeUInt32LE(body.byteLength, 4);
+      return Buffer.concat([hdr, body]);
+    };
+    const parseWebpChunks = (buf: Buffer, off = 12, acc: Array<{ fourCc: string; data: Buffer }> = []): Array<{ fourCc: string; data: Buffer }> => {
+      if (off >= buf.byteLength) return acc;
+      const [fourCc, size] = [buf.subarray(off, off + 4).toString("ascii"), buf.readUInt32LE(off + 4)];
+      return parseWebpChunks(buf, off + 8 + size + (size & 1), [...acc, { fourCc, data: buf.subarray(off + 8, off + 8 + size) }]);
+    };
+    const bitRev8 = (b: number): number => {
+      const x1 = ((b & 0xf0) >>> 4) | ((b & 0x0f) << 4);
+      const x2 = ((x1 & 0xcc) >>> 2) | ((x1 & 0x33) << 2);
+      return ((x2 & 0xaa) >>> 1) | ((x2 & 0x55) << 1);
+    };
+    const glyphToChar = new Map<number, string>([
+      [0o25755, "A"], [0o65656, "B"], [0o34443, "C"], [0o65556, "D"], [0o74647, "E"], [0o74644, "F"],
+      [0o55755, "H"], [0o72227, "I"], [0o11152, "J"], [0o65555, "N"], [0o25552, "O"], [0o65644, "P"],
+      [0o65665, "R"], [0o34216, "S"], [0o72222, "T"], [0o55557, "U"], [0o55552, "V"], [0o11244, "/"], [0, " "],
+    ]);
+    const decodeRenderedBannerText = (webp: Buffer, width: number, lineCount: number): string => {
+      const vp8l = parseWebpChunks(webp).find((c) => c.fourCc === "VP8L")!.data;
+      const pxStart = 5 + 156;
+      const readRgba = (x: number, y: number): [number, number, number, number] => {
+        const off = pxStart + (y * width + x) * 4;
+        return [bitRev8(vp8l[off + 1]!), bitRev8(vp8l[off]!), bitRev8(vp8l[off + 2]!), bitRev8(vp8l[off + 3]!)];
+      };
+      assert.deepEqual(readRgba(0, 0), [158, 42, 43, 255]);
+      const maxChars = Math.floor((width - 3) / 4);
+      return Array.from({ length: lineCount }, (_, lineIdx) =>
+        Array.from({ length: maxChars }, (__, charIdx) => {
+          const mask = Array.from({ length: 15 }, (___, bitPos) => {
+            const [gy, gx] = [Math.floor(bitPos / 3), bitPos % 3];
+            const [r, g, b] = readRgba(2 + charIdx * 4 + gx, 1 + lineIdx * 6 + gy);
+            return r === 245 && g === 242 && b === 235 ? 1 << (14 - bitPos) : 0;
+          }).reduce((a, b) => a | b, 0);
+          return glyphToChar.get(mask) ?? "?";
+        })
+          .join("")
+          .trimEnd()
+      ).join(" ");
+    };
+
     const rawPlateWebp = createFixtureWebpBuffer("branch-base");
+    const responseQueue: GeminiInteractionResponse[] = [];
     const geminiClient: GeminiInteractionsClient = {
       interactions: {
         async create(req) {
           recordedRequests.push(req);
-          const id = recordedRequests.length === 1 ? "inter_branch_parent_root" : "inter_scenario_branch_01";
+          const queued = responseQueue.shift();
+          if (queued) return queued;
           return {
-            id,
+            id: `inter_turn_${recordedRequests.length}`,
             status: "completed",
             ...(req.previous_interaction_id !== undefined ? { previous_interaction_id: req.previous_interaction_id } : {}),
             output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
@@ -475,14 +527,28 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       },
     };
 
+    responseQueue.push({
+      id: "inter_branch_parent_root",
+      status: "completed",
+      output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
+      usage: { total_tokens: 1250 },
+    });
     const rootResult = await bootstrapCanvas(
       { lineageId: "texas-corridor-main", observations: [rootObs], now: new Date("2026-10-27T18:05:00.000Z") },
       { repository, geminiClient }
     );
     assert.equal(rootResult.status, "plate_painted");
 
+    // 1. Happy Path: flat-tree VP8L branch stamps legible "SCENARIO BRANCH / UNVERIFIED PROJECTION" pixels + VP8X/XMP + sibling isolation
     const branchNow = new Date("2026-10-28T10:00:00.000Z");
     const expectedExpiresAt = new Date(branchNow.getTime() + NINETY_DAYS_MS).toISOString();
+    responseQueue.push({
+      id: "inter_scenario_branch_01",
+      status: "completed",
+      previous_interaction_id: "inter_branch_parent_root",
+      output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
+      usage: { total_tokens: 1250 },
+    });
     const branchResult = await branchLineage(
       {
         parentInteractionId: "inter_branch_parent_root",
@@ -491,7 +557,6 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       },
       { repository, geminiClient }
     );
-
     assert.equal(branchResult.status, "plate_painted");
     assert.equal(branchResult.operation, "branchLineage");
     const branchPlate = VisualPlateSchema.parse(branchResult.plate);
@@ -503,42 +568,170 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(branchPlate.watermarkText, SCENARIO_BRANCH_WATERMARK);
     assert.equal(branchPlate.expiresAt, expectedExpiresAt);
     assert.ok(branchPlate.storageUri.startsWith("gs://gridlock-artifacts/branches/ephemeral/texas-corridor-main/"));
-    assert.equal(isWebpBuffer(branchResult.webpBuffer), true);
     assert.equal(branchResult.webpBuffer.subarray(12, 16).toString("ascii"), "VP8X");
-    assert.ok(branchResult.webpBuffer.toString("utf-8").includes(SCENARIO_BRANCH_WATERMARK));
-    assert.notDeepEqual(branchResult.webpBuffer.subarray(30, 30 + 200), rawPlateWebp.subarray(20, 20 + 200));
+    assert.ok(branchResult.webpBuffer.toString("utf-8").includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`));
+    assert.equal(decodeRenderedBannerText(branchResult.webpBuffer, 64, 3), SCENARIO_BRANCH_WATERMARK.toUpperCase());
 
+    // Sibling branch with identical output_image bytes must get a distinct plateId & storageUri without overwriting branch 1
+    responseQueue.push({
+      id: "inter_scenario_branch_02",
+      status: "completed",
+      previous_interaction_id: "inter_branch_parent_root",
+      output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
+      usage: { total_tokens: 1180 },
+    });
+    const siblingBranch = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Simulate Oncor 345kV double-circuit upgrade", now: branchNow },
+      { repository, geminiClient }
+    );
+    assert.equal(siblingBranch.status, "plate_painted");
+    assert.notEqual(siblingBranch.plate.plateId, branchPlate.plateId);
+    assert.notEqual(siblingBranch.plate.storageUri, branchPlate.storageUri);
+    assert.equal((await repository.listVisualPlatesByLineage("texas-corridor-main")).length, 3);
+
+    // 2. PNG response -> transcoded & single-line pixel watermark; opaque compressed VP8L & extended VP8X+ICCP+ALPH+VP8+EXIF preserved
+    const widePng = createSamplePngBuffer(200, 24);
+    responseQueue.push({
+      id: "inter_branch_png",
+      status: "completed",
+      output_image: { mime_type: "image/png", data: widePng.toString("base64") },
+      usage: { total_tokens: 900 },
+    });
+    const pngBranch = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "PNG single-line watermark verification", now: branchNow },
+      { repository, geminiClient }
+    );
+    assert.equal(pngBranch.status, "plate_painted");
+    assert.equal(decodeRenderedBannerText(pngBranch.webpBuffer, 200, 1), SCENARIO_BRANCH_WATERMARK.toUpperCase());
+
+    const opaqueCompressedVp8lPayload = Buffer.from([0x2f, 31, (17 << 6) & 0xff, 0x00, 0x00, 0x80, 0xaa, 0x55, 0x11]);
+    const opaqueCompressedWebp = wrapWebp([riffChunk("VP8L", opaqueCompressedVp8lPayload)]);
+    responseQueue.push({
+      id: "inter_branch_opaque_vp8l",
+      status: "completed",
+      output_image: { mime_type: "image/webp", data: opaqueCompressedWebp.toString("base64") },
+      usage: { total_tokens: 910 },
+    });
+    const opaqueBranch = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Opaque compressed VP8L flag check", now: branchNow },
+      { repository, geminiClient }
+    );
+    assert.equal(opaqueBranch.status, "plate_painted");
+    assert.equal(opaqueBranch.webpBuffer[20], 0x04);
+    assert.deepEqual(parseWebpChunks(opaqueBranch.webpBuffer).find((c) => c.fourCc === "VP8L")?.data, opaqueCompressedVp8lPayload);
+
+    const iccpData = Buffer.from("sRGB-profile", "ascii");
+    const alphData = Buffer.from([0x00, 0xff, 0xff, 0xff]);
+    const vp8LossyData = Buffer.from([0x10, 0x00, 0x00, 0x9d, 0x01, 0x2a, 32, 0x00, 18, 0x00, 0xde, 0xad]);
+    const exifData = Buffer.from("Exif\0\0II", "ascii");
+    const srcVp8x = Buffer.from([0x20 | 0x10 | 0x08, 0, 0, 0, 31, 0, 0, 17, 0, 0]);
+    const extendedLossyWebp = wrapWebp([
+      riffChunk("VP8X", srcVp8x),
+      riffChunk("ICCP", iccpData),
+      riffChunk("ALPH", alphData),
+      riffChunk("VP8 ", vp8LossyData),
+      riffChunk("EXIF", exifData),
+    ]);
+    responseQueue.push({
+      id: "inter_branch_extended_vp8",
+      status: "completed",
+      output_image: { mime_type: "image/webp", data: extendedLossyWebp.toString("base64") },
+      usage: { total_tokens: 920 },
+    });
+    const extendedBranch = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Extended VP8X ICCP+ALPH+VP8+EXIF check", now: branchNow },
+      { repository, geminiClient }
+    );
+    assert.equal(extendedBranch.status, "plate_painted");
+    assert.equal(extendedBranch.webpBuffer[20], 0x3c);
+    const outChunks = parseWebpChunks(extendedBranch.webpBuffer);
+    assert.deepEqual(outChunks.map((c) => c.fourCc), ["VP8X", "ICCP", "ALPH", "VP8 ", "EXIF", "XMP "]);
+    assert.deepEqual(outChunks[1]?.data, iccpData);
+    assert.deepEqual(outChunks[2]?.data, alphData);
+    assert.deepEqual(outChunks[3]?.data, vp8LossyData);
+    assert.deepEqual(outChunks[4]?.data, exifData);
+
+    // 3. Sad Path via public seams: corrupt VP8X rejected by bootstrapCanvas & branchLineage
     const brokenVp8x = Buffer.from(branchResult.webpBuffer);
     brokenVp8x[20] = 0x00;
-    assert.equal(isWebpBuffer(brokenVp8x), false);
+    const rejectedCanvas = await bootstrapCanvas(
+      { lineageId: "corridor-corrupt-vp8x", observations: [rootObs], baseCanvasWebp: brokenVp8x },
+      { repository, geminiClient }
+    );
+    assert.equal(rejectedCanvas.status, "painter_failed");
+    assert.equal(rejectedCanvas.errorCode, "invalid_base_canvas");
 
-    const emptyPrompt = await branchLineage({ parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "   " }, { repository, geminiClient });
+    responseQueue.push({
+      id: "inter_branch_corrupt_vp8x",
+      status: "completed",
+      output_image: { mime_type: "image/webp", data: brokenVp8x.toString("base64") },
+      usage: { total_tokens: 300 },
+    });
+    const rejectedBranchImg = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Corrupt VP8X output rejection", now: branchNow },
+      { repository, geminiClient }
+    );
+    assert.equal(rejectedBranchImg.status, "painter_failed");
+    assert.equal(rejectedBranchImg.errorCode, "corrupt_or_empty_image");
+
+    // 4. Pre-Gemini validation & quota rejections write zero telemetry_runs and zero Gemini requests; +90d TTL frees quota & blocks expired parents
+    const runsBeforePreconditions = (await repository.listTelemetryRuns()).length;
+    const agenticBeforePreconditions = (await repository.getEfficiencyLedger()).agenticRunsCount;
+    const callsBeforePreconditions = recordedRequests.length;
+
+    const emptyPrompt = await branchLineage({ parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "   ", now: branchNow }, { repository, geminiClient });
     assert.equal(emptyPrompt.status, "painter_failed");
     assert.equal(emptyPrompt.errorCode, "invalid_scenario_prompt");
 
-    const unknownParent = await branchLineage({ parentInteractionId: "inter_missing", scenarioPrompt: "Simulate upgrade" }, { repository, geminiClient });
+    const oversizedPrompt = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "x".repeat(MAX_SCENARIO_PROMPT_LENGTH + 1), now: branchNow },
+      { repository, geminiClient }
+    );
+    assert.equal(oversizedPrompt.status, "painter_failed");
+    assert.equal(oversizedPrompt.errorCode, "invalid_scenario_prompt");
+
+    const unknownParent = await branchLineage({ parentInteractionId: "inter_missing", scenarioPrompt: "Simulate upgrade", now: branchNow }, { repository, geminiClient });
     assert.equal(unknownParent.status, "painter_failed");
     assert.equal(unknownParent.errorCode, "parent_not_found");
 
-    const crossLineage = await branchLineage({ parentInteractionId: "inter_branch_parent_root", lineageId: "other-corridor", scenarioPrompt: "Cross lineage fork" }, { repository, geminiClient });
+    const crossLineage = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", lineageId: "other-corridor", scenarioPrompt: "Cross lineage fork", now: branchNow },
+      { repository, geminiClient }
+    );
     assert.equal(crossLineage.status, "painter_failed");
     assert.equal(crossLineage.errorCode, "parent_not_found");
 
     const quotaExceeded = await branchLineage(
-      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Second branch exceeding maxBranchesPerLineage=1", maxBranchesPerLineage: 1 },
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Exceeding active branch cap", maxBranchesPerLineage: 5, now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(quotaExceeded.status, "painter_failed");
     assert.equal(quotaExceeded.errorCode, "branch_quota_exceeded");
-    assert.equal(recordedRequests.length, 2);
 
-    const lineage = VisualPlateLineageSchema.parse(await getVisualPlateLineage({ lineageId: "texas-corridor-main" }, { repository }));
-    assert.equal(lineage.rootInteractionId, "inter_branch_parent_root");
-    assert.equal(lineage.activeCanonicalPlateId, rootResult.plate.plateId);
-    assert.equal(lineage.nodes.length, 2);
-    assert.equal(lineage.edges.length, 1);
-    assert.equal(lineage.edges[0]?.isBranch, true);
-    assert.deepEqual(lineage.nodes[0]?.childInteractionIds, ["inter_scenario_branch_01"]);
-    assert.equal(lineage.nodes[0]?.observations[0]?.id, rootObs.id);
+    const postExpiryNow = new Date(branchNow.getTime() + NINETY_DAYS_MS + 1_000);
+    const expiredParentFork = await branchLineage(
+      { parentInteractionId: "inter_scenario_branch_01", scenarioPrompt: "Forking expired +90d branch", now: postExpiryNow },
+      { repository, geminiClient }
+    );
+    assert.equal(expiredParentFork.status, "painter_failed");
+    assert.equal(expiredParentFork.errorCode, "parent_not_found");
+
+    assert.equal(recordedRequests.length, callsBeforePreconditions);
+    assert.equal((await repository.listTelemetryRuns()).length, runsBeforePreconditions);
+    assert.equal((await repository.getEfficiencyLedger()).agenticRunsCount, agenticBeforePreconditions);
+
+    // After +90d TTL elapses, prior ephemeral branches no longer consume maxBranchesPerLineage=1
+    responseQueue.push({
+      id: "inter_post_expiry_fresh_branch",
+      status: "completed",
+      previous_interaction_id: "inter_branch_parent_root",
+      output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
+      usage: { total_tokens: 1100 },
+    });
+    const postExpiryBranch = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Fresh branch after +90d TTL expiry", maxBranchesPerLineage: 1, now: postExpiryNow },
+      { repository, geminiClient }
+    );
+    assert.equal(postExpiryBranch.status, "plate_painted");
   });
 });

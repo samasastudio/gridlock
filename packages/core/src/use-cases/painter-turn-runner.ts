@@ -1,3 +1,4 @@
+import type { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import {
   DEFAULT_LINEAGE_ID,
@@ -75,15 +76,6 @@ export async function preparePainterTurn(
     },
     existingPlates,
   };
-}
-
-export async function loadObservationsByIdForPlates(
-  repository: GridlockRepository,
-  plates: readonly VisualPlate[]
-): Promise<Map<string, Observation>> {
-  const projectNumbers = Array.from(new Set(plates.flatMap((plate) => plate.projectNumbers)));
-  const lists = await Promise.all(projectNumbers.map((pn) => repository.listObservationsByProject(pn)));
-  return new Map(lists.flat().map((obs) => [obs.id, obs]));
 }
 
 function turnEndedAt(ctx: PainterTurnContext): Date {
@@ -237,6 +229,21 @@ async function pinMilestoneSourceArtifacts(repository: GridlockRepository, hashe
   );
 }
 
+function prepareFinalPlateWebp(
+  encoded: { webpBuffer: Buffer; sha256: string },
+  isBranch: boolean
+): { webpBuffer: Buffer; sha256: string; pinCanonicalArtifacts: boolean } {
+  if (!isBranch) {
+    return { webpBuffer: encoded.webpBuffer, sha256: encoded.sha256, pinCanonicalArtifacts: true };
+  }
+  const watermarked = applyScenarioBranchWatermarkToWebp(encoded.webpBuffer, SCENARIO_BRANCH_WATERMARK);
+  return {
+    webpBuffer: watermarked,
+    sha256: createHash("sha256").update(watermarked).digest("hex"),
+    pinCanonicalArtifacts: false,
+  };
+}
+
 export async function finalizePaintedPlateTurn(
   ctx: PainterTurnContext,
   params: VisualPlateTurnSpec & {
@@ -255,13 +262,13 @@ export async function finalizePaintedPlateTurn(
   if (!encoded.ok) {
     return failClosedPainter(ctx, { stage: params.stage, reason: encoded.reason, errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
-  const finalWebp = params.isBranch
-    ? applyScenarioBranchWatermarkToWebp(encoded.webpBuffer, SCENARIO_BRANCH_WATERMARK)
-    : encoded.webpBuffer;
-  const finalSha256 = params.isBranch ? createHash("sha256").update(finalWebp).digest("hex") : encoded.sha256;
-  const plate = buildVisualPlateRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: finalWebp, sha256: finalSha256, createdAt: ctx.now.toISOString() });
-  await ctx.repository.saveVisualPlate(plate, finalWebp);
-  if (!params.isBranch) await pinMilestoneSourceArtifacts(ctx.repository, plate.sourceArtifactHashes);
+  const finalized = prepareFinalPlateWebp(encoded, params.isBranch);
+  if (!isWebpBuffer(finalized.webpBuffer)) {
+    return failClosedPainter(ctx, { stage: params.stage, reason: "Encoded Visual Plate failed RIFF/WEBP bitstream validation", errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
+  }
+  const plate = buildVisualPlateRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: finalized.webpBuffer, sha256: finalized.sha256, createdAt: ctx.now.toISOString() });
+  await ctx.repository.saveVisualPlate(plate, finalized.webpBuffer);
+  if (finalized.pinCanonicalArtifacts) await pinMilestoneSourceArtifacts(ctx.repository, plate.sourceArtifactHashes);
   await recordAgenticStageTelemetry(
     {
       stage: params.stage,
@@ -269,7 +276,7 @@ export async function finalizePaintedPlateTurn(
       status: "agentic_completed",
       tokensUsed,
       interactionId,
-      rawByteLength: finalWebp.byteLength,
+      rawByteLength: finalized.webpBuffer.byteLength,
       ...(rebootstrappedFromParentWebp ? { visualPlateCacheHitsDelta: 1 } : {}),
       startedAt: ctx.now,
       endedAt: turnEndedAt(ctx),
@@ -277,5 +284,5 @@ export async function finalizePaintedPlateTurn(
     },
     telemetryDeps(ctx)
   );
-  return { status: "plate_painted", operation: params.operation, lineageId: ctx.lineageId, plate, webpBuffer: finalWebp, tokensUsed, rebootstrappedFromParentWebp };
+  return { status: "plate_painted", operation: params.operation, lineageId: ctx.lineageId, plate, webpBuffer: finalized.webpBuffer, tokensUsed, rebootstrappedFromParentWebp };
 }

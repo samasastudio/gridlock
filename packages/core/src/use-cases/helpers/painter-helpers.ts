@@ -1,17 +1,14 @@
 import type { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import {
   ARTIFACT_BUCKET_URI,
   CANONICAL_MILESTONE_LABEL,
-  LineageEdgeSchema,
-  LineageNodeSchema,
   PAINTER_AGENT_MODEL,
   SCENARIO_BRANCH_WATERMARK,
-  VisualPlateLineageSchema,
   VisualPlateSchema,
   type GeminiInteractionResponse,
   type Observation,
   type VisualPlate,
-  type VisualPlateLineage,
 } from "../../interfaces/index.ts";
 
 export type PainterStage =
@@ -159,55 +156,16 @@ export function synthesizeMilestoneDeltaPrompt(
   return `Paint incremental milestone delta onto corridor lineage "${lineageId}" from parent plate ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
 }
 
+export function isVisualPlateActiveAt(plate: VisualPlate, now: Date): boolean {
+  return plate.expiresAt === null || Date.parse(plate.expiresAt) > now.getTime();
+}
+
 export function synthesizeScenarioBranchPrompt(parentPlate: VisualPlate, scenarioPrompt: string): string {
   return `Fork speculative scenario branch from parent plate ${parentPlate.plateId} (interaction ${parentPlate.interactionId}) with watermark "${SCENARIO_BRANCH_WATERMARK}", preserving parent camera angle, topography, and Atlas Dossier typography: ${scenarioPrompt}`;
 }
 
-export function buildVisualPlateLineage(params: {
-  lineageId: string;
-  plates: readonly VisualPlate[];
-  observationsById: ReadonlyMap<string, Observation>;
-}): VisualPlateLineage {
-  const sortedPlates = [...params.plates].sort(comparePlatesChronologically);
-  const plateByInteractionId = new Map(sortedPlates.map((plate) => [plate.interactionId, plate]));
-  const edges = sortedPlates.flatMap((plate) => {
-    if (!plate.parentInteractionId) return [];
-    const parentPlate = plateByInteractionId.get(plate.parentInteractionId);
-    return [
-      LineageEdgeSchema.parse({
-        fromInteractionId: plate.parentInteractionId,
-        toInteractionId: plate.interactionId,
-        fromPlateId: parentPlate?.plateId ?? plate.parentPlateId ?? "unknown",
-        toPlateId: plate.plateId,
-        isBranch: plate.isBranch,
-      }),
-    ];
-  });
-  const nodes = sortedPlates.map((plate) =>
-    LineageNodeSchema.parse({
-      plate,
-      observations: plate.triggeringObservationIds.flatMap((obsId) => {
-        const found = params.observationsById.get(obsId);
-        return found ? [found] : [];
-      }),
-      childInteractionIds: edges.filter((e) => e.fromInteractionId === plate.interactionId).map((e) => e.toInteractionId),
-    })
-  );
-  const rootPlate = sortedPlates.find((p) => !p.isBranch && p.parentInteractionId === null) ?? sortedPlates[0] ?? null;
-  const activeCanonical = selectActiveCanonicalPlate(sortedPlates);
-  return VisualPlateLineageSchema.parse({
-    lineageId: params.lineageId,
-    rootInteractionId: rootPlate?.interactionId ?? null,
-    activeCanonicalPlateId: activeCanonical?.plateId ?? null,
-    nodes,
-    edges,
-  });
-}
-
 export type VisualPlateTurnSpec = {
-  turnNumber: number;
-  parentInteractionId: string | null;
-  parentPlateId: string | null;
+  parentPlate: VisualPlate | null;
   observations: readonly Observation[];
   prompt: string;
 } & (
@@ -225,33 +183,48 @@ export function buildVisualPlateRecord(
     createdAt: string;
   }
 ): VisualPlate {
-  const prefix = params.isBranch ? "branch" : "plate";
-  const plateId = `${prefix}_${params.lineageId}_t${params.turnNumber}_${params.sha256.slice(0, 8)}`;
-  const storagePath = params.isBranch
-    ? `${ARTIFACT_BUCKET_URI}/branches/ephemeral/${params.lineageId}/${plateId}.webp`
-    : `${ARTIFACT_BUCKET_URI}/plates/${params.lineageId}/${plateId}.webp`;
+  const turnNumber = params.parentPlate ? params.parentPlate.turnNumber + 1 : 1;
+  const interactionTag = createHash("sha256").update(params.interactionId).digest("hex").slice(0, 8);
+  const variant = params.isBranch
+    ? {
+        prefix: "branch",
+        storageDir: "branches/ephemeral",
+        epistemicLabel: SCENARIO_BRANCH_WATERMARK,
+        watermarkText: SCENARIO_BRANCH_WATERMARK,
+        expiresAt: params.expiresAt,
+        extra: { scenarioPrompt: params.scenarioPrompt },
+      }
+    : {
+        prefix: "plate",
+        storageDir: "plates",
+        epistemicLabel: CANONICAL_MILESTONE_LABEL,
+        watermarkText: null,
+        expiresAt: null,
+        extra: {},
+      };
+  const plateId = `${variant.prefix}_${params.lineageId}_t${turnNumber}_${interactionTag}_${params.sha256.slice(0, 8)}`;
   return VisualPlateSchema.parse({
     plateId,
     lineageId: params.lineageId,
-    turnNumber: params.turnNumber,
+    turnNumber,
     model: PAINTER_AGENT_MODEL,
     interactionId: params.interactionId,
-    parentInteractionId: params.parentInteractionId,
-    parentPlateId: params.parentPlateId,
+    parentInteractionId: params.parentPlate?.interactionId ?? null,
+    parentPlateId: params.parentPlate?.plateId ?? null,
     rebootstrappedFromParentWebp: params.rebootstrappedFromParentWebp,
     projectNumbers: Array.from(new Set(params.observations.map((obs) => obs.projectNumber))),
     triggeringObservationIds: params.observations.map((obs) => obs.id),
     sourceArtifactHashes: Array.from(new Set(params.observations.map((obs) => obs.sourceArtifactHash))),
     prompt: params.prompt,
-    storageUri: storagePath,
+    storageUri: `${ARTIFACT_BUCKET_URI}/${variant.storageDir}/${params.lineageId}/${plateId}.webp`,
     mimeType: "image/webp",
     byteLength: params.webpBuffer.byteLength,
     sha256: params.sha256,
     isBranch: params.isBranch,
-    ...(params.isBranch ? { scenarioPrompt: params.scenarioPrompt } : {}),
-    epistemicLabel: params.isBranch ? SCENARIO_BRANCH_WATERMARK : CANONICAL_MILESTONE_LABEL,
-    watermarkText: params.isBranch ? SCENARIO_BRANCH_WATERMARK : null,
+    ...variant.extra,
+    epistemicLabel: variant.epistemicLabel,
+    watermarkText: variant.watermarkText,
     createdAt: params.createdAt,
-    expiresAt: params.isBranch ? params.expiresAt : null,
+    expiresAt: variant.expiresAt,
   });
 }
