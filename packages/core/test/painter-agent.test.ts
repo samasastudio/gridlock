@@ -5,10 +5,13 @@ import assert from "node:assert/strict";
 import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
+  branchLineage,
   CANONICAL_MILESTONE_LABEL,
   createCorridorBaseCanvasWebp,
   createInMemoryGridlockRepository,
   evaluatePainterMilestoneGate,
+  getVisualPlateLineage,
+  NINETY_DAYS_MS,
   ObservationSchema,
   PAINTER_AGENT_MODEL,
   paintMilestoneDelta,
@@ -16,6 +19,7 @@ import {
   recordStageTelemetry,
   SCENARIO_BRANCH_WATERMARK,
   SourceArtifactSchema,
+  VisualPlateLineageSchema,
   VisualPlateSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
@@ -446,5 +450,95 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(missingCacheFallback.errorCode, "interaction_failed");
     assert.equal(missingCacheFallback.activePlate?.plateId, turn4.plate.plateId);
     assert.equal(recordedRequests.length, callsBeforeMissingCache + 1);
+  });
+
+  test("Part 4 (branchLineage Ephemeral Scenario Forking, VP8X+XMP+Visible Watermark & Directed Lineage Graph): forks ephemeral +90d branch with visible caution band + VP8X/XMP watermark, enforces quota/prompt/lineage guards, and builds VisualPlateLineage", async () => {
+    const repository = createInMemoryGridlockRepository();
+    const recordedRequests: GeminiInteractionCreateRequest[] = [];
+    const { milestoneObs: rootObs } = createPainterTestObservations();
+    await repository.appendObservation(rootObs);
+
+    const rawPlateWebp = createFixtureWebpBuffer("branch-base");
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        async create(req) {
+          recordedRequests.push(req);
+          const id = recordedRequests.length === 1 ? "inter_branch_parent_root" : "inter_scenario_branch_01";
+          return {
+            id,
+            status: "completed",
+            ...(req.previous_interaction_id !== undefined ? { previous_interaction_id: req.previous_interaction_id } : {}),
+            output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
+            usage: { total_tokens: 1250 },
+          };
+        },
+      },
+    };
+
+    const rootResult = await bootstrapCanvas(
+      { lineageId: "texas-corridor-main", observations: [rootObs], now: new Date("2026-10-27T18:05:00.000Z") },
+      { repository, geminiClient }
+    );
+    assert.equal(rootResult.status, "plate_painted");
+
+    const branchNow = new Date("2026-10-28T10:00:00.000Z");
+    const expectedExpiresAt = new Date(branchNow.getTime() + NINETY_DAYS_MS).toISOString();
+    const branchResult = await branchLineage(
+      {
+        parentInteractionId: "inter_branch_parent_root",
+        scenarioPrompt: "Simulate ERCOT 450MW large-load interconnection curtailment in Ellis County",
+        now: branchNow,
+      },
+      { repository, geminiClient }
+    );
+
+    assert.equal(branchResult.status, "plate_painted");
+    assert.equal(branchResult.operation, "branchLineage");
+    const branchPlate = VisualPlateSchema.parse(branchResult.plate);
+    assert.equal(branchPlate.isBranch, true);
+    assert.equal(branchPlate.turnNumber, 2);
+    assert.equal(branchPlate.parentInteractionId, "inter_branch_parent_root");
+    assert.equal(branchPlate.parentPlateId, rootResult.plate.plateId);
+    assert.equal(branchPlate.epistemicLabel, SCENARIO_BRANCH_WATERMARK);
+    assert.equal(branchPlate.watermarkText, SCENARIO_BRANCH_WATERMARK);
+    assert.equal(branchPlate.expiresAt, expectedExpiresAt);
+    assert.ok(branchPlate.storageUri.startsWith("gs://gridlock-artifacts/branches/ephemeral/texas-corridor-main/"));
+    assert.equal(isWebpBuffer(branchResult.webpBuffer), true);
+    assert.equal(branchResult.webpBuffer.subarray(12, 16).toString("ascii"), "VP8X");
+    assert.ok(branchResult.webpBuffer.toString("utf-8").includes(SCENARIO_BRANCH_WATERMARK));
+    assert.notDeepEqual(branchResult.webpBuffer.subarray(30, 30 + 200), rawPlateWebp.subarray(20, 20 + 200));
+
+    const brokenVp8x = Buffer.from(branchResult.webpBuffer);
+    brokenVp8x[20] = 0x00;
+    assert.equal(isWebpBuffer(brokenVp8x), false);
+
+    const emptyPrompt = await branchLineage({ parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "   " }, { repository, geminiClient });
+    assert.equal(emptyPrompt.status, "painter_failed");
+    assert.equal(emptyPrompt.errorCode, "invalid_scenario_prompt");
+
+    const unknownParent = await branchLineage({ parentInteractionId: "inter_missing", scenarioPrompt: "Simulate upgrade" }, { repository, geminiClient });
+    assert.equal(unknownParent.status, "painter_failed");
+    assert.equal(unknownParent.errorCode, "parent_not_found");
+
+    const crossLineage = await branchLineage({ parentInteractionId: "inter_branch_parent_root", lineageId: "other-corridor", scenarioPrompt: "Cross lineage fork" }, { repository, geminiClient });
+    assert.equal(crossLineage.status, "painter_failed");
+    assert.equal(crossLineage.errorCode, "parent_not_found");
+
+    const quotaExceeded = await branchLineage(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Second branch exceeding maxBranchesPerLineage=1", maxBranchesPerLineage: 1 },
+      { repository, geminiClient }
+    );
+    assert.equal(quotaExceeded.status, "painter_failed");
+    assert.equal(quotaExceeded.errorCode, "branch_quota_exceeded");
+    assert.equal(recordedRequests.length, 2);
+
+    const lineage = VisualPlateLineageSchema.parse(await getVisualPlateLineage({ lineageId: "texas-corridor-main" }, { repository }));
+    assert.equal(lineage.rootInteractionId, "inter_branch_parent_root");
+    assert.equal(lineage.activeCanonicalPlateId, rootResult.plate.plateId);
+    assert.equal(lineage.nodes.length, 2);
+    assert.equal(lineage.edges.length, 1);
+    assert.equal(lineage.edges[0]?.isBranch, true);
+    assert.deepEqual(lineage.nodes[0]?.childInteractionIds, ["inter_scenario_branch_01"]);
+    assert.equal(lineage.nodes[0]?.observations[0]?.id, rootObs.id);
   });
 });
