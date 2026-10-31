@@ -11,6 +11,7 @@ import {
   evaluatePainterMilestoneGate,
   ObservationSchema,
   PAINTER_AGENT_MODEL,
+  paintMilestoneDelta,
   recordAgenticStageTelemetry,
   recordStageTelemetry,
   SCENARIO_BRANCH_WATERMARK,
@@ -288,5 +289,162 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal((await repository.listVisualPlatesByLineage("corridor-corrupt-img")).length, 0);
     assert.equal((await repository.getEfficiencyLedger()).actualTokensUsed, 1840 + 320 + 150 + 210 + 190 + 410);
     assert.equal(emittedSpans.at(-1)?.status, "agentic_failed");
+  });
+
+  test("Part 3 (Turn 2+ paintMilestoneDelta Chaining, Continuity Constraints & Structured Expiry Fallback): advances active canonical head, preserves continuity, re-bootstraps on ApiError(404) & status:'failed' expiry, and fails closed on non-canonical/corrupt-cache/auth/model errors", async () => {
+    const repository = createInMemoryGridlockRepository();
+    const recordedRequests: GeminiInteractionCreateRequest[] = [];
+    const { milestoneObs: m1 } = createPainterTestObservations();
+    const m2 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027005555_t2", projectNumber: "TABS2027005555", sourceArtifactHash: "b".repeat(64), scopeOfWork: "345kV substation interconnect" });
+    const m3 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027008888_t3", projectNumber: "TABS2027008888", sourceArtifactHash: "c".repeat(64), scopeOfWork: "Phase 2 chilled-water plant" });
+    const m4 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027009111_t4", projectNumber: "TABS2027009111", sourceArtifactHash: "d".repeat(64), scopeOfWork: "Phase 3 switchgear yard" });
+    const m5 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027009222_t5", projectNumber: "TABS2027009222", sourceArtifactHash: "e".repeat(64), scopeOfWork: "Phase 4 synchronous condenser" });
+
+    const faultQueue: Array<() => GeminiInteractionResponse> = [];
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        async create(req) {
+          recordedRequests.push(req);
+          const queuedFault = faultQueue.shift();
+          if (queuedFault !== undefined) return queuedFault();
+          const turnId = `inter_seq_${recordedRequests.length}`;
+          return {
+            id: turnId,
+            status: "completed",
+            output_image: { mime_type: "image/webp", data: createFixtureWebpBuffer(turnId).toString("base64") },
+            usage: { total_tokens: 1200 },
+          };
+        },
+      },
+    };
+
+    // 1. Sad Path: empty lineage, branch-only lineage, and cross-lineage isolation all fail closed with parent_not_found at 0 calls
+    const orphanDelta = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    assert.equal(orphanDelta.status, "painter_failed");
+    assert.equal(orphanDelta.errorCode, "parent_not_found");
+
+    const branchOnlyBlob = createFixtureWebpBuffer("branch-only");
+    await repository.saveVisualPlate(
+      VisualPlateSchema.parse({
+        plateId: "branch_texas-corridor-main_t1_deadbeef",
+        lineageId: "texas-corridor-main",
+        turnNumber: 1,
+        model: PAINTER_AGENT_MODEL,
+        interactionId: "inter_branch_only",
+        parentInteractionId: "inter_ext",
+        parentPlateId: "plate_ext",
+        rebootstrappedFromParentWebp: false,
+        projectNumbers: [m1.projectNumber],
+        triggeringObservationIds: ["obs_branch_only"],
+        sourceArtifactHashes: [m1.sourceArtifactHash],
+        prompt: "Ephemeral branch",
+        storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/texas-corridor-main/branch_texas-corridor-main_t1_deadbeef.webp`,
+        mimeType: "image/webp",
+        byteLength: branchOnlyBlob.byteLength,
+        sha256: "f".repeat(64),
+        isBranch: true,
+        scenarioPrompt: "What-if scenario",
+        epistemicLabel: SCENARIO_BRANCH_WATERMARK,
+        watermarkText: SCENARIO_BRANCH_WATERMARK,
+        createdAt: "2026-10-27T14:00:00.000Z",
+        expiresAt: "2027-01-25T14:00:00.000Z",
+      }),
+      branchOnlyBlob
+    );
+    const branchOnlyDelta = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    assert.equal(branchOnlyDelta.status, "painter_failed");
+    assert.equal(branchOnlyDelta.errorCode, "parent_not_found");
+
+    await bootstrapCanvas({ lineageId: "other-corridor", observations: [m1] }, { repository, geminiClient });
+    const crossLineageDelta = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    assert.equal(crossLineageDelta.status, "painter_failed");
+    assert.equal(crossLineageDelta.errorCode, "parent_not_found");
+    assert.equal(recordedRequests.length, 1);
+
+    // 2. Happy Path: Turn 1 bootstrap + Turn 2 delta chaining with visual continuity prompt
+    const turn1 = await bootstrapCanvas({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    assert.equal(turn1.status, "plate_painted");
+
+    const turn2 = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1, m2] }, { repository, geminiClient });
+    assert.equal(turn2.status, "plate_painted");
+    assert.equal(recordedRequests[2]?.previous_interaction_id, turn1.plate.interactionId);
+    assert.match(String(recordedRequests[2]?.input), /camera angle.*topography.*typography.*existing corridor infrastructure/i);
+    assert.equal(turn2.plate.turnNumber, 2);
+    assert.equal(turn2.plate.parentPlateId, turn1.plate.plateId);
+    assert.equal(turn2.rebootstrappedFromParentWebp, false);
+    assert.deepEqual(turn2.plate.triggeringObservationIds, [m2.id]);
+
+    const repeatSkip = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1, m2] }, { repository, geminiClient });
+    assert.equal(repeatSkip.status, "skipped_no_milestone");
+    assert.equal(recordedRequests.length, 3);
+
+    // 3. Structured Expiry Fallback A: thrown @google/genai ApiError { status: 404, message: "Requested entity was not found." }
+    faultQueue.push(() => {
+      throw Object.assign(new Error("Requested entity was not found."), { status: 404 });
+    });
+    const turn3 = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m3] }, { repository, geminiClient });
+    assert.equal(turn3.status, "plate_painted");
+    assert.equal(recordedRequests.length, 5);
+    assert.equal(recordedRequests[3]?.previous_interaction_id, turn2.plate.interactionId);
+    assert.equal(recordedRequests[4]?.previous_interaction_id, undefined);
+    const fallbackImgB64 = String((recordedRequests[4]?.input as Array<Record<string, unknown>>)[1]?.data ?? "");
+    assert.equal(isWebpBuffer(Buffer.from(fallbackImgB64, "base64")), true);
+    assert.equal(turn3.rebootstrappedFromParentWebp, true);
+
+    // 4. Structured Expiry Fallback B: status: "failed" with errors: [{ code: "previous_interaction_expired" }] accumulates priorTokensUsed
+    faultQueue.push(() => ({
+      id: "inter_failed_expired",
+      status: "failed",
+      errors: [{ code: "previous_interaction_expired", message: "Stored interaction TTL elapsed" }],
+      usage: { total_tokens: 45 },
+    }));
+    const turn4 = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m4] }, { repository, geminiClient });
+    assert.equal(turn4.status, "plate_painted");
+    assert.equal(turn4.rebootstrappedFromParentWebp, true);
+    assert.equal(turn4.tokensUsed, 45 + 1200);
+    assert.equal((await repository.getEfficiencyLedger()).visualPlateCacheHits, 2);
+
+    // 5. Sad Path: non-expiry errors (401 key expired, 400 API key expired, 404 model not found, budget_exceeded) must NEVER trigger fallback
+    const nonExpiryFaults: Array<{ fault: () => GeminiInteractionResponse; expectedTokens: number }> = [
+      { fault: () => { throw Object.assign(new Error("401 API key expired"), { status: 401 }); }, expectedTokens: 0 },
+      { fault: () => { throw Object.assign(new Error("API key expired. Please renew the API key."), { status: 400 }); }, expectedTokens: 0 },
+      { fault: () => { throw Object.assign(new Error("models/gemini-3-pro-image is not found"), { status: 404 }); }, expectedTokens: 0 },
+      { fault: () => ({ id: "inter_budget", status: "budget_exceeded", output_image: null, usage: { total_tokens: 275 } }), expectedTokens: 275 },
+    ];
+
+    await nonExpiryFaults.reduce<Promise<void>>(async (prev, item) => {
+      await prev;
+      const callsBefore = recordedRequests.length;
+      faultQueue.push(item.fault);
+      const failed = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m5] }, { repository, geminiClient });
+      assert.equal(failed.status, "painter_failed");
+      assert.equal(failed.errorCode, "interaction_failed");
+      assert.equal(failed.tokensUsed, item.expectedTokens);
+      assert.equal(failed.activePlate?.plateId, turn4.plate.plateId);
+      assert.equal(recordedRequests.length, callsBefore + 1);
+    }, Promise.resolve());
+
+    // 6. Sad Path: corrupt or missing cached parent .webp in storage when previous_interaction_id expires fails closed without firing fallback
+    await repository.saveVisualPlate(turn4.plate, Buffer.from("CORRUPT_WEBP_BYTES", "ascii"));
+    const callsBeforeCorruptCache = recordedRequests.length;
+    faultQueue.push(() => {
+      throw Object.assign(new Error("Requested entity was not found."), { status: 404 });
+    });
+    const corruptCacheFallback = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m5] }, { repository, geminiClient });
+    assert.equal(corruptCacheFallback.status, "painter_failed");
+    assert.equal(corruptCacheFallback.errorCode, "interaction_failed");
+    assert.equal(corruptCacheFallback.activePlate?.plateId, turn4.plate.plateId);
+    assert.equal(recordedRequests.length, callsBeforeCorruptCache + 1);
+
+    const missingBlobRepo = { ...repository, readVisualPlateWebp: async () => null };
+    const callsBeforeMissingCache = recordedRequests.length;
+    faultQueue.push(() => {
+      throw Object.assign(new Error("Requested entity was not found."), { status: 404 });
+    });
+    const missingCacheFallback = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m5] }, { repository: missingBlobRepo, geminiClient });
+    assert.equal(missingCacheFallback.status, "painter_failed");
+    assert.equal(missingCacheFallback.errorCode, "interaction_failed");
+    assert.equal(missingCacheFallback.activePlate?.plateId, turn4.plate.plateId);
+    assert.equal(recordedRequests.length, callsBeforeMissingCache + 1);
   });
 });

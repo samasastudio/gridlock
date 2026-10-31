@@ -66,6 +66,7 @@ export {
   type EpistemicPlateLabel,
   type ExecutionMode,
   type GeminiInteractionCreateRequest,
+  type GeminiInteractionError,
   type GeminiInteractionImageBlock,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
@@ -151,7 +152,10 @@ export {
 } from "./use-cases/record-telemetry.ts";
 export {
   bootstrapCanvas,
+  paintMilestoneDelta,
+  type BootstrapCanvasInput,
   type PainterDeps,
+  type PaintMilestoneDeltaInput,
 } from "./use-cases/run-painter-agent.ts";
 export { runOutOfBandRepairAgent } from "./use-cases/run-repair-agent.ts";
 
