@@ -14,8 +14,11 @@
     "typecheck": "node ./node_modules/typescript/bin/tsc -b --pretty false",
     "prelint": "bash ./scripts/ensure-ext4-deps.sh",
     "lint": "node ./scripts/lint-checks.mjs",
+    "check:pr-size": "node ./scripts/lint-checks.mjs --check-pr-size",
     "pretest": "bash ./scripts/ensure-ext4-deps.sh",
-    "test": "node --test packages/core/test/*.test.ts packages/widgets/test/*.test.ts"
+    "test": "node --test packages/core/test/*.test.ts packages/widgets/test/*.test.ts",
+    "preverify": "bash ./scripts/ensure-ext4-deps.sh",
+    "verify": "node ./scripts/lint-checks.mjs && node --test packages/core/test/*.test.ts packages/widgets/test/*.test.ts"
   },
   "dependencies": {
     "zod": "3.25.76"

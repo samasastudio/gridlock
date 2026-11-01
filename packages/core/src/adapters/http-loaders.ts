@@ -17,11 +17,9 @@ export interface PlaywrightPageLike {
 }
 
 export function headersToRecord(headers: Headers): Record<string, string> {
-  const result: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    result[key.toLowerCase()] = value;
-  });
-  return result;
+  return Object.fromEntries(
+    Array.from(headers.entries(), ([key, value]) => [key.toLowerCase(), value])
+  );
 }
 
 export function createPlaywrightPageLoader(

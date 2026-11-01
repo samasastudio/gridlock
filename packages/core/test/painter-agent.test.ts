@@ -224,7 +224,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     );
 
     const cannedResponses: Array<GeminiInteractionResponse | Error> = [
-      { id: "inter_turn_1_bootstrap", status: "completed", output_image: { mime_type: "image/png", data: createSamplePngBuffer(16, 9).toString("base64") }, usage: { total_tokens: 1840 } },
+      { id: "inter_turn_1_bootstrap", status: "completed", output_image: { mime_type: "image/png", data: createSamplePngBuffer(2048, 8).toString("base64") }, usage: { total_tokens: 1840 } },
       { id: "inter_incomplete_turn", status: "incomplete", output_image: null, usage: { total_tokens: 320 } },
       { id: "   ", status: "completed", output_image: { mime_type: "image/webp", data: createCorridorBaseCanvasWebp().toString("base64") }, usage: { total_tokens: 150 } },
       new Error("503 Gemini upstream unavailable"),
@@ -249,10 +249,12 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(skipped.status, "skipped_no_milestone");
     assert.equal(recordedRequests.length, 0);
 
+    const decodeStartedAtMs = performance.now();
     const painted = await bootstrapCanvas(
       { lineageId: "texas-corridor-main", observations: [routineObs, milestoneObs] },
       { repository, geminiClient, spanSink: (s) => emittedSpans.push(s) }
     );
+    assert.ok(performance.now() - decodeStartedAtMs < 500);
     assert.equal(painted.status, "plate_painted");
     assert.equal(recordedRequests[0]?.model, PAINTER_AGENT_MODEL);
     assert.equal(recordedRequests[0]?.store, true);

@@ -1,5 +1,9 @@
 import { test, describe, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import {
   applyConnectorPromotion,
   applyHealAmortization,
@@ -16,6 +20,8 @@ import {
   type TelemetrySpan,
 } from "../src/index.ts";
 import {
+  checkPullRequestDiffSize,
+  evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   runRepoLintChecks,
 } from "../../../scripts/lint-checks.mjs";
@@ -443,7 +449,11 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
 
     const mutativeStyleViolations = evaluateSourceFileLintRules(
       "packages/core/src/use-cases/helpers/bad-style.ts",
-      "let count = 0;\nfor (const item of items) { count += item; }"
+      [
+        "let count = 0;",
+        "for (const item of items) { count += item; }",
+        'const origin = "https://www.tdlr.texas.gov"; items.forEach((item) => push(origin, item));',
+      ].join("\n")
     );
     assert.ok(
       mutativeStyleViolations.some((v) => v.includes("Avoid mutable `let`"))
@@ -451,6 +461,116 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     assert.ok(
       mutativeStyleViolations.some((v) => v.includes("Avoid imperative `for (...)`"))
     );
+    assert.ok(
+      mutativeStyleViolations.some((v) => v.includes("Avoid side-effecting `.forEach(...)`"))
+    );
+
+    const barrelHelperLeakViolations = evaluateSourceFileLintRules(
+      "packages/core/src/index.ts",
+      [
+        "export {\n  // legacy helper\n  verifySiteAccess,\n} from \"./use-cases/helpers/site-access.ts\";",
+        "const quotedNote = 'const codec = await import(\"./use-cases/helpers/webp-codec.ts\"); import \"./use-cases/helpers/webp-codec.ts\";';",
+        "export { applyScenarioBranchWatermarkToWebp } from \"./use-cases/helpers/webp-codec.ts\";",
+        "export { applyScenarioBranchWatermarkToWebp as isWebpBuffer } from \"./use-cases/helpers/webp-codec.ts\";",
+        "import { readRiffChunks } from \"./use-cases/helpers/webp-codec.ts\";",
+        "const codec = await import(\"./use-cases/helpers/webp-codec.ts\");",
+        "import \"./use-cases/helpers/webp-codec.ts\";",
+      ].join("\n")
+    );
+    assert.equal(barrelHelperLeakViolations.length, 5);
+    assert.ok(
+      barrelHelperLeakViolations.some((v) =>
+        v.includes("symbol \"applyScenarioBranchWatermarkToWebp\"")
+      )
+    );
+    assert.ok(
+      barrelHelperLeakViolations.some((v) =>
+        v.includes("symbol \"applyScenarioBranchWatermarkToWebp as isWebpBuffer\"")
+      )
+    );
+    assert.equal(
+      barrelHelperLeakViolations.filter((v) =>
+        v.includes("importing or wildcard re-exporting internal use-cases/helpers/")
+      ).length,
+      3
+    );
+
+    const testSeamBypassViolations = evaluateSourceFileLintRules(
+      "packages/widgets/test/seam-bypass.test.ts",
+      [
+        "import { bootstrapCanvas } from \"../../core/src/index.ts\";",
+        "import { isWebpBuffer } from \"../../core/src/use-cases/helpers/webp-codec.ts\";",
+      ].join("\n")
+    );
+    assert.equal(testSeamBypassViolations.length, 1);
+    assert.ok(
+      testSeamBypassViolations[0]?.includes(
+        "tests must import through the public package barrel"
+      )
+    );
+
+    assert.deepEqual(
+      evaluatePullRequestLineBudget({
+        insertions: 520,
+        deletions: 180,
+        baseRef: "origin/main",
+      }),
+      []
+    );
+    assert.equal(
+      evaluatePullRequestLineBudget({
+        insertions: 650,
+        deletions: 51,
+        baseRef: "origin/main",
+      }).length,
+      1
+    );
+
+    const syntheticRepoDir = mkdtempSync(join(tmpdir(), "gridlock-pr-diff-"));
+    try {
+      const git = (...args: string[]) =>
+        execFileSync("git", args, {
+          cwd: syntheticRepoDir,
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "pipe"],
+        }).trim();
+      git("init", "-b", "main");
+      git("config", "user.name", "Test Bot");
+      git("config", "user.email", "bot@example.com");
+      writeFileSync(join(syntheticRepoDir, "seed.txt"), "seed\n");
+      git("add", "seed.txt");
+      git("commit", "-m", "initial");
+
+      git("checkout", "-b", "feat/stacked-slice");
+      const sharedChunk = Array.from({ length: 400 }, (_, i) => `shared-${i}`).join("\n") + "\n";
+      const sliceChunk = Array.from({ length: 305 }, (_, i) => `slice-${i}`).join("\n") + "\n";
+      writeFileSync(join(syntheticRepoDir, "shared.txt"), sharedChunk);
+      writeFileSync(join(syntheticRepoDir, "slice.txt"), sliceChunk);
+      git("add", "shared.txt", "slice.txt");
+      git("commit", "-m", "pr head (+705 lines)");
+      const prHeadSha = git("rev-parse", "HEAD");
+
+      git("checkout", "main");
+      writeFileSync(join(syntheticRepoDir, "shared.txt"), sharedChunk);
+      git("add", "shared.txt");
+      git("commit", "-m", "squash-merged earlier slice (+400 lines)");
+
+      git("checkout", "--detach", "main");
+      git("merge", "--no-ff", "-m", "synthetic refs/pull/N/merge", prHeadSha);
+
+      assert.equal(
+        checkPullRequestDiffSize(syntheticRepoDir, { baseRef: "main", headRef: "HEAD" }).violations.length,
+        0
+      );
+      const headDiffCheck = checkPullRequestDiffSize(syntheticRepoDir, {
+        baseRef: "main",
+        headRef: prHeadSha,
+      });
+      assert.equal(headDiffCheck.insertions, 705);
+      assert.equal(headDiffCheck.violations.length, 1);
+    } finally {
+      rmSync(syntheticRepoDir, { recursive: true, force: true });
+    }
 
     const impureHelperImportViolations = evaluateSourceFileLintRules(
       "packages/core/src/use-cases/helpers/bad-helper.ts",
