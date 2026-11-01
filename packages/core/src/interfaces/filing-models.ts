@@ -46,6 +46,16 @@ export const ConnectorConfigSchema = z.object({
 
 export type ConnectorConfig = z.infer<typeof ConnectorConfigSchema>;
 
+export class UnknownConnectorError extends Error {
+  readonly connectorId: string;
+
+  constructor(connectorId: string) {
+    super(`Unknown connectorId: ${connectorId}`);
+    this.name = "UnknownConnectorError";
+    this.connectorId = connectorId;
+  }
+}
+
 export const SourceArtifactSchema = z.object({
   sha256: Sha256HashSchema,
   connectorId: z.string().min(1),

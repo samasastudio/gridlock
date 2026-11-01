@@ -6,6 +6,7 @@ import {
 } from "node:http";
 import type { GridlockRepository } from "../interfaces/index.ts";
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
+import { handleGetRepairChangelog } from "./repairs-controller.ts";
 import { handleGetEfficiencyTelemetry } from "./telemetry-controller.ts";
 
 function tryParseRequestUrl(rawUrl: string | undefined): URL | null {
@@ -42,6 +43,11 @@ export async function handleGridlockHttpRequest(
 
   if (pathname === "/api/telemetry/efficiency") {
     await handleGetEfficiencyTelemetry(req, res, parsedUrl, deps);
+    return;
+  }
+
+  if (pathname === "/api/repairs/changelog") {
+    await handleGetRepairChangelog(req, res, parsedUrl, deps);
     return;
   }
 

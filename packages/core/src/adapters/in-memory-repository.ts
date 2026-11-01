@@ -9,6 +9,7 @@ import {
   RepairChangelogEntrySchema,
   SourceArtifactSchema,
   TelemetryRunSchema,
+  UnknownConnectorError,
   VisualPlateSchema,
   type ConnectorConfig,
   type ConnectorPromotionStateUpdate,
@@ -54,7 +55,7 @@ export function createInMemoryGridlockRepository(
     async getActiveConnectorConfig(connectorId: string): Promise<ConnectorConfig> {
       const config = configs.get(connectorId);
       if (!config) {
-        throw new Error(`Unknown connectorId: ${connectorId}`);
+        throw new UnknownConnectorError(connectorId);
       }
       return structuredClone(config);
     },

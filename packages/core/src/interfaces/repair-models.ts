@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Sha256HashSchema } from "./primitives.ts";
 import {
+  ConnectorStatusSchema,
   TdlrFieldLabelsSchema,
   type ConnectorConfig,
 } from "./filing-models.ts";
@@ -49,6 +50,34 @@ export const RepairChangelogEntrySchema = z.object({
 });
 
 export type RepairChangelogEntry = z.infer<typeof RepairChangelogEntrySchema>;
+
+export const RepairChangelogResponseSchema = z
+  .object({
+    connectorId: z.string().min(1),
+    connectorStatus: ConnectorStatusSchema,
+    activeVersion: z.number().int().positive(),
+    entries: z.array(RepairChangelogEntrySchema),
+  })
+  .superRefine((data, ctx) => {
+    const invalidIndex = data.entries.findIndex(
+      (entry) =>
+        entry.connectorId !== data.connectorId ||
+        entry.promotedVersion <= entry.previousVersion ||
+        entry.promotedVersion > data.activeVersion
+    );
+    if (invalidIndex !== -1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["entries", invalidIndex],
+        message:
+          "RepairChangelogEntry must match connectorId with previousVersion < promotedVersion <= activeVersion",
+      });
+    }
+  });
+
+export type RepairChangelogResponse = z.infer<
+  typeof RepairChangelogResponseSchema
+>;
 
 export interface SandboxReplayResult {
   passed: boolean;
