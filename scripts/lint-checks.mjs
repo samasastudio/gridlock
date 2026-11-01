@@ -16,6 +16,7 @@ export const BANNED_GLOSSARY_TERMS = [
 
 export const MAX_TSX_LINES = 220;
 export const MAX_CORE_TS_LINES = 300;
+const MAX_PR_CHANGED_LINES = 700;
 export const ALLOWED_CORE_TOP_DIRS = new Set([
   "interfaces",
   "use-cases",
@@ -23,10 +24,33 @@ export const ALLOWED_CORE_TOP_DIRS = new Set([
   "controllers",
 ]);
 
+const LEGACY_BARREL_HELPER_EXPORTS = new Set([
+  "sanitizeLocationAddressPii",
+  "sanitizeTextPii",
+  "evaluateSandboxReplayGate",
+  "isPathAllowedByRobotsTxt",
+  "verifySiteAccess",
+  "isComputeInfrastructureFiling",
+  "parseTdlrCliArgs",
+  "parseTdlrFilingHtml",
+  "applyConnectorPromotion",
+  "applyHealAmortization",
+  "calculateEstimatedCostSavedUsd",
+  "calculateNaiveTokensAvoided",
+  "createCorridorBaseCanvasWebp",
+  "isWebpBuffer",
+]);
+
+function stripCommentsAndStrings(line) {
+  return line
+    .replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/g, '""')
+    .replace(/\/\/.*$/, "");
+}
+
 function extractImportSpecifiers(content) {
   const specifiers = [];
   const staticImportRegex =
-    /\b(?:import|export)\s+(?:[^;'"`]*?\s+from\s+)?["']([^"']+)["']/g;
+    /(?:^|[;\n])\s*(?:import|export)\s+(?:[^;'"`]*?\s+from\s+)?["']([^"']+)["']/g;
   const dynamicImportRegex = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
   for (const regex of [staticImportRegex, dynamicImportRegex]) {
     for (const match of content.matchAll(regex)) {
@@ -36,6 +60,50 @@ function extractImportSpecifiers(content) {
     }
   }
   return specifiers;
+}
+
+function evaluateBarrelHelperReExports(relPath, content) {
+  const violations = [];
+  const scrubbedContent = content
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => line.replace(/(^|[^:"'])\/\/.*$/, "$1"))
+    .join("\n");
+
+  for (const spec of extractImportSpecifiers(scrubbedContent)) {
+    if (!spec.startsWith(".")) continue;
+    const normalized = posix.normalize(spec);
+    if (!normalized.startsWith("use-cases/helpers/")) continue;
+    if (!spec.startsWith("./use-cases/helpers/")) {
+      violations.push(
+        `${relPath}: Clean Architecture violation — non-canonical helper specifier "${spec}" is prohibited in root barrel (CODING_STANDARDS.md)`
+      );
+    }
+  }
+
+  const forbiddenHelperImportOrWildcardRegex =
+    /(?:^|[;\n])\s*(?:import\b[^;]*?from\s+["'][^"']*use-cases\/helpers\/[^"']+["']|import\s*\(\s*["'][^"']*use-cases\/helpers\/[^"']+["']\s*\)|export\s+\*(?:\s+as\s+\w+)?\s+from\s+["'][^"']*use-cases\/helpers\/[^"']+["'])/g;
+  for (const match of scrubbedContent.matchAll(forbiddenHelperImportOrWildcardRegex)) {
+    violations.push(
+      `${relPath}: Clean Architecture violation — importing or wildcard re-exporting internal use-cases/helpers/ ("${match[0].trim()}") is prohibited in root barrel (CODING_STANDARDS.md)`
+    );
+  }
+
+  const namedExportRegex =
+    /(?:^|[;\n])\s*export\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["']\.\/use-cases\/helpers\/[^"']+["']/g;
+  for (const match of scrubbedContent.matchAll(namedExportRegex)) {
+    const rawList = match[1] ?? "";
+    for (const rawItem of rawList.split(",")) {
+      const cleaned = rawItem.replace(/^\s*type\s+/, "").trim();
+      if (!cleaned) continue;
+      if (/\s+as\s+/.test(cleaned) || !LEGACY_BARREL_HELPER_EXPORTS.has(cleaned)) {
+        violations.push(
+          `${relPath}: Clean Architecture violation — do not export internal use-cases/helpers/ symbol "${cleaned}" at the root barrel seam; expose a caller-facing use-cases/ entrypoint instead (CODING_STANDARDS.md)`
+        );
+      }
+    }
+  }
+  return violations;
 }
 
 function classifyCoreLayer(normalizedSubPath) {
@@ -63,6 +131,27 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
     );
   }
 
+  if (/^packages\/[^/]+\/test\/.+\.(?:ts|tsx)$/.test(relPath)) {
+    for (const spec of extractImportSpecifiers(content)) {
+      if (/^@samasastudio\/gridlock-[^/]+\/.+/.test(spec)) {
+        violations.push(
+          `${relPath}: Seam testing violation — tests must import through the public package barrel, not subpath "${spec}" (CODING_STANDARDS.md)`
+        );
+        continue;
+      }
+      if (!spec.startsWith(".")) continue;
+      const resolved = posix.normalize(posix.join(posix.dirname(relPath), spec));
+      if (
+        /^packages\/[^/]+\/src\//.test(resolved) &&
+        !/^packages\/[^/]+\/src\/index\.(?:ts|js)$/.test(resolved)
+      ) {
+        violations.push(
+          `${relPath}: Seam testing violation — tests must import through the public package barrel ("src/index.ts"), not internal module "${spec}" (CODING_STANDARDS.md)`
+        );
+      }
+    }
+  }
+
   if (relPath.startsWith("packages/core/src/") && relPath.endsWith(".ts")) {
     if (lines.length > MAX_CORE_TS_LINES) {
       violations.push(
@@ -70,7 +159,9 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
       );
     }
 
-    if (relPath !== "packages/core/src/index.ts") {
+    if (relPath === "packages/core/src/index.ts") {
+      violations.push(...evaluateBarrelHelperReExports(relPath, content));
+    } else {
       const subPath = relPath.slice("packages/core/src/".length);
       const segments = subPath.split("/");
       const topDir = segments[0] ?? "";
@@ -135,8 +226,8 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
       }
     }
 
-    lines.forEach((line, index) => {
-      const stripped = line.replace(/\/\/.*$/, "");
+    for (const [index, line] of lines.entries()) {
+      const stripped = stripCommentsAndStrings(line);
       if (/^\s*let\s+/.test(stripped)) {
         violations.push(
           `${relPath}:${index + 1}: Avoid mutable \`let\` bindings in favor of \`const\` and pure helpers/reduce (CODING_STANDARDS.md)`
@@ -147,10 +238,15 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
           `${relPath}:${index + 1}: Avoid imperative \`for (...)\` loops in favor of declarative array methods (.map, .filter, .reduce, .find) (CODING_STANDARDS.md)`
         );
       }
-    });
+      if (/\.forEach\s*\(/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Avoid side-effecting \`.forEach(...)\` in favor of declarative array methods (.map, .filter, .reduce, Array.from) (CODING_STANDARDS.md)`
+        );
+      }
+    }
   }
 
-  lines.forEach((line, index) => {
+  for (const [index, line] of lines.entries()) {
     for (const { pattern, useInstead } of BANNED_GLOSSARY_TERMS) {
       if (pattern.test(line)) {
         violations.push(
@@ -158,9 +254,72 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
         );
       }
     }
-  });
+  }
 
   return violations;
+}
+
+export function evaluatePullRequestLineBudget({
+  insertions,
+  deletions,
+  baseRef,
+}) {
+  const totalChangedLines = insertions + deletions;
+  if (totalChangedLines <= MAX_PR_CHANGED_LINES) {
+    return [];
+  }
+  return [
+    `Pull Request diff (${baseRef}...HEAD) has ${totalChangedLines} changed lines (+${insertions} / -${deletions}), exceeding the <= ${MAX_PR_CHANGED_LINES}-line budget (CODING_STANDARDS.md §1). Slice into stacked vertical PRs.`,
+  ];
+}
+
+function checkPullRequestDiffSize(repoRoot) {
+  const baseRef =
+    process.env.PR_BASE_REF ||
+    (process.env.GITHUB_BASE_REF
+      ? `origin/${process.env.GITHUB_BASE_REF}`
+      : "origin/main");
+  const diffResult = spawnSync(
+    "git",
+    ["diff", "--numstat", `${baseRef}...HEAD`],
+    { cwd: repoRoot, encoding: "utf-8" }
+  );
+  if (diffResult.status !== 0) {
+    return {
+      insertions: 0,
+      deletions: 0,
+      baseRef,
+      violations: [
+        `Failed to compute git diff against "${baseRef}...HEAD": ${(diffResult.stderr || "").trim()}`,
+      ],
+    };
+  }
+  const { insertions, deletions } = diffResult.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reduce(
+      (acc, line) => {
+        const [addedRaw, deletedRaw] = line.split(/\s+/);
+        const added = Number.parseInt(addedRaw ?? "0", 10);
+        const deleted = Number.parseInt(deletedRaw ?? "0", 10);
+        return {
+          insertions: acc.insertions + (Number.isNaN(added) ? 0 : added),
+          deletions: acc.deletions + (Number.isNaN(deleted) ? 0 : deleted),
+        };
+      },
+      { insertions: 0, deletions: 0 }
+    );
+  return {
+    insertions,
+    deletions,
+    baseRef,
+    violations: evaluatePullRequestLineBudget({
+      insertions,
+      deletions,
+      baseRef,
+    }),
+  };
 }
 
 function collectSourceFiles(dir) {
@@ -198,6 +357,22 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   const repoRoot = process.cwd();
+  if (process.argv.includes("--check-pr-size")) {
+    const prCheck = checkPullRequestDiffSize(repoRoot);
+    if (prCheck.violations.length > 0) {
+      console.error("Pull Request size check failed:");
+      for (const v of prCheck.violations) {
+        console.error(`  - ${v}`);
+      }
+      process.exit(1);
+    }
+    const total = prCheck.insertions + prCheck.deletions;
+    console.log(
+      `PR diff size OK: ${total}/${MAX_PR_CHANGED_LINES} changed lines (+${prCheck.insertions} / -${prCheck.deletions} vs ${prCheck.baseRef})`
+    );
+    process.exit(0);
+  }
+
   const tscResult = spawnSync(
     process.execPath,
     ["./node_modules/typescript/bin/tsc", "-b", "--pretty", "false"],

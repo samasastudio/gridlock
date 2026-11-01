@@ -1,10 +1,8 @@
-# Gridlock — Agent Guidelines (`AGENTS.md`)
+# Gridlock (`samasastudio/gridlock`) — Agent Pointers
 
-## Agent skills & context pointers
-
-- **Execution Order & Validation Gates**: Read [`ROADMAP.md`](./ROADMAP.md) to find the unblocked ticket frontier and required Happy/Sad Path test gates.
-- **Repo Hygiene, `ext4` Bind-Mount & PR Workflow**: Read [`.agents/skills/gridlock-monorepo-hygiene/SKILL.md`](./.agents/skills/gridlock-monorepo-hygiene/SKILL.md) before starting a ticket, running builds/tests, or opening a PR. Never commit directly to `main` and **never merge Pull Requests yourself** (`gh pr merge` is human-only); always work on a feature branch, run two-axis `/code-review`, open a Pull Request shaped with `/pr`, and stop for human review.
-- **Coding Standards & Civic Stewardship**: Read [`CODING_STANDARDS.md`](./CODING_STANDARDS.md) and [`docs/connectors/tdlr-site-access-and-cadence.md`](./docs/connectors/tdlr-site-access-and-cadence.md) during `/code-review` or when touching connectors, Gemini agents, or widgets.
-- **Issue Tracker (`gh` CLI & PR workflow)**: Read [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md).
-- **Triage Labels**: Read [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md).
-- **Domain Glossary & ADRs**: Read [`docs/agents/domain.md`](./docs/agents/domain.md), [`GLOSSARY.md`](./GLOSSARY.md), and [`docs/adr/`](./docs/adr/).
+- **GitHub Issues, `gh` CLI & Stacked PR Workflow**: Read [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md) before running any `gh` command (`--json` and REST `PATCH` required), branching or stacking PRs, reading PR reviews, or opening a Pull Request and stopping for human review (`gh pr merge` is human-only).
+- **VM `ext4` Bind-Mount & Verification**: Read [`.agents/skills/gridlock-monorepo-hygiene/SKILL.md`](./.agents/skills/gridlock-monorepo-hygiene/SKILL.md) when `virtiofs` / `npm` hits `EMFILE` or `EPERM` or before running local verification.
+- **Unblocked Frontier & Acceptance Gates**: Read [`ROADMAP.md`](./ROADMAP.md) when selecting the next ticket or verifying Happy/Sad Path test gates.
+- **Coding Standards & TDLR Polite Access**: Read [`CODING_STANDARDS.md`](./CODING_STANDARDS.md) during `/code-review` or when touching Gemini/Firestore/Atlas widget seams, and [`docs/connectors/tdlr-site-access-and-cadence.md`](./docs/connectors/tdlr-site-access-and-cadence.md) when touching TDLR connectors.
+- **Triage Labels**: Read [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md) when triaging or filtering issue labels.
+- **Domain Glossary & ADRs**: Read [`docs/agents/domain.md`](./docs/agents/domain.md), [`GLOSSARY.md`](./GLOSSARY.md), and [`docs/adr/`](./docs/adr/) before naming domain concepts or modifying architecture.

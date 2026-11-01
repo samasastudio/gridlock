@@ -16,6 +16,7 @@ import {
   type TelemetrySpan,
 } from "../src/index.ts";
 import {
+  evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   runRepoLintChecks,
 } from "../../../scripts/lint-checks.mjs";
@@ -443,13 +444,77 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
 
     const mutativeStyleViolations = evaluateSourceFileLintRules(
       "packages/core/src/use-cases/helpers/bad-style.ts",
-      "let count = 0;\nfor (const item of items) { count += item; }"
+      [
+        "let count = 0;",
+        "for (const item of items) { count += item; }",
+        'const origin = "https://www.tdlr.texas.gov"; items.forEach((item) => push(origin, item));',
+      ].join("\n")
     );
     assert.ok(
       mutativeStyleViolations.some((v) => v.includes("Avoid mutable `let`"))
     );
     assert.ok(
       mutativeStyleViolations.some((v) => v.includes("Avoid imperative `for (...)`"))
+    );
+    assert.ok(
+      mutativeStyleViolations.some((v) => v.includes("Avoid side-effecting `.forEach(...)`"))
+    );
+
+    const barrelHelperLeakViolations = evaluateSourceFileLintRules(
+      "packages/core/src/index.ts",
+      [
+        "export {\n  // legacy helper\n  verifySiteAccess,\n} from \"./use-cases/helpers/site-access.ts\";",
+        "export { applyScenarioBranchWatermarkToWebp } from \"./use-cases/helpers/webp-codec.ts\";",
+        "export { applyScenarioBranchWatermarkToWebp as isWebpBuffer } from \"./use-cases/helpers/webp-codec.ts\";",
+        "import { readRiffChunks } from \"./use-cases/helpers/webp-codec.ts\";",
+      ].join("\n")
+    );
+    assert.equal(barrelHelperLeakViolations.length, 3);
+    assert.ok(
+      barrelHelperLeakViolations.some((v) =>
+        v.includes("symbol \"applyScenarioBranchWatermarkToWebp\"")
+      )
+    );
+    assert.ok(
+      barrelHelperLeakViolations.some((v) =>
+        v.includes("symbol \"applyScenarioBranchWatermarkToWebp as isWebpBuffer\"")
+      )
+    );
+    assert.ok(
+      barrelHelperLeakViolations.some((v) =>
+        v.includes("importing or wildcard re-exporting internal use-cases/helpers/")
+      )
+    );
+
+    const testSeamBypassViolations = evaluateSourceFileLintRules(
+      "packages/widgets/test/seam-bypass.test.ts",
+      [
+        "import { bootstrapCanvas } from \"../../core/src/index.ts\";",
+        "import { isWebpBuffer } from \"../../core/src/use-cases/helpers/webp-codec.ts\";",
+      ].join("\n")
+    );
+    assert.equal(testSeamBypassViolations.length, 1);
+    assert.ok(
+      testSeamBypassViolations[0]?.includes(
+        "tests must import through the public package barrel"
+      )
+    );
+
+    assert.deepEqual(
+      evaluatePullRequestLineBudget({
+        insertions: 520,
+        deletions: 180,
+        baseRef: "origin/main",
+      }),
+      []
+    );
+    assert.equal(
+      evaluatePullRequestLineBudget({
+        insertions: 650,
+        deletions: 51,
+        baseRef: "origin/main",
+      }).length,
+      1
     );
 
     const impureHelperImportViolations = evaluateSourceFileLintRules(

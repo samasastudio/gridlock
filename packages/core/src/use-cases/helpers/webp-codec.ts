@@ -27,20 +27,15 @@ export const BIT_REV_8 = Uint8Array.from({ length: 256 }, (_, b) => {
 });
 
 export const VP8L_FLAT_TREE_HEADER = (() => {
-  const bits: number[] = [];
-  const push = (val: number, count: number): void => {
-    Array.from({ length: count }, (_, i) => bits.push((val >>> i) & 1));
-  };
-  const pushFlat = (alphabetSize: number, numCl: number): void => {
-    push(0, 1);
-    push(numCl - 4, 4);
-    Array.from({ length: numCl }, (_, idx) => push(idx === 2 || idx === 11 ? 1 : 0, 3));
-    push(0, 1);
-    Array.from({ length: alphabetSize }, (_, s) => push(s < 256 ? 1 : 0, 1));
-  };
-  push(0, 3);
-  [280, 256, 256, 256].forEach((sz, idx) => pushFlat(sz, idx === 0 ? 18 : 12));
-  push(0b00000000_101, 11);
+  const toBits = (val: number, count: number): number[] => Array.from({ length: count }, (_, i) => (val >>> i) & 1);
+  const flatTreeBits = (alphabetSize: number, codeLengthCount: number): number[] => [
+    ...toBits(0, 1),
+    ...toBits(codeLengthCount - 4, 4),
+    ...Array.from({ length: codeLengthCount }, (_, idx) => toBits(idx === 2 || idx === 11 ? 1 : 0, 3)).flat(),
+    ...toBits(0, 1),
+    ...Array.from({ length: alphabetSize }, (_, symbolIdx) => (symbolIdx < 256 ? 1 : 0)),
+  ];
+  const bits = [...toBits(0, 3), ...[280, 256, 256, 256].flatMap((alphabetSize, idx) => flatTreeBits(alphabetSize, idx === 0 ? 18 : 12)), ...toBits(0b00000000_101, 11)];
   return Buffer.from(
     Array.from({ length: 156 }, (_, byteIdx) =>
       Array.from({ length: 8 }, (__, bitIdx) => (bits[byteIdx * 8 + bitIdx] ?? 0) << bitIdx).reduce((a, b) => a | b, 0)
@@ -206,24 +201,42 @@ export function applyScenarioBranchWatermarkToWebp(webpBuffer: Buffer, watermark
   ]);
 }
 
+function corridorCanvasPixelRgba(x: number, y: number, width: number, height: number, spineX: number, hubY: number): readonly [number, number, number, number] {
+  if (x === spineX || (Math.abs(x - spineX) <= 2 && Math.abs(y - hubY) <= 2)) return [44, 53, 57, 255];
+  if (x === 0 || x === width - 1 || y === 0 || y === height - 1) return [138, 130, 117, 255];
+  if (x % 8 === 0 || y % 6 === 0) return [222, 216, 202, 255];
+  return [245, 242, 235, 255];
+}
+
 export function createCorridorBaseCanvasWebp(lineageSeed = "texas-corridor-main"): Buffer {
   const [width, height] = [64, 36];
   const digest = createHash("sha256").update(lineageSeed).digest();
   const [spineX, hubY] = [24 + ((digest[0] ?? 0) % 16), 10 + ((digest[1] ?? 0) % 16)];
-  const rgba = Buffer.alloc(width * height * 4);
-  Array.from({ length: width * height }).forEach((_, i) => {
-    const [x, y] = [i % width, Math.floor(i / width)];
-    const isBorder = x === 0 || x === width - 1 || y === 0 || y === height - 1;
-    const isSpine = x === spineX || (Math.abs(x - spineX) <= 2 && Math.abs(y - hubY) <= 2);
-    const [r, g, b] = isSpine ? [44, 53, 57] : isBorder ? [138, 130, 117] : x % 8 === 0 || y % 6 === 0 ? [222, 216, 202] : [245, 242, 235];
-    rgba.set([r, g, b, 255], i * 4);
-  });
+  const rgba = Buffer.from(
+    Array.from({ length: width * height }, (_, i) => corridorCanvasPixelRgba(i % width, Math.floor(i / width), width, height, spineX, hubY)).flat()
+  );
   return encodeRgbaToLosslessWebp(width, height, rgba);
 }
 
 function paeth(a: number, b: number, c: number): number {
   const [pa, pb, pc] = [Math.abs(b - c), Math.abs(a - c), Math.abs(a + b - 2 * c)];
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+
+function pngFilterPredictor(filterType: number, left: number, up: number, upLeft: number): number {
+  if (filterType === 1) return left;
+  if (filterType === 2) return up;
+  if (filterType === 3) return (left + up) >>> 1;
+  if (filterType === 4) return paeth(left, up, upLeft);
+  return 0;
+}
+
+function expandPngChannelByte(row: Uint8Array, srcOffset: number, channels: number, channelIdx: number): number {
+  if (channelIdx === 0) return row[srcOffset] ?? 0;
+  if (channelIdx === 1) return channels >= 3 ? (row[srcOffset + 1] ?? 0) : (row[srcOffset] ?? 0);
+  if (channelIdx === 2) return channels >= 3 ? (row[srcOffset + 2] ?? 0) : (row[srcOffset] ?? 0);
+  if (channels === 4) return row[srcOffset + 3] ?? 255;
+  return channels === 2 ? (row[srcOffset + 1] ?? 255) : 255;
 }
 
 function parsePngChunks(buf: Buffer, off = 8, acc: readonly { type: string; data: Buffer }[] = []): { type: string; data: Buffer }[] | null {
@@ -244,27 +257,27 @@ export function decodePngToRgba(buf: Buffer): { width: number; height: number; r
   const chunks = parsePngChunks(buf);
   const ihdr = chunks?.[0]?.type === "IHDR" && chunks[0].data.byteLength === 13 ? chunks[0].data : null;
   if (!chunks || !ihdr) return null;
-  const [width, height, cType] = [ihdr.readUInt32BE(0), ihdr.readUInt32BE(4), ihdr[9]];
-  const ch = cType === 6 ? 4 : cType === 2 ? 3 : cType === 4 ? 2 : cType === 0 ? 1 : 0;
-  if (width <= 0 || width > 4096 || height <= 0 || height > 4096 || ihdr[8] !== 8 || ihdr[10] !== 0 || ihdr[11] !== 0 || ihdr[12] !== 0 || ch === 0) return null;
-  const [inflated, stride] = [tryInflate(Buffer.concat(chunks.filter((c) => c.type === "IDAT").map((c) => c.data))), width * ch];
+  const [width, height, colorType] = [ihdr.readUInt32BE(0), ihdr.readUInt32BE(4), ihdr[9]];
+  const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : colorType === 4 ? 2 : colorType === 0 ? 1 : 0;
+  if (width <= 0 || width > 4096 || height <= 0 || height > 4096 || ihdr[8] !== 8 || ihdr[10] !== 0 || ihdr[11] !== 0 || ihdr[12] !== 0 || channels === 0) return null;
+  const [inflated, stride] = [tryInflate(Buffer.concat(chunks.filter((c) => c.type === "IDAT").map((c) => c.data))), width * channels];
   if (!inflated || inflated.byteLength !== height * (1 + stride)) return null;
   const rows = Array.from({ length: height }).reduce<Uint8Array[] | null>((acc, _, y) => {
-    const f = inflated[y * (1 + stride)] ?? 99;
-    if (!acc || f > 4) return null;
-    const [prev, row] = [y > 0 ? acc[y - 1]! : null, new Uint8Array(stride)];
-    Array.from({ length: stride }).forEach((__, i) => {
-      const [l, u, ul] = [i >= ch ? (row[i - ch] ?? 0) : 0, prev ? (prev[i] ?? 0) : 0, prev && i >= ch ? (prev[i - ch] ?? 0) : 0];
-      row[i] = ((inflated[y * (1 + stride) + 1 + i] ?? 0) + (f === 0 ? 0 : f === 1 ? l : f === 2 ? u : f === 3 ? (l + u) >>> 1 : paeth(l, u, ul))) & 0xff;
-    });
-    return [...acc, row];
+    const filterType = inflated[y * (1 + stride)] ?? 99;
+    if (!acc || filterType > 4) return null;
+    const prevRow = y > 0 ? acc[y - 1]! : null;
+    const rowBytes = Array.from({ length: stride }).reduce<number[]>((unfiltered, __, byteIdx) => {
+      const [left, up, upLeft] = [byteIdx >= channels ? (unfiltered[byteIdx - channels] ?? 0) : 0, prevRow ? (prevRow[byteIdx] ?? 0) : 0, prevRow && byteIdx >= channels ? (prevRow[byteIdx - channels] ?? 0) : 0];
+      const decodedByte = ((inflated[y * (1 + stride) + 1 + byteIdx] ?? 0) + pngFilterPredictor(filterType, left, up, upLeft)) & 0xff;
+      return [...unfiltered, decodedByte];
+    }, []);
+    return [...acc, Uint8Array.from(rowBytes)];
   }, []);
   if (!rows) return null;
-  const rgba = Buffer.alloc(width * height * 4);
-  rows.forEach((row, y) =>
-    Array.from({ length: width }).forEach((_, x) => {
-      const [s, d] = [x * ch, (y * width + x) * 4];
-      rgba.set([row[s] ?? 0, ch >= 3 ? (row[s + 1] ?? 0) : (row[s] ?? 0), ch >= 3 ? (row[s + 2] ?? 0) : (row[s] ?? 0), ch === 4 ? (row[s + 3] ?? 255) : ch === 2 ? (row[s + 1] ?? 255) : 255], d);
+  const rgba = Buffer.from(
+    Uint8Array.from({ length: width * height * 4 }, (_, byteIdx) => {
+      const [pxIdx, channelIdx] = [byteIdx >>> 2, byteIdx & 3];
+      return expandPngChannelByte(rows[Math.floor(pxIdx / width)]!, (pxIdx % width) * channels, channels, channelIdx);
     })
   );
   return { width, height, rgba };

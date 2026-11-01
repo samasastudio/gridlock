@@ -9,4 +9,9 @@ export function evaluateSourceFileLintRules(
   relPathRaw: string,
   content: string
 ): string[];
+export function evaluatePullRequestLineBudget(input: {
+  insertions: number;
+  deletions: number;
+  baseRef: string;
+}): string[];
 export function runRepoLintChecks(repoRoot?: string): string[];
