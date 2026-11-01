@@ -12,7 +12,9 @@
     ]
   },
   "include": [
-    "packages/*/test/**/*.ts"
+    "packages/*/test/**/*.ts",
+    "packages/*/test/**/*.tsx",
+    "packages/*/stories/**/*.tsx"
   ],
   "references": [
     {
