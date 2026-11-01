@@ -13,5 +13,16 @@ export function evaluatePullRequestLineBudget(input: {
   insertions: number;
   deletions: number;
   baseRef: string;
+  headRef?: string;
 }): string[];
+export function checkPullRequestDiffSize(
+  repoRoot: string,
+  options?: { baseRef?: string; headRef?: string }
+): {
+  insertions: number;
+  deletions: number;
+  baseRef: string;
+  headRef: string;
+  violations: string[];
+};
 export function runRepoLintChecks(repoRoot?: string): string[];

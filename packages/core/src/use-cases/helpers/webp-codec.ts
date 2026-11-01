@@ -262,23 +262,17 @@ export function decodePngToRgba(buf: Buffer): { width: number; height: number; r
   if (width <= 0 || width > 4096 || height <= 0 || height > 4096 || ihdr[8] !== 8 || ihdr[10] !== 0 || ihdr[11] !== 0 || ihdr[12] !== 0 || channels === 0) return null;
   const [inflated, stride] = [tryInflate(Buffer.concat(chunks.filter((c) => c.type === "IDAT").map((c) => c.data))), width * channels];
   if (!inflated || inflated.byteLength !== height * (1 + stride)) return null;
-  const rows = Array.from({ length: height }).reduce<Uint8Array[] | null>((acc, _, y) => {
-    const filterType = inflated[y * (1 + stride)] ?? 99;
-    if (!acc || filterType > 4) return null;
-    const prevRow = y > 0 ? acc[y - 1]! : null;
-    const rowBytes = Array.from({ length: stride }).reduce<number[]>((unfiltered, __, byteIdx) => {
-      const [left, up, upLeft] = [byteIdx >= channels ? (unfiltered[byteIdx - channels] ?? 0) : 0, prevRow ? (prevRow[byteIdx] ?? 0) : 0, prevRow && byteIdx >= channels ? (prevRow[byteIdx - channels] ?? 0) : 0];
-      const decodedByte = ((inflated[y * (1 + stride) + 1 + byteIdx] ?? 0) + pngFilterPredictor(filterType, left, up, upLeft)) & 0xff;
-      return [...unfiltered, decodedByte];
-    }, []);
-    return [...acc, Uint8Array.from(rowBytes)];
-  }, []);
-  if (!rows) return null;
+  if (new Uint8Array(height).some((_, y) => (inflated[y * (1 + stride)] ?? 99) > 4)) return null;
+  const unfilteredSeed = new Uint8Array(height * stride);
+  const unfiltered = unfilteredSeed.reduce<Uint8Array>((out, _, idx) => {
+    const [y, byteIdx] = [Math.floor(idx / stride), idx % stride];
+    const rowStart = y * (1 + stride);
+    const [left, up, upLeft] = [byteIdx >= channels ? (out[idx - channels] ?? 0) : 0, y > 0 ? (out[idx - stride] ?? 0) : 0, y > 0 && byteIdx >= channels ? (out[idx - stride - channels] ?? 0) : 0];
+    out[idx] = ((inflated[rowStart + 1 + byteIdx] ?? 0) + pngFilterPredictor(inflated[rowStart] ?? 0, left, up, upLeft)) & 0xff;
+    return out;
+  }, unfilteredSeed);
   const rgba = Buffer.from(
-    Uint8Array.from({ length: width * height * 4 }, (_, byteIdx) => {
-      const [pxIdx, channelIdx] = [byteIdx >>> 2, byteIdx & 3];
-      return expandPngChannelByte(rows[Math.floor(pxIdx / width)]!, (pxIdx % width) * channels, channels, channelIdx);
-    })
+    Uint8Array.from({ length: width * height * 4 }, (_, byteIdx) => expandPngChannelByte(unfiltered, (byteIdx >>> 2) * channels, channels, byteIdx & 3))
   );
   return { width, height, rgba };
 }

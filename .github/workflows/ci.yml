@@ -20,5 +20,6 @@ jobs:
       - if: github.event_name == 'pull_request'
         env:
           PR_BASE_REF: origin/${{ github.base_ref }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.sha }}
         run: npm run check:pr-size
       - run: npm run verify

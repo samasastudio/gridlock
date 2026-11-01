@@ -47,51 +47,91 @@ function stripCommentsAndStrings(line) {
     .replace(/\/\/.*$/, "");
 }
 
+function maskCommentsAndStrings(content) {
+  const literals = [];
+  const masked = content.replace(
+    /\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\$]|\$(?!\{))*`/g,
+    (token) => {
+      if (token.startsWith("/*") || token.startsWith("//")) {
+        return token.replace(/[^\n]/g, " ");
+      }
+      const idx = literals.length;
+      literals.push(token.slice(1, -1));
+      return `"__LIT_${idx}__"`;
+    }
+  );
+  return { masked, literals };
+}
+
+const STATIC_IMPORT_MASKED_RE =
+  /(?<![.\w$])import\s+(?:[\w$,*{}\s]*\bfrom\s+)?"__LIT_(\d+)__"/g;
+const EXPORT_FROM_MASKED_RE =
+  /(?<![.\w$])export\s+(?:type\s+)?(?:\*(?:\s+as\s+[\w$]+)?|\{[^}]*\})\s+from\s+"__LIT_(\d+)__"/g;
+const DYNAMIC_IMPORT_MASKED_RE =
+  /(?<![.\w$])import\s*\(\s*"__LIT_(\d+)__"\s*(?:,\s*\{[\s\S]*?\}\s*)?\)/g;
+
 function extractImportSpecifiers(content) {
+  const { masked, literals } = maskCommentsAndStrings(content);
   const specifiers = [];
-  const staticImportRegex =
-    /(?:^|[;\n])\s*(?:import|export)\s+(?:[^;'"`]*?\s+from\s+)?["']([^"']+)["']/g;
-  const dynamicImportRegex = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
-  for (const regex of [staticImportRegex, dynamicImportRegex]) {
-    for (const match of content.matchAll(regex)) {
-      if (match[1]) {
-        specifiers.push(match[1]);
+  for (const regex of [
+    STATIC_IMPORT_MASKED_RE,
+    EXPORT_FROM_MASKED_RE,
+    DYNAMIC_IMPORT_MASKED_RE,
+  ]) {
+    for (const match of masked.matchAll(regex)) {
+      const spec = literals[Number(match[1])];
+      if (spec !== undefined) {
+        specifiers.push(spec);
       }
     }
   }
   return specifiers;
 }
 
+function targetsCoreHelpers(spec) {
+  if (spec.startsWith(".")) {
+    return posix
+      .normalize(posix.join("packages/core/src", spec))
+      .startsWith("packages/core/src/use-cases/helpers/");
+  }
+  return /(?:^|\/)use-cases\/helpers\//.test(spec);
+}
+
 function evaluateBarrelHelperReExports(relPath, content) {
   const violations = [];
-  const scrubbedContent = content
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .map((line) => line.replace(/(^|[^:"'])\/\/.*$/, "$1"))
-    .join("\n");
+  const { masked, literals } = maskCommentsAndStrings(content);
 
-  for (const spec of extractImportSpecifiers(scrubbedContent)) {
-    if (!spec.startsWith(".")) continue;
-    const normalized = posix.normalize(spec);
-    if (!normalized.startsWith("use-cases/helpers/")) continue;
+  const checkCanonicalSpecifier = (spec) => {
     if (!spec.startsWith("./use-cases/helpers/")) {
       violations.push(
         `${relPath}: Clean Architecture violation — non-canonical helper specifier "${spec}" is prohibited in root barrel (CODING_STANDARDS.md)`
       );
     }
+  };
+
+  const wildcardExportMaskedRe =
+    /(?<![.\w$])export\s+(?:type\s+)?\*(?:\s+as\s+[\w$]+)?\s+from\s+"__LIT_(\d+)__"/g;
+  for (const regex of [
+    STATIC_IMPORT_MASKED_RE,
+    DYNAMIC_IMPORT_MASKED_RE,
+    wildcardExportMaskedRe,
+  ]) {
+    for (const match of masked.matchAll(regex)) {
+      const spec = literals[Number(match[1])];
+      if (spec === undefined || !targetsCoreHelpers(spec)) continue;
+      checkCanonicalSpecifier(spec);
+      violations.push(
+        `${relPath}: Clean Architecture violation — importing or wildcard re-exporting internal use-cases/helpers/ ("${spec}") is prohibited in root barrel (CODING_STANDARDS.md)`
+      );
+    }
   }
 
-  const forbiddenHelperImportOrWildcardRegex =
-    /(?:^|[;\n])\s*(?:import\b[^;]*?from\s+["'][^"']*use-cases\/helpers\/[^"']+["']|import\s*\(\s*["'][^"']*use-cases\/helpers\/[^"']+["']\s*\)|export\s+\*(?:\s+as\s+\w+)?\s+from\s+["'][^"']*use-cases\/helpers\/[^"']+["'])/g;
-  for (const match of scrubbedContent.matchAll(forbiddenHelperImportOrWildcardRegex)) {
-    violations.push(
-      `${relPath}: Clean Architecture violation — importing or wildcard re-exporting internal use-cases/helpers/ ("${match[0].trim()}") is prohibited in root barrel (CODING_STANDARDS.md)`
-    );
-  }
-
-  const namedExportRegex =
-    /(?:^|[;\n])\s*export\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["']\.\/use-cases\/helpers\/[^"']+["']/g;
-  for (const match of scrubbedContent.matchAll(namedExportRegex)) {
+  const namedExportMaskedRe =
+    /(?<![.\w$])export\s+(?:type\s+)?\{([^}]*)\}\s+from\s+"__LIT_(\d+)__"/g;
+  for (const match of masked.matchAll(namedExportMaskedRe)) {
+    const spec = literals[Number(match[2])];
+    if (spec === undefined || !targetsCoreHelpers(spec)) continue;
+    checkCanonicalSpecifier(spec);
     const rawList = match[1] ?? "";
     for (const rawItem of rawList.split(",")) {
       const cleaned = rawItem.replace(/^\s*type\s+/, "").trim();
@@ -263,25 +303,29 @@ export function evaluatePullRequestLineBudget({
   insertions,
   deletions,
   baseRef,
+  headRef = "HEAD",
 }) {
   const totalChangedLines = insertions + deletions;
   if (totalChangedLines <= MAX_PR_CHANGED_LINES) {
     return [];
   }
   return [
-    `Pull Request diff (${baseRef}...HEAD) has ${totalChangedLines} changed lines (+${insertions} / -${deletions}), exceeding the <= ${MAX_PR_CHANGED_LINES}-line budget (CODING_STANDARDS.md §1). Slice into stacked vertical PRs.`,
+    `Pull Request diff (${baseRef}...${headRef}) has ${totalChangedLines} changed lines (+${insertions} / -${deletions}), exceeding the <= ${MAX_PR_CHANGED_LINES}-line budget (CODING_STANDARDS.md §1). Slice into stacked vertical PRs.`,
   ];
 }
 
-function checkPullRequestDiffSize(repoRoot) {
+export function checkPullRequestDiffSize(repoRoot, options = {}) {
   const baseRef =
+    options.baseRef ||
     process.env.PR_BASE_REF ||
     (process.env.GITHUB_BASE_REF
       ? `origin/${process.env.GITHUB_BASE_REF}`
       : "origin/main");
+  const headRef = options.headRef || process.env.PR_HEAD_REF || "HEAD";
+  const diffRange = `${baseRef}...${headRef}`;
   const diffResult = spawnSync(
     "git",
-    ["diff", "--numstat", `${baseRef}...HEAD`],
+    ["diff", "--numstat", diffRange],
     { cwd: repoRoot, encoding: "utf-8" }
   );
   if (diffResult.status !== 0) {
@@ -289,8 +333,9 @@ function checkPullRequestDiffSize(repoRoot) {
       insertions: 0,
       deletions: 0,
       baseRef,
+      headRef,
       violations: [
-        `Failed to compute git diff against "${baseRef}...HEAD": ${(diffResult.stderr || "").trim()}`,
+        `Failed to compute git diff against "${diffRange}": ${(diffResult.stderr || "").trim()}`,
       ],
     };
   }
@@ -314,10 +359,12 @@ function checkPullRequestDiffSize(repoRoot) {
     insertions,
     deletions,
     baseRef,
+    headRef,
     violations: evaluatePullRequestLineBudget({
       insertions,
       deletions,
       baseRef,
+      headRef,
     }),
   };
 }
@@ -368,7 +415,7 @@ if (
     }
     const total = prCheck.insertions + prCheck.deletions;
     console.log(
-      `PR diff size OK: ${total}/${MAX_PR_CHANGED_LINES} changed lines (+${prCheck.insertions} / -${prCheck.deletions} vs ${prCheck.baseRef})`
+      `PR diff size OK: ${total}/${MAX_PR_CHANGED_LINES} changed lines (+${prCheck.insertions} / -${prCheck.deletions} for ${prCheck.baseRef}...${prCheck.headRef})`
     );
     process.exit(0);
   }
