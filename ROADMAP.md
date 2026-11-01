@@ -119,13 +119,13 @@ flowchart TD
 
 ### Wave 3 — Parallel Embeddable Widgets in Storybook (Seam 2 & Seam 3 UI)
 
-- [ ] **[`gridlock#6`](https://github.com/samasastudio/gridlock/issues/6) — `GET /api/repairs/changelog` & `<GridlockRepairLogWidget />` (Seam 2 UI)** (`~350 LOC`)
+- [x] **[`gridlock#6`](https://github.com/samasastudio/gridlock/issues/6) — `GET /api/repairs/changelog` & `<GridlockRepairLogWidget />` (Seam 2 UI)** (`~350 LOC`)
   - **Blocked by**: [`#4`](https://github.com/samasastudio/gridlock/issues/4), [`#5`](https://github.com/samasastudio/gridlock/issues/5), [`#17`](https://github.com/samasastudio/gridlock/issues/17)
   - **Unlocks**: `#9` (alongside `#8`)
   - **Delivers**: Exposes `GET /api/repairs/changelog` (JSON + Markdown) and ships `<GridlockRepairLogWidget />` in `@samasastudio/gridlock-widgets` with Storybook stories displaying selector diffs, MTTR, heal amortization, and the Efficiency Ledger scorecard.
   - **Testing Validation Gate**:
-    - [ ] **Happy Path**: `GET /api/repairs/changelog` returns valid JSON and `?format=md` Markdown; `<GridlockRepairLogWidget />` renders the repair history, before/after selector diffs, `mttrMs`, `subsequentDeterministicRunsServed`, and **Efficiency Ledger** scorecard across diurnal and nocturnal themes.
-    - [ ] **Sad Path**: Cleanly renders zero-anomaly empty states (`100% deterministic uptime`), active `selector_anomaly` / `blocked_by_waf` warning banners when a connector is degraded, and non-crashing error/retry states on HTTP `500` or network failure.
+    - [x] **Happy Path**: `GET /api/repairs/changelog` returns valid JSON and `?format=md` Markdown; `<GridlockRepairLogWidget />` renders the repair history, before/after selector diffs, `mttrMs`, `subsequentDeterministicRunsServed`, and **Efficiency Ledger** scorecard across diurnal and nocturnal themes.
+    - [x] **Sad Path**: Cleanly renders zero-anomaly empty states (`100% deterministic uptime`), active `selector_anomaly` / `blocked_by_waf` warning banners when a connector is degraded, and non-crashing error/retry states on HTTP `500` or network failure.
 
 - [ ] **[`gridlock#8`](https://github.com/samasastudio/gridlock/issues/8) — Plate Lineage API & `<GridlockPlateWidget />` Scrubber (Seam 3 UI)** (`~400 LOC`)
   - **Blocked by**: [`#7`](https://github.com/samasastudio/gridlock/issues/7)
