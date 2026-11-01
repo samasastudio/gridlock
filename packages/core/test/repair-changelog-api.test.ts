@@ -187,7 +187,8 @@ describe("GET /api/repairs/changelog HTTP Seam (Seam 2 API, Ticket #6)", () => {
         patch: {
           detailContainerSelector: '.project-details, .tabs-project-details-v2, div.col\\:span-2[data-tag="`v2`"]',
           fieldLabels: { estimatedCost: "Estimated Cost: | Total Estimated Cost:" },
-          rootCauseSummary: "Portal migrated wrapper to .tabs-project-details-v2.",
+          rootCauseSummary:
+            "Portal replaced <dl> wrapper with .tabs_project_v2\n# InjectedHeading and [note](https://example.com).",
         },
       });
       await ingestTdlrFiling({ projectNumber: "TABS2027009888", baseUrl: portalBaseUrl, now: new Date("2026-10-27T15:05:00.000Z") }, { repository });
@@ -224,6 +225,12 @@ describe("GET /api/repairs/changelog HTTP Seam (Seam 2 API, Ticket #6)", () => {
       assert.ok(fullMd.includes("Estimated Cost: \\| Total Estimated Cost:"));
       assert.ok(fullMd.includes('div.col\\:span-2[data-tag="`v2`"]'));
       assert.ok(!fullMd.includes("div.col\\\\:span-2"));
+      assert.ok(
+        fullMd.includes(
+          "- **Root Cause**: Portal replaced \\<dl\\> wrapper with .tabs\\_project\\_v2 # InjectedHeading and \\[note\\](https://example.com)."
+        )
+      );
+      assert.doesNotMatch(fullMd, /^# InjectedHeading/m);
 
       const boundedJson = RepairChangelogResponseSchema.parse(
         await (await fetch(`${apiBaseUrl}/api/repairs/changelog?limit=1`)).json()
@@ -241,18 +248,18 @@ describe("GET /api/repairs/changelog HTTP Seam (Seam 2 API, Ticket #6)", () => {
 
   test("Sad Paths: reports degraded selector_anomaly and blocked_by_waf statuses, rejects non-GET (405), invalid/duplicate query params (400), unknown connector_id (404), and corrupted records (500) without crashing", async () => {
     const repository = createInMemoryGridlockRepository();
-    let corruptMode: "none" | "entries" | "config" = "none";
+    let corruptMode: "none" | "entries" | "config" | "mismatch" = "none";
     const proxiedRepository: GridlockRepository = {
       ...repository,
       async getActiveConnectorConfig(connectorId: string) {
-        return corruptMode === "config"
-          ? ({ connectorId, version: -1, status: "bad" } as never)
-          : repository.getActiveConnectorConfig(connectorId);
+        if (corruptMode === "config") return { connectorId, version: -1, status: "bad" } as never;
+        if (corruptMode === "mismatch") return repository.getActiveConnectorConfig("tdlr-tabs");
+        return repository.getActiveConnectorConfig(connectorId);
       },
       async listRepairChangelog(connectorId?: string) {
-        return corruptMode === "entries"
-          ? ([{ id: "bad_1", connectorId: "tdlr-tabs", patchPromotedAt: null }] as never)
-          : repository.listRepairChangelog(connectorId);
+        if (corruptMode === "entries") return [{ id: "bad_1", connectorId: "tdlr-tabs", patchPromotedAt: null }] as never;
+        if (corruptMode === "mismatch") return [];
+        return repository.listRepairChangelog(connectorId);
       },
     };
 
@@ -303,11 +310,15 @@ describe("GET /api/repairs/changelog HTTP Seam (Seam 2 API, Ticket #6)", () => {
       assert.equal(missingRes.status, 404);
       assert.equal(((await missingRes.json()) as { error: string }).error, "connector_not_found");
 
-      for (const mode of ["entries", "config"] as const) {
+      for (const mode of ["entries", "config", "mismatch"] as const) {
         corruptMode = mode;
-        const corruptRes = await fetch(`${apiBaseUrl}/api/repairs/changelog`);
-        assert.equal(corruptRes.status, 500);
-        assert.match(((await corruptRes.json()) as { message: string }).message, /schema validation/);
+        const targetUrl =
+          mode === "mismatch"
+            ? `${apiBaseUrl}/api/repairs/changelog?connector_id=ercot-mismatch`
+            : `${apiBaseUrl}/api/repairs/changelog`;
+        const corruptRes = await fetch(targetUrl);
+        assert.equal(corruptRes.status, 500, `Expected 500 for corruptMode=${mode}`);
+        assert.match(((await corruptRes.json()) as { message: string }).message, /schema validation|connectorId/);
       }
       corruptMode = "none";
 

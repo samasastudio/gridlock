@@ -64,7 +64,7 @@ export async function getRepairChangelog(
 
   const parsedConfig = ConnectorConfigSchema.safeParse(fetched.configCandidate);
 
-  if (!parsedConfig.success) {
+  if (!parsedConfig.success || parsedConfig.data.connectorId !== connectorId) {
     return {
       ok: false,
       error: "repair_changelog_error",
@@ -73,7 +73,7 @@ export async function getRepairChangelog(
   }
 
   const fullValidated = RepairChangelogResponseSchema.safeParse({
-    connectorId: parsedConfig.data.connectorId,
+    connectorId,
     connectorStatus: parsedConfig.data.status,
     activeVersion: parsedConfig.data.version,
     entries: fetched.rawEntries,
