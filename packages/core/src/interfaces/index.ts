@@ -16,6 +16,7 @@ export {
   SourceArtifactSchema,
   TdlrFieldLabelsSchema,
   TdlrSearchRowSchema,
+  UnknownConnectorError,
   type ConnectorConfig,
   type ConnectorStatus,
   type IngestFilingResult,
@@ -47,10 +48,12 @@ export {
 export {
   CandidateSelectorPatchSchema,
   RepairChangelogEntrySchema,
+  RepairChangelogResponseSchema,
   SelectorDiffEntrySchema,
   type CandidateSelectorPatch,
   type RepairAgentResult,
   type RepairChangelogEntry,
+  type RepairChangelogResponse,
   type SandboxReplayResult,
   type SelectorDiffEntry,
 } from "./repair-models.ts";
