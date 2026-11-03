@@ -1,4 +1,4 @@
-import { ProjectSchema, type Project } from "@samasastudio/gridlock-core";
+import { ProjectSchema, type Project } from "@samasastudio/gridlock-core/schemas";
 
 export const GRIDLOCK_WIDGET_MANIFEST = {
   packageName: "@samasastudio/gridlock-widgets",

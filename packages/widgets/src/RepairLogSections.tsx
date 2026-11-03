@@ -3,7 +3,7 @@ import type {
   EfficiencyLedger,
   RepairChangelogEntry,
   RepairChangelogResponse,
-} from "@samasastudio/gridlock-core";
+} from "@samasastudio/gridlock-core/schemas";
 
 export const RELIEF_RETICLE_ICON = (
   <svg width="18" height="18" viewBox="0 -18 18 18" fill="none" aria-hidden="true">

@@ -1,5 +1,5 @@
 import { Suspense, use, useEffect, useId, useRef, useState, type Ref } from "react";
-import { EfficiencyLedgerSchema, RepairChangelogResponseSchema, type EfficiencyLedger, type RepairChangelogResponse } from "@samasastudio/gridlock-core";
+import { EfficiencyLedgerSchema, RepairChangelogResponseSchema, type EfficiencyLedger, type RepairChangelogResponse } from "@samasastudio/gridlock-core/schemas";
 import { buildRepairChangelogUrl, fetchRepairLogSnapshot, type RepairLogQuery, type RepairLogSnapshotResult } from "./repair-log-client.ts";
 import { GRIDLOCK_REPAIR_LOG_STYLESHEET } from "./repair-log-styles.ts";
 import { ConnectorHealthBanner, EfficiencyScorecardPanel, RELIEF_RETICLE_ICON, RepairLogErrorBanner, RepairLogTimelineSection } from "./RepairLogSections.tsx";
@@ -8,6 +8,7 @@ export type GridlockWidgetTheme = "inherit" | "diurnal" | "nocturnal";
 
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-repair-log-widget" precedence="default">{GRIDLOCK_REPAIR_LOG_STYLESHEET}</style>;
 const LOADING_PROGRESS_NODE = <progress aria-label="Loading Repair Changelog" />;
+const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<RepairLogSnapshotResult>, Promise<RepairLogSnapshotResult>>();
 
 interface RepairLogWidgetBaseProps {
   theme?: GridlockWidgetTheme;
@@ -30,6 +31,19 @@ export type GridlockRepairLogWidgetProps =
 
 function matchesQuery(a: RepairLogQuery, b: RepairLogQuery): boolean {
   return a.apiBaseUrl === b.apiBaseUrl && a.connectorId === b.connectorId && a.limit === b.limit;
+}
+
+function toSafeSnapshotPromise(promise: Promise<RepairLogSnapshotResult>): Promise<RepairLogSnapshotResult> {
+  const cached = SAFE_SNAPSHOT_PROMISES.get(promise);
+  if (cached) return cached;
+  const safe = promise.catch(
+    (error: unknown): RepairLogSnapshotResult => ({
+      ok: false,
+      message: error instanceof Error ? error.message : "Network error loading Repair Changelog",
+    })
+  );
+  SAFE_SNAPSHOT_PROMISES.set(promise, safe);
+  return safe;
 }
 
 function DossierTitle({ baseId, connectorId }: { baseId: string; connectorId?: string }) {
@@ -80,15 +94,21 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
   const [effectEntry, setEffectEntry] = useState<{ query: RepairLogQuery; promise: Promise<RepairLogSnapshotResult> } | null>(null);
   const [retryEntry, setRetryEntry] = useState<{ query: RepairLogQuery; sourcePromise?: Promise<RepairLogSnapshotResult>; promise: Promise<RepairLogSnapshotResult> } | null>(null);
 
-  useEffect(() => () => retryAbortRef.current?.abort(), []);
+  const isStaticMode = changelog !== undefined;
 
   useEffect(() => {
-    if (changelog || !apiBaseUrl || snapshotPromise) return;
-    const controller = new AbortController();
-    const query: RepairLogQuery = { apiBaseUrl, connectorId, limit };
-    setEffectEntry({ query, promise: fetchRepairLogSnapshot({ ...query, signal: controller.signal }) });
-    return () => controller.abort();
-  }, [apiBaseUrl, changelog, connectorId, limit, snapshotPromise]);
+    const effectController = !isStaticMode && apiBaseUrl && !snapshotPromise ? new AbortController() : null;
+    if (effectController && apiBaseUrl) {
+      const query: RepairLogQuery = { apiBaseUrl, connectorId, limit };
+      setEffectEntry({ query, promise: fetchRepairLogSnapshot({ ...query, signal: effectController.signal }) });
+    }
+    return () => {
+      effectController?.abort();
+      retryAbortRef.current?.abort();
+      retryAbortRef.current = null;
+      setRetryEntry(null);
+    };
+  }, [apiBaseUrl, connectorId, isStaticMode, limit, snapshotPromise]);
 
   const handleRetry = () => {
     onRetry?.();
@@ -100,11 +120,13 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
     setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchRepairLogSnapshot({ ...query, signal: controller.signal }) });
   };
 
-  const markdownHref = apiBaseUrl ? buildRepairChangelogUrl({ apiBaseUrl, connectorId, limit, format: "md" }) : undefined;
+  const exportConnectorId = connectorId ?? changelog?.connectorId;
+  const markdownHref = apiBaseUrl ? buildRepairChangelogUrl({ apiBaseUrl, connectorId: exportConnectorId, limit, format: "md" }) : undefined;
   const currentQuery = apiBaseUrl ? { apiBaseUrl, connectorId, limit } : null;
   const activeRetryPromise = currentQuery && retryEntry && retryEntry.sourcePromise === snapshotPromise && matchesQuery(retryEntry.query, currentQuery) ? retryEntry.promise : null;
   const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
-  const activePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
+  const rawActivePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
+  const activePromise = rawActivePromise ? toSafeSnapshotPromise(rawActivePromise) : null;
   const loadingShell = <><DossierTitle baseId={baseId} />{LOADING_PROGRESS_NODE}</>;
   const parsedStatic = changelog !== undefined
     ? { changelog: RepairChangelogResponseSchema.safeParse(changelog), ledger: EfficiencyLedgerSchema.safeParse(efficiencyLedger) }

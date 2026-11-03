@@ -3,7 +3,7 @@ import {
   RepairChangelogResponseSchema,
   type EfficiencyLedger,
   type RepairChangelogResponse,
-} from "@samasastudio/gridlock-core";
+} from "@samasastudio/gridlock-core/schemas";
 
 export interface RepairLogQuery {
   apiBaseUrl: string;

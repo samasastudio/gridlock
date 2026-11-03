@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { DEFAULT_EFFICIENCY_LEDGER, type EfficiencyLedger, type RepairChangelogEntry } from "@samasastudio/gridlock-core";
+import { DEFAULT_EFFICIENCY_LEDGER, type EfficiencyLedger, type RepairChangelogEntry } from "@samasastudio/gridlock-core/schemas";
 import { GridlockRepairLogWidget, type GridlockRepairLogWidgetProps } from "../src/index.ts";
 
 export interface StoryMeta<TProps> {
@@ -36,7 +36,7 @@ const PROMOTED_HEAL_ENTRY: RepairChangelogEntry = {
   estimatedRepairCostUsd: 0.00095, subsequentDeterministicRunsServed: 14, expiresAt: null,
 };
 
-export const repairLogWidgetMeta: StoryMeta<GridlockRepairLogWidgetProps> = {
+const repairLogWidgetMeta: StoryMeta<GridlockRepairLogWidgetProps> = {
   title: "Gridlock/Seam 2/GridlockRepairLogWidget",
   component: GridlockRepairLogWidget,
   tags: ["autodocs"],

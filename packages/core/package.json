@@ -8,6 +8,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./src/index.ts"
+    },
+    "./schemas": {
+      "types": "./dist/interfaces/index.d.ts",
+      "default": "./src/interfaces/index.ts"
     }
   },
   "dependencies": {
