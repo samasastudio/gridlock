@@ -51,7 +51,8 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     const diurnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget ref={sectionRef} {...HealedWithAmortization.args} />);
     for (const pattern of [
       /data-gridlock-theme="diurnal"/, /var\(--font-sans/, /--paper:\s*var\(--atlas-paper/, /--ink:\s*var\(--atlas-ink/,
-      /--relief-coral-mid/, /<ol[^>]*role="list"/, /<time[^>]*dateTime="2026-10-27T14:00:01\.850Z"/,
+      /--relief-coral-mid/, /:focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/,
+      /<ol[^>]*role="list"/, /<time[^>]*dateTime="2026-10-27T14:00:01\.850Z"/,
       /v1.*v2/, /1,850 ms/, /14.*deterministic runs served/i, /1\/1.*2 total verified/,
       /sha256:bbbbbbbbbbbb/, /\.tabs-project-details-v2/, /Total Estimated Cost:/, /<details/, /<table/,
       /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /350,000/, /380/, /99\.89%/, /93\.33%/,
@@ -78,8 +79,13 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.match(malformedStaticHtml, /role="alert"/);
     assert.doesNotMatch(malformedStaticHtml, /<button[^>]*>Retry<\/button>/);
 
+    const sameOriginSnapshotHtml = await streamHtml(
+      <GridlockRepairLogWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, changelog: { connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }, efficiencyLedger: DEFAULT_EFFICIENCY_LEDGER })} />
+    );
+    assert.match(sameOriginSnapshotHtml, /href="\/api\/repairs\/changelog\?connector_id=ercot-gis&amp;format=md"/);
+
     const rejectedPromiseHtml = await streamHtml(
-      <GridlockRepairLogWidget apiBaseUrl="https://api.example.com" snapshotPromise={Promise.reject(new Error("Gateway socket hang up"))} />
+      <GridlockRepairLogWidget apiBaseUrl="" snapshotPromise={Promise.reject(new Error("Gateway socket hang up"))} />
     );
     assert.match(rejectedPromiseHtml, /Gateway socket hang up/);
     assert.match(rejectedPromiseHtml, /<button[^>]*type="button"[^>]*>Retry<\/button>/);
@@ -123,7 +129,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       const recoveredHtml = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchRepairLogSnapshot({ apiBaseUrl })} />);
       assert.match(recoveredHtml, /inter_widget_heal_v2/);
       assert.match(recoveredHtml, /350,000/);
-      assert.match(recoveredHtml, /href="[^"]*\/api\/repairs\/changelog\?format=md"/);
+      assert.match(recoveredHtml, /href="[^"]*\/api\/repairs\/changelog\?connector_id=tdlr-tabs&amp;format=md"/);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
     }
@@ -137,13 +143,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     const StoryComponent = repairLogWidgetMeta.component;
     assert.equal(StoryComponent, GridlockRepairLogWidget);
     const namedStoryKeys = Object.keys(repairLogStories).filter((key) => key !== "default").sort();
-    assert.deepEqual(namedStoryKeys, [
-      "BlockedByWafDegraded",
-      "HealedWithAmortization",
-      "HealthyZeroAnomalies",
-      "NocturnalTheme",
-      "SelectorAnomalyDegraded",
-    ]);
+    assert.deepEqual(namedStoryKeys, ["BlockedByWafDegraded", "HealedWithAmortization", "HealthyZeroAnomalies", "NocturnalTheme", "SelectorAnomalyDegraded"]);
     assert.match(renderToStaticMarkup(<StoryComponent {...HealthyZeroAnomalies.args} />), /100% deterministic uptime/i);
     assert.match(renderToStaticMarkup(<StoryComponent {...HealedWithAmortization.args} />), /Selector Diff Inspector/);
     assert.match(renderToStaticMarkup(<StoryComponent {...SelectorAnomalyDegraded.args} />), /selector_anomaly/);

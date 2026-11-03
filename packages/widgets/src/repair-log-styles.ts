@@ -5,7 +5,7 @@ export const GRIDLOCK_REPAIR_LOG_STYLESHEET = `@layer gridlock-widgets {
     --gridlock-card: var(--card, var(--atlas-mist, #edf0ee));
     --gridlock-muted: var(--muted-foreground, var(--atlas-charcoal, #4a525a));
     --gridlock-border: var(--border, oklch(0.205 0.006 285 / 16%));
-    --gridlock-accent: var(--signal-coral, var(--relief-coral-mid, #e06d53));
+    --gridlock-accent: var(--signal-coral, #e06d53);
     --gridlock-radius: var(--radius, 0rem);
     background-color: var(--gridlock-paper);
     color: var(--gridlock-ink);
@@ -64,5 +64,5 @@ export const GRIDLOCK_REPAIR_LOG_STYLESHEET = `@layer gridlock-widgets {
   :where(.gridlock-action-btn, .gridlock-md-link) { min-block-size: 2.25rem; padding-inline: 0.75rem; display: inline-flex; align-items: center; }
   :where(.gridlock-action-btn) { border: 1px solid var(--gridlock-ink); background-color: var(--gridlock-paper); color: var(--gridlock-ink); cursor: pointer; }
   :where(.gridlock-action-btn:hover:not(:disabled)) { border-color: var(--gridlock-accent); }
-  :where(.gridlock-action-btn, .gridlock-diff-scroll, .gridlock-md-link, .gridlock-repair-widget summary):focus-visible { outline: 2px solid var(--gridlock-accent); outline-offset: 2px; }
+  :where(.gridlock-action-btn, .gridlock-diff-scroll, .gridlock-md-link, .gridlock-repair-widget summary):focus-visible { outline: 2px solid var(--gridlock-ink); outline-offset: 2px; }
 }`;

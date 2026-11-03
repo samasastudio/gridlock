@@ -63,8 +63,9 @@ function DossierErrorShell(props: { baseId: string; message: string; onRetry?: (
   );
 }
 
-function LoadedDossierContent(props: { baseId: string; changelog: RepairChangelogResponse; efficiencyLedger: EfficiencyLedger; markdownHref?: string }) {
-  const { baseId, changelog, efficiencyLedger, markdownHref } = props;
+function LoadedDossierContent(props: Partial<RepairLogQuery> & { baseId: string; changelog: RepairChangelogResponse; efficiencyLedger: EfficiencyLedger }) {
+  const { apiBaseUrl, baseId, changelog, connectorId, efficiencyLedger, limit } = props;
+  const markdownHref = apiBaseUrl !== undefined ? buildRepairChangelogUrl({ apiBaseUrl, connectorId: connectorId ?? changelog.connectorId, limit, format: "md" }) : undefined;
   return (
     <>
       <header className="gridlock-repair-header">
@@ -81,10 +82,10 @@ function LoadedDossierContent(props: { baseId: string; changelog: RepairChangelo
   );
 }
 
-function PromiseDossierBoundary(props: { snapshotPromise: Promise<RepairLogSnapshotResult>; baseId: string; markdownHref?: string; onRetry: () => void }) {
+function PromiseDossierBoundary(props: Partial<RepairLogQuery> & { snapshotPromise: Promise<RepairLogSnapshotResult>; baseId: string; onRetry: () => void }) {
   const result = use(props.snapshotPromise);
   if (!result.ok) return <DossierErrorShell baseId={props.baseId} message={result.message} onRetry={props.onRetry} />;
-  return <LoadedDossierContent baseId={props.baseId} changelog={result.changelog} efficiencyLedger={result.efficiencyLedger} markdownHref={props.markdownHref} />;
+  return <LoadedDossierContent baseId={props.baseId} changelog={result.changelog} efficiencyLedger={result.efficiencyLedger} apiBaseUrl={props.apiBaseUrl} connectorId={props.connectorId} limit={props.limit} />;
 }
 
 export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
@@ -97,8 +98,8 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
   const isStaticMode = changelog !== undefined;
 
   useEffect(() => {
-    const effectController = !isStaticMode && apiBaseUrl && !snapshotPromise ? new AbortController() : null;
-    if (effectController && apiBaseUrl) {
+    const effectController = !isStaticMode && apiBaseUrl !== undefined && !snapshotPromise ? new AbortController() : null;
+    if (effectController && apiBaseUrl !== undefined) {
       const query: RepairLogQuery = { apiBaseUrl, connectorId, limit };
       setEffectEntry({ query, promise: fetchRepairLogSnapshot({ ...query, signal: effectController.signal }) });
     }
@@ -112,7 +113,7 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
 
   const handleRetry = () => {
     onRetry?.();
-    if (!apiBaseUrl) return;
+    if (apiBaseUrl === undefined) return;
     retryAbortRef.current?.abort();
     const controller = new AbortController();
     retryAbortRef.current = controller;
@@ -120,9 +121,7 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
     setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchRepairLogSnapshot({ ...query, signal: controller.signal }) });
   };
 
-  const exportConnectorId = connectorId ?? changelog?.connectorId;
-  const markdownHref = apiBaseUrl ? buildRepairChangelogUrl({ apiBaseUrl, connectorId: exportConnectorId, limit, format: "md" }) : undefined;
-  const currentQuery = apiBaseUrl ? { apiBaseUrl, connectorId, limit } : null;
+  const currentQuery = apiBaseUrl !== undefined ? { apiBaseUrl, connectorId, limit } : null;
   const activeRetryPromise = currentQuery && retryEntry && retryEntry.sourcePromise === snapshotPromise && matchesQuery(retryEntry.query, currentQuery) ? retryEntry.promise : null;
   const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
   const rawActivePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
@@ -139,11 +138,11 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
         !parsedStatic.changelog.success || !parsedStatic.ledger.success ? (
           <DossierErrorShell baseId={baseId} message="Malformed Repair Changelog or Efficiency Ledger props" />
         ) : (
-          <LoadedDossierContent baseId={baseId} changelog={parsedStatic.changelog.data} efficiencyLedger={parsedStatic.ledger.data} markdownHref={markdownHref} />
+          <LoadedDossierContent baseId={baseId} changelog={parsedStatic.changelog.data} efficiencyLedger={parsedStatic.ledger.data} apiBaseUrl={apiBaseUrl} connectorId={connectorId} limit={limit} />
         )
       ) : activePromise ? (
         <Suspense fallback={loadingShell}>
-          <PromiseDossierBoundary snapshotPromise={activePromise} baseId={baseId} markdownHref={markdownHref} onRetry={handleRetry} />
+          <PromiseDossierBoundary snapshotPromise={activePromise} baseId={baseId} apiBaseUrl={apiBaseUrl} connectorId={connectorId} limit={limit} onRetry={handleRetry} />
         </Suspense>
       ) : (
         loadingShell
