@@ -4,7 +4,7 @@ Issues, specs, and pull requests for `samasastudio/gridlock` live on GitHub.
 
 ## Branch, Stacked PR & Review Workflow
 
-1. **Branch**: Switch to a dedicated branch (`git switch -c feat/<issue>-<slug>`, `fix/<issue>-<slug>`, or `chore/<slug>`). `.githooks/pre-commit` blocks direct commits to `main` and runs `npm run verify`.
+1. **Issue Before Branch**: Switch to a dedicated branch (`git switch -c feat/<issue>-<slug>`, `fix/<issue>-<slug>`, or `chore/<slug>`). `.githooks/pre-commit` enforces numeric GitHub issue IDs on `feat/` and `fix/` branches, blocks direct commits to `main`, and runs `npm run verify`. Follow-up work discovered after an issue closes gets a new sub-issue under `#1` before branching; when design or library choices remain open, apply `needs-info` and align with the human before writing production code.
 2. **Slice Within `<= 700` Lines**: Run `PR_BASE_REF=<base> npm run check:pr-size` before opening or updating a PR. When a ticket exceeds `700` changed lines (`insertions + deletions`), slice it into stacked vertical PRs (`#N part 1/k..k/k`):
    - Branch slice `k` from slice `k - 1` and pass `--base <slice-(k-1)-branch>` to `gh pr create` so each PR's diff stays `<= 700` lines and compiles/tests cleanly on its own.
    - `delete_branch_on_merge` is enabled on `samasastudio/gridlock`: when the human merges slice `1/k` into `main`, GitHub deletes the merged head branch and auto-retargets slice `2/k` onto `main`. Rebase or merge the updated base cleanly if conflicts arise.
@@ -16,10 +16,22 @@ Issues, specs, and pull requests for `samasastudio/gridlock` live on GitHub.
 - **Read an issue or PR (always pass `--json` to bypass sunset Classic Projects GraphQL errors)**:
   - Issue: `gh issue view <number> --json number,title,state,body,labels,comments`
   - PR metadata & diff: `gh pr view <number> --json number,title,state,baseRefName,headRefName,body,labels,comments,files` and `gh pr diff <number>`
-- **Fetch PR reviews (both top-level review summaries and inline code comments)**:
+- **Fetch PR reviews (one-shot GraphQL for latest review summary + unresolved inline threads)**:
   ```bash
-  gh api repos/samasastudio/gridlock/pulls/<number>/reviews --jq '.[] | {id, state, submitted_at, body}'
-  gh api repos/samasastudio/gridlock/pulls/<number>/comments --jq '.[] | {id, path, line: (.line // .original_line), body}'
+  gh api graphql -F number=<number> -f query='
+    query($number: Int!) {
+      repository(owner: "samasastudio", name: "gridlock") {
+        pullRequest(number: $number) {
+          reviews(last: 3) { nodes { state submittedAt body } }
+          reviewThreads(first: 50) {
+            nodes {
+              isResolved isOutdated path line
+              comments(first: 5) { nodes { author { login } body } }
+            }
+          }
+        }
+      }
+    }' --jq '{reviews: .data.repository.pullRequest.reviews.nodes, unresolved: [.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)]}'
   ```
 - **Edit issue or PR title/body (use REST `PATCH`; `gh issue edit` / `gh pr edit` hit Classic Projects GraphQL errors)**:
   ```bash

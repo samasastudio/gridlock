@@ -10,6 +10,7 @@ description: >-
 ## 1. Single-Pass Verification
 
 - Run `npm run verify` for single-pass dependency mount, TypeScript project build/typecheck, architecture/style lint, and test execution, and `PR_BASE_REF=<base> npm run check:pr-size` to verify the `<= 700`-line PR budget.
+- Run `npm run preview:widgets` to launch the CSF3 Story + live HTTP API workbench on `http://localhost:6006` (or `npm run preview:widgets -- --smoke-check` for headless verification).
 - For branching, stacked PR targeting, `/code-review`, `/pr`, and `gh` CLI commands, read [`docs/agents/issue-tracker.md`](../../../docs/agents/issue-tracker.md).
 
 ---

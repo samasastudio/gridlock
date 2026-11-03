@@ -18,7 +18,9 @@
     "pretest": "bash ./scripts/ensure-ext4-deps.sh",
     "test": "node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx'",
     "preverify": "bash ./scripts/ensure-ext4-deps.sh",
-    "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx'"
+    "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx'",
+    "prepreview:widgets": "bash ./scripts/ensure-ext4-deps.sh",
+    "preview:widgets": "node --import ./scripts/tsx-loader.mjs ./scripts/widget-workbench.mjs"
   },
   "dependencies": {
     "zod": "3.25.76"

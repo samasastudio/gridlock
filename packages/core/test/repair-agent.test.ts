@@ -21,6 +21,7 @@ import {
 } from "../src/index.ts";
 import {
   checkPullRequestDiffSize,
+  evaluateBranchName,
   evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   runRepoLintChecks,
@@ -581,5 +582,87 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
         v.includes("use-cases/helpers/ must remain pure")
       )
     );
+
+    // Widget browser boundary: bans runtime node:* & root @samasastudio/gridlock-core value imports, permits /schemas & type-only imports
+    assert.deepEqual(
+      evaluateSourceFileLintRules(
+        "packages/widgets/src/CleanWidget.tsx",
+        [
+          'import { EfficiencyLedgerSchema, type EfficiencyLedger } from "@samasastudio/gridlock-core/schemas";',
+          'import type { GridlockRepository } from "@samasastudio/gridlock-core";',
+          'import { type RepairChangelogResponse } from "@samasastudio/gridlock-core";',
+          "export const ok = EfficiencyLedgerSchema;",
+        ].join("\n")
+      ),
+      []
+    );
+    const widgetBrowserViolations = evaluateSourceFileLintRules(
+      "packages/widgets/src/BrokenWidget.tsx",
+      [
+        'import { readFileSync } from "node:fs";',
+        'import { EfficiencyLedgerSchema } from "@samasastudio/gridlock-core";',
+        'const lazyCore = await import("../../core/src/index.ts");',
+      ].join("\n")
+    );
+    assert.equal(widgetBrowserViolations.length, 3);
+    assert.ok(widgetBrowserViolations.some((v) => v.includes('"node:fs"')));
+    assert.ok(
+      widgetBrowserViolations.filter((v) =>
+        v.includes("@samasastudio/gridlock-core/schemas")
+      ).length === 2
+    );
+
+    // Core interfaces/ (./schemas) boundary: permits type-only Buffer, bans runtime node:*, Buffer.*, and process.env
+    assert.deepEqual(
+      evaluateSourceFileLintRules(
+        "packages/core/src/interfaces/clean-contract.ts",
+        [
+          'import type { Buffer } from "node:buffer";',
+          "export interface AssetPort { read(id: string): Promise<Buffer | null>; }",
+        ].join("\n")
+      ),
+      []
+    );
+    const schemaNodeLeakViolations = evaluateSourceFileLintRules(
+      "packages/core/src/interfaces/leaky-schema.ts",
+      [
+        'import { Buffer } from "node:buffer";',
+        "export const EMPTY = Buffer.from([]);",
+        "export const PROJ = process.env.GOOGLE_CLOUD_PROJECT;",
+      ].join("\n")
+    );
+    assert.equal(schemaNodeLeakViolations.length, 3);
+
+    // CSF3 stories: bans re-exporting default Meta identifier by name without excludeStories
+    assert.deepEqual(
+      evaluateSourceFileLintRules(
+        "packages/widgets/stories/Valid.stories.tsx",
+        [
+          "const meta = { title: 'Gridlock/Valid' };",
+          "export default meta;",
+          "export const Primary = { args: {} };",
+        ].join("\n")
+      ),
+      []
+    );
+    const csfMetaViolations = evaluateSourceFileLintRules(
+      "packages/widgets/stories/Broken.stories.tsx",
+      [
+        "export const widgetMeta = { title: 'Gridlock/Broken' };",
+        "export default widgetMeta;",
+        "export const Primary = { args: {} };",
+      ].join("\n")
+    );
+    assert.equal(csfMetaViolations.length, 1);
+    assert.ok(csfMetaViolations[0]?.includes("CSF3 story violation"));
+
+    // Branch naming guardrail: allows detached HEAD + issue-numbered feat/fix + chore/*, rejects main & orphan slices
+    assert.deepEqual(evaluateBranchName(""), []);
+    assert.deepEqual(evaluateBranchName("feat/27-atlas-dossier-polish"), []);
+    assert.deepEqual(evaluateBranchName("fix/26-export-url"), []);
+    assert.deepEqual(evaluateBranchName("chore/agent-retro-guardrails"), []);
+    assert.equal(evaluateBranchName("main").length, 1);
+    assert.equal(evaluateBranchName("feat/6c-atlas-dossier-polish").length, 1);
+    assert.equal(evaluateBranchName("feat/stacked-slice").length, 1);
   });
 });
