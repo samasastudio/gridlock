@@ -21,6 +21,8 @@
     "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx'"
   },
   "dependencies": {
+    "motion": "^12.6.2",
+    "motion-plus": "npm:@motionplus/core@^2.12.0",
     "zod": "3.25.76"
   },
   "devDependencies": {

@@ -11,12 +11,14 @@ fi
 
 mkdir -p "$REPO_ROOT/node_modules"
 
+IS_MOUNTED=0
 if mountpoint -q "$REPO_ROOT/node_modules"; then
-  exit 0
-fi
-
-# Guard against accidental unmounted files inside ./node_modules on virtiofs
-if [ -n "$(ls -A "$REPO_ROOT/node_modules" 2>/dev/null)" ]; then
+  IS_MOUNTED=1
+  if [ -d "$REPO_ROOT/node_modules/zod" ] && [ -d "$REPO_ROOT/node_modules/typescript" ] && [ -d "$REPO_ROOT/node_modules/motion-plus" ]; then
+    exit 0
+  fi
+elif [ -n "$(ls -A "$REPO_ROOT/node_modules" 2>/dev/null)" ]; then
+  # Guard against accidental unmounted files inside ./node_modules on virtiofs
   echo "ERROR: Unmounted files detected in $REPO_ROOT/node_modules on virtiofs." >&2
   echo "Run: rm -rf $REPO_ROOT/node_modules/* && echo 3 | sudo tee /proc/sys/vm/drop_caches" >&2
   exit 1
@@ -28,12 +30,24 @@ CACHE_DEPS="$PROJECT_CACHE_DIR/deps"
 
 mkdir -p "$CACHE_DEPS"
 
-if [ ! -d "$CACHE_DEPS/node_modules/zod" ] || [ ! -d "$CACHE_DEPS/node_modules/typescript" ]; then
+if [ ! -d "$CACHE_DEPS/node_modules/zod" ] || [ ! -d "$CACHE_DEPS/node_modules/typescript" ] || [ ! -d "$CACHE_DEPS/node_modules/motion-plus" ]; then
+  {
+    echo "@motionplus:registry=https://api.motion.dev/npm/"
+    if [ -n "${MOTION_PLUS_TOKEN:-}" ]; then
+      printf "//api.motion.dev/npm/:_authToken=%s\n" "$MOTION_PLUS_TOKEN"
+    elif [ -f "$REPO_ROOT/../profile-site/.npmrc" ]; then
+      grep "api.motion.dev" "$REPO_ROOT/../profile-site/.npmrc" || true
+    fi
+  } > "$CACHE_DEPS/.npmrc"
+  chmod 600 "$CACHE_DEPS/.npmrc"
+
   cat > "$CACHE_DEPS/package.json" << 'EOF'
 {
   "name": "gridlock-ext4-deps",
   "private": true,
   "dependencies": {
+    "motion": "^12.6.2",
+    "motion-plus": "npm:@motionplus/core@^2.12.0",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -56,4 +70,6 @@ mkdir -p "$CACHE_DEPS/node_modules/@samasastudio"
 ln -sfn "$REPO_ROOT/packages/core" "$CACHE_DEPS/node_modules/@samasastudio/gridlock-core"
 ln -sfn "$REPO_ROOT/packages/widgets" "$CACHE_DEPS/node_modules/@samasastudio/gridlock-widgets"
 
-sudo mount --bind "$CACHE_DEPS/node_modules" "$REPO_ROOT/node_modules"
+if [ "$IS_MOUNTED" -eq 0 ]; then
+  sudo mount --bind "$CACHE_DEPS/node_modules" "$REPO_ROOT/node_modules"
+fi

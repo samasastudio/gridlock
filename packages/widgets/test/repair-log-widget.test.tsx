@@ -50,10 +50,14 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     const sectionRef = createRef<HTMLElement>();
     const diurnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget ref={sectionRef} {...HealedWithAmortization.args} />);
     for (const pattern of [
-      /data-gridlock-theme="diurnal"/, /var\(--font-sans/, /--paper:\s*var\(--atlas-paper/, /--ink:\s*var\(--atlas-ink/,
-      /--relief-coral-mid/, /:focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/,
+      /data-gridlock-theme="diurnal"/, /var\(--font-serif/, /var\(--font-display/, /var\(--font-sans/, /var\(--font-mono/,
+      /--paper:\s*var\(--atlas-paper/, /--ink:\s*var\(--atlas-ink/, /--relief-coral-mid/,
+      /:focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/,
+      /@container\s*\(width\s*<\s*32\.5em\)/,
+      /01 \/ Efficiency Ledger/i, /02 \/ Verified Self-Healing Timeline/i,
+      /number-section-integer/, /data-telemetry-meter="token-reduction"/, /data-telemetry-meter="deterministic-runs"/,
       /<ol[^>]*role="list"/, /<time[^>]*dateTime="2026-10-27T14:00:01\.850Z"/,
-      /v1.*v2/, /1,850 ms/, /14.*deterministic runs served/i, /1\/1.*2 total verified/,
+      /v1.*v2/, /1,850/, /14.*deterministic runs served/i, /1\/1.*2 total verified/,
       /sha256:bbbbbbbbbbbb/, /\.tabs-project-details-v2/, /Total Estimated Cost:/, /<details/, /<table/,
       /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /350,000/, /380/, /99\.89%/, /93\.33%/,
     ]) {
@@ -62,7 +66,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
 
     const nocturnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget {...NocturnalTheme.args} />);
     assert.match(nocturnalHtml, /data-gridlock-theme="nocturnal"/);
-    assert.match(nocturnalHtml, /color-scheme:\s*dark/);
+    assert.match(nocturnalHtml, /color-scheme:\s*only dark/);
     assert.match(nocturnalHtml, /--paper:\s*oklch\(0\.215 0\.026 244\)/);
   });
 

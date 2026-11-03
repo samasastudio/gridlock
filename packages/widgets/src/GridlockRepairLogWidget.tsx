@@ -1,13 +1,23 @@
 import { Suspense, use, useEffect, useId, useRef, useState, type Ref } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { EfficiencyLedgerSchema, RepairChangelogResponseSchema, type EfficiencyLedger, type RepairChangelogResponse } from "@samasastudio/gridlock-core/schemas";
 import { buildRepairChangelogUrl, fetchRepairLogSnapshot, type RepairLogQuery, type RepairLogSnapshotResult } from "./repair-log-client.ts";
 import { GRIDLOCK_REPAIR_LOG_STYLESHEET } from "./repair-log-styles.ts";
-import { ConnectorHealthBanner, EfficiencyScorecardPanel, RELIEF_RETICLE_ICON, RepairLogErrorBanner, RepairLogTimelineSection } from "./RepairLogSections.tsx";
+import {
+  ConnectorHealthBanner,
+  ConnectorStatusBadge,
+  EDITORIAL_EASE,
+  EfficiencyScorecardPanel,
+  EXPORT_ARROW_ICON,
+  RELIEF_RETICLE_ICON,
+  RepairLogErrorBanner,
+} from "./RepairLogSections.tsx";
+import { RepairLogTimelineSection } from "./RepairLogTimeline.tsx";
 
 export type GridlockWidgetTheme = "inherit" | "diurnal" | "nocturnal";
 
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-repair-log-widget" precedence="default">{GRIDLOCK_REPAIR_LOG_STYLESHEET}</style>;
-const LOADING_PROGRESS_NODE = <progress aria-label="Loading Repair Changelog" />;
+const LOADING_PROGRESS_NODE = <progress className="gridlock-progress" aria-label="Loading Repair Changelog" />;
 const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<RepairLogSnapshotResult>, Promise<RepairLogSnapshotResult>>();
 
 interface RepairLogWidgetBaseProps {
@@ -47,17 +57,32 @@ function toSafeSnapshotPromise(promise: Promise<RepairLogSnapshotResult>): Promi
 }
 
 function DossierTitle({ baseId, connectorId }: { baseId: string; connectorId?: string }) {
+  const prefersReducedMotion = useReducedMotion();
   return (
-    <h2 id={`${baseId}-title`}>
-      {RELIEF_RETICLE_ICON} Autonomous Repair Changelog{connectorId ? <> — <code>{connectorId}</code></> : null}
-    </h2>
+    <div className="gridlock-title-block">
+      <span className="gridlock-eyebrow">Seam 02 · Autonomous Repair Archive</span>
+      <h2 id={`${baseId}-title`} className="gridlock-dossier-title">
+        {RELIEF_RETICLE_ICON}
+        <span>Autonomous Repair Changelog</span>
+        {connectorId ? <code className="gridlock-connector-chip">{connectorId}</code> : null}
+      </h2>
+      <motion.div
+        aria-hidden="true"
+        className="gridlock-title-rule"
+        initial={prefersReducedMotion ? false : { scaleX: 0, opacity: 0 }}
+        animate={{ scaleX: 1, opacity: 1 }}
+        transition={{ duration: 0.65, ease: EDITORIAL_EASE }}
+      />
+    </div>
   );
 }
 
 function DossierErrorShell(props: { baseId: string; message: string; onRetry?: () => void }) {
   return (
     <>
-      <DossierTitle baseId={props.baseId} />
+      <header className="gridlock-repair-header">
+        <DossierTitle baseId={props.baseId} />
+      </header>
       <RepairLogErrorBanner message={props.message} onRetry={props.onRetry} />
     </>
   );
@@ -69,11 +94,16 @@ function LoadedDossierContent(props: Partial<RepairLogQuery> & { baseId: string;
   return (
     <>
       <header className="gridlock-repair-header">
-        <div>
-          <DossierTitle baseId={baseId} connectorId={changelog.connectorId} />
-          <p>Active Config <code>v{changelog.activeVersion}</code> · Status <code>{changelog.connectorStatus}</code></p>
+        <DossierTitle baseId={baseId} connectorId={changelog.connectorId} />
+        <div className="gridlock-header-controls">
+          <ConnectorStatusBadge connectorStatus={changelog.connectorStatus} activeVersion={changelog.activeVersion} />
+          {markdownHref ? (
+            <a className="gridlock-md-link" href={markdownHref}>
+              <span>Export Field Notes (.md)</span>
+              {EXPORT_ARROW_ICON}
+            </a>
+          ) : null}
         </div>
-        {markdownHref ? <a className="gridlock-md-link" href={markdownHref}>Export Field Notes (.md)</a> : null}
       </header>
       <ConnectorHealthBanner connectorStatus={changelog.connectorStatus} activeVersion={changelog.activeVersion} />
       <EfficiencyScorecardPanel ledger={efficiencyLedger} />
@@ -126,7 +156,14 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
   const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
   const rawActivePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
   const activePromise = rawActivePromise ? toSafeSnapshotPromise(rawActivePromise) : null;
-  const loadingShell = <><DossierTitle baseId={baseId} />{LOADING_PROGRESS_NODE}</>;
+  const loadingShell = (
+    <>
+      <header className="gridlock-repair-header">
+        <DossierTitle baseId={baseId} />
+      </header>
+      {LOADING_PROGRESS_NODE}
+    </>
+  );
   const parsedStatic = changelog !== undefined
     ? { changelog: RepairChangelogResponseSchema.safeParse(changelog), ledger: EfficiencyLedgerSchema.safeParse(efficiencyLedger) }
     : null;
