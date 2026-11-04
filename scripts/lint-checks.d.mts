@@ -26,3 +26,4 @@ export function checkPullRequestDiffSize(
   violations: string[];
 };
 export function runRepoLintChecks(repoRoot?: string): string[];
+export function evaluateBranchName(branchName: string): string[];

@@ -16,6 +16,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Configure private Motion+ registry auth (when .npmrc requires api.motion.dev)
+        env:
+          MOTION_PLUS_TOKEN: ${{ secrets.MOTION_PLUS_TOKEN }}
+        run: |
+          if grep -q "api.motion.dev" .npmrc 2>/dev/null; then
+            if [ -z "$MOTION_PLUS_TOKEN" ]; then
+              echo "::error::Missing MOTION_PLUS_TOKEN repository secret required by .npmrc (@motionplus registry)."
+              exit 1
+            fi
+            printf "//api.motion.dev/npm/:_authToken=%s\n" "$MOTION_PLUS_TOKEN" >> "$HOME/.npmrc"
+          fi
       - run: npm install
       - if: github.event_name == 'pull_request'
         env:

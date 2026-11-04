@@ -70,6 +70,100 @@ const EXPORT_FROM_MASKED_RE =
 const DYNAMIC_IMPORT_MASKED_RE =
   /(?<![.\w$])import\s*\(\s*"__LIT_(\d+)__"\s*(?:,\s*\{[\s\S]*?\}\s*)?\)/g;
 
+const STATIC_IMPORT_CLAUSE_MASKED_RE =
+  /(?<![.\w$])import\s+([\s\S]*?)\s*from\s+"__LIT_(\d+)__"|(?<![.\w$])import\s+"__LIT_(\d+)__"/g;
+const EXPORT_CLAUSE_FROM_MASKED_RE =
+  /(?<![.\w$])export\s+([\s\S]*?)\s+from\s+"__LIT_(\d+)__"/g;
+
+function areBracedSpecifiersAllTypeOnly(bracedContent) {
+  const items = bracedContent
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return (
+    items.length > 0 &&
+    items.every((item) => /^type\s+[A-Za-z_$]/.test(item))
+  );
+}
+
+function isStaticImportClauseTypeOnly(rawClause) {
+  const clause = rawClause.trim();
+  if (!clause) return false;
+  if (/^type(?:\s*\{|\s*\*|\s+[A-Za-z_$][\w$]*)/.test(clause)) {
+    return true;
+  }
+  if (clause.startsWith("{") && clause.endsWith("}")) {
+    return areBracedSpecifiersAllTypeOnly(clause.slice(1, -1));
+  }
+  return false;
+}
+
+function isExportFromClauseTypeOnly(rawClause) {
+  const clause = rawClause.trim();
+  if (/^type\s*(?:\{|\*)/.test(clause)) {
+    return true;
+  }
+  if (clause.startsWith("{") && clause.endsWith("}")) {
+    return areBracedSpecifiersAllTypeOnly(clause.slice(1, -1));
+  }
+  return false;
+}
+
+function extractRuntimeImportSpecifiers(content) {
+  const { masked, literals } = maskCommentsAndStrings(content);
+  const specifiers = [];
+  for (const match of masked.matchAll(STATIC_IMPORT_CLAUSE_MASKED_RE)) {
+    if (match[3] !== undefined) {
+      const spec = literals[Number(match[3])];
+      if (spec !== undefined) specifiers.push(spec);
+      continue;
+    }
+    const clause = match[1] ?? "";
+    const spec = literals[Number(match[2])];
+    if (spec !== undefined && !isStaticImportClauseTypeOnly(clause)) {
+      specifiers.push(spec);
+    }
+  }
+  for (const match of masked.matchAll(EXPORT_CLAUSE_FROM_MASKED_RE)) {
+    const clause = match[1] ?? "";
+    const spec = literals[Number(match[2])];
+    if (spec !== undefined && !isExportFromClauseTypeOnly(clause)) {
+      specifiers.push(spec);
+    }
+  }
+  for (const match of masked.matchAll(DYNAMIC_IMPORT_MASKED_RE)) {
+    const spec = literals[Number(match[1])];
+    if (spec !== undefined) specifiers.push(spec);
+  }
+  return specifiers;
+}
+
+function evaluateCsfStoryMetaExports(relPath, content) {
+  const { masked } = maskCommentsAndStrings(content);
+  if (/\bexcludeStories\s*:/.test(masked)) {
+    return [];
+  }
+  const defaultMatch = masked.match(
+    /(?<![.\w$])export\s+default\s+([A-Za-z_$][\w$]*)\b/
+  );
+  const metaIdent = defaultMatch?.[1];
+  if (!metaIdent) return [];
+
+  const escapedIdent = metaIdent.replace(/\$/g, "\\$");
+  const namedDeclRe = new RegExp(
+    `(?<![.\\w$])export\\s+(?:const|let|var)\\s+${escapedIdent}\\b`
+  );
+  const namedListRe = new RegExp(
+    `(?<![.\\w$])export\\s*\\{[^}]*\\b${escapedIdent}\\b(?!\\s+as\\s+default)[^}]*\\}`
+  );
+  if (namedDeclRe.test(masked) || namedListRe.test(masked)) {
+    return [
+      `${relPath}: CSF3 story violation — do not export default Meta "${metaIdent}" as a named export without \`excludeStories\`; Storybook treats every named export as a story (CODING_STANDARDS.md §5)`,
+    ];
+  }
+  return [];
+}
+
 function extractImportSpecifiers(content) {
   const { masked, literals } = maskCommentsAndStrings(content);
   const specifiers = [];
@@ -171,6 +265,31 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
     );
   }
 
+  if (/^packages\/widgets\/(?:src|stories)\/.+\.(?:ts|tsx)$/.test(relPath)) {
+    for (const spec of extractRuntimeImportSpecifiers(content)) {
+      if (spec.startsWith("node:")) {
+        violations.push(
+          `${relPath}: Browser boundary violation — runtime import of "${spec}" is prohibited in packages/widgets (CODING_STANDARDS.md §5)`
+        );
+        continue;
+      }
+      const resolvedRel = spec.startsWith(".")
+        ? posix.normalize(posix.join(posix.dirname(relPath), spec))
+        : "";
+      if (
+        spec === "@samasastudio/gridlock-core" ||
+        resolvedRel.startsWith("packages/core/")
+      ) {
+        violations.push(
+          `${relPath}: Browser boundary violation — import browser-safe schemas from "@samasastudio/gridlock-core/schemas" (or use \`import type\`), not Node server barrel "${spec}" (CODING_STANDARDS.md §5)`
+        );
+      }
+    }
+    if (/^packages\/widgets\/stories\/.+\.stories\.tsx$/.test(relPath)) {
+      violations.push(...evaluateCsfStoryMetaExports(relPath, content));
+    }
+  }
+
   if (/^packages\/[^/]+\/test\/.+\.(?:ts|tsx)$/.test(relPath)) {
     for (const spec of extractImportSpecifiers(content)) {
       if (/^@samasastudio\/gridlock-[^/]+\/.+/.test(spec)) {
@@ -266,8 +385,26 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
       }
     }
 
+    if (relPath.startsWith("packages/core/src/interfaces/")) {
+      for (const spec of extractRuntimeImportSpecifiers(content)) {
+        if (spec.startsWith("node:")) {
+          violations.push(
+            `${relPath}: Browser schema boundary violation — runtime import of "${spec}" is prohibited in packages/core/src/interfaces/ ("@samasastudio/gridlock-core/schemas")`
+          );
+        }
+      }
+    }
+
     for (const [index, line] of lines.entries()) {
       const stripped = stripCommentsAndStrings(line);
+      if (
+        relPath.startsWith("packages/core/src/interfaces/") &&
+        (/\bprocess\.env\b/.test(stripped) || /\bBuffer\s*(?:\.|\()/.test(stripped))
+      ) {
+        violations.push(
+          `${relPath}:${index + 1}: Browser schema boundary violation — avoid runtime Node globals (\`Buffer\`, \`process.env\`) in packages/core/src/interfaces/ ("@samasastudio/gridlock-core/schemas")`
+        );
+      }
       if (/^\s*let\s+/.test(stripped)) {
         violations.push(
           `${relPath}:${index + 1}: Avoid mutable \`let\` bindings in favor of \`const\` and pure helpers/reduce (CODING_STANDARDS.md)`
@@ -399,11 +536,44 @@ export function runRepoLintChecks(repoRoot = process.cwd()) {
   return violations;
 }
 
+const VALID_BRANCH_RE =
+  /^(?:(?:feat|fix)\/[0-9]+-[a-z0-9][a-z0-9-]*|chore\/[a-z0-9][a-z0-9-]*)$/;
+
+export function evaluateBranchName(branchName) {
+  const branch = (branchName ?? "").trim();
+  if (!branch) {
+    return [];
+  }
+  if (branch === "main") {
+    return [
+      "Direct commits to 'main' are prohibited. Create a dedicated branch ('feat/<issue>-<slug>', 'fix/<issue>-<slug>', or 'chore/<slug>').",
+    ];
+  }
+  if (!VALID_BRANCH_RE.test(branch)) {
+    return [
+      `Branch "${branch}" must match 'feat/<issue>-<slug>', 'fix/<issue>-<slug>' (numeric GitHub issue ID), or 'chore/<slug>' (CODING_STANDARDS.md §1).`,
+    ];
+  }
+  return [];
+}
+
 if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   const repoRoot = process.cwd();
+  const checkBranchIdx = process.argv.indexOf("--check-branch");
+  if (checkBranchIdx !== -1) {
+    const branchArg = process.argv[checkBranchIdx + 1] ?? "";
+    const branchViolations = evaluateBranchName(branchArg);
+    if (branchViolations.length > 0) {
+      for (const v of branchViolations) {
+        console.error(`ERROR: ${v}`);
+      }
+      process.exit(1);
+    }
+    process.exit(0);
+  }
   if (process.argv.includes("--check-pr-size")) {
     const prCheck = checkPullRequestDiffSize(repoRoot);
     if (prCheck.violations.length > 0) {
