@@ -14,5 +14,17 @@ export function formatProjectCitationBadge(projectInput: Project): string {
   return `${project.projectNumber} · ${project.county} County · sha256:${project.latestSourceArtifactHash.slice(0, 12)}`;
 }
 
-export { GridlockRepairLogWidget, type GridlockRepairLogWidgetProps, type GridlockWidgetTheme } from "./GridlockRepairLogWidget.tsx";
+export {
+  ConnectorStatusBadge,
+  CopyCitationButton,
+  DossierNumber,
+  DossierStatusBadge,
+  EDITORIAL_EASE,
+  useIsReducedMotion,
+  type GridlockWidgetTheme,
+} from "./DossierPrimitives.tsx";
+export {
+  GridlockRepairLogWidget,
+  type GridlockRepairLogWidgetProps,
+} from "./GridlockRepairLogWidget.tsx";
 export { buildRepairChangelogUrl, fetchRepairLogSnapshot, type RepairLogQuery, type RepairLogSnapshotResult } from "./repair-log-client.ts";

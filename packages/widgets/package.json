@@ -11,7 +11,9 @@
     }
   },
   "dependencies": {
-    "@samasastudio/gridlock-core": "0.1.0"
+    "@samasastudio/gridlock-core": "0.1.0",
+    "motion": "^12.6.2",
+    "motion-plus": "npm:@motionplus/core@^2.12.0"
   },
   "peerDependencies": {
     "react": "^19.0.0",

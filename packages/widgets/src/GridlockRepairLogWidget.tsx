@@ -1,13 +1,15 @@
 import { Suspense, use, useEffect, useId, useRef, useState, type Ref } from "react";
+import { MotionConfig } from "motion/react";
 import { EfficiencyLedgerSchema, RepairChangelogResponseSchema, type EfficiencyLedger, type RepairChangelogResponse } from "@samasastudio/gridlock-core/schemas";
+import { ConnectorStatusBadge, EXPORT_ARROW_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { buildRepairChangelogUrl, fetchRepairLogSnapshot, type RepairLogQuery, type RepairLogSnapshotResult } from "./repair-log-client.ts";
 import { GRIDLOCK_REPAIR_LOG_STYLESHEET } from "./repair-log-styles.ts";
-import { ConnectorHealthBanner, EfficiencyScorecardPanel, RELIEF_RETICLE_ICON, RepairLogErrorBanner, RepairLogTimelineSection } from "./RepairLogSections.tsx";
+import { ConnectorHealthBanner, DossierErrorShell, DossierTitle, EfficiencyScorecardPanel, RepairLogLoadingPlaceholder, RepairLogTimelineSection } from "./RepairLogSections.tsx";
 
-export type GridlockWidgetTheme = "inherit" | "diurnal" | "nocturnal";
+export type { GridlockWidgetTheme };
 
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-repair-log-widget" precedence="default">{GRIDLOCK_REPAIR_LOG_STYLESHEET}</style>;
-const LOADING_PROGRESS_NODE = <progress aria-label="Loading Repair Changelog" />;
+const LOADING_PLACEHOLDER_NODE = <RepairLogLoadingPlaceholder />;
 const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<RepairLogSnapshotResult>, Promise<RepairLogSnapshotResult>>();
 
 interface RepairLogWidgetBaseProps {
@@ -46,34 +48,22 @@ function toSafeSnapshotPromise(promise: Promise<RepairLogSnapshotResult>): Promi
   return safe;
 }
 
-function DossierTitle({ baseId, connectorId }: { baseId: string; connectorId?: string }) {
-  return (
-    <h2 id={`${baseId}-title`}>
-      {RELIEF_RETICLE_ICON} Autonomous Repair Changelog{connectorId ? <> — <code>{connectorId}</code></> : null}
-    </h2>
-  );
-}
-
-function DossierErrorShell(props: { baseId: string; message: string; onRetry?: () => void }) {
-  return (
-    <>
-      <DossierTitle baseId={props.baseId} />
-      <RepairLogErrorBanner message={props.message} onRetry={props.onRetry} />
-    </>
-  );
-}
-
 function LoadedDossierContent(props: Partial<RepairLogQuery> & { baseId: string; changelog: RepairChangelogResponse; efficiencyLedger: EfficiencyLedger }) {
   const { apiBaseUrl, baseId, changelog, connectorId, efficiencyLedger, limit } = props;
   const markdownHref = apiBaseUrl !== undefined ? buildRepairChangelogUrl({ apiBaseUrl, connectorId: connectorId ?? changelog.connectorId, limit, format: "md" }) : undefined;
   return (
     <>
       <header className="gridlock-repair-header">
-        <div>
-          <DossierTitle baseId={baseId} connectorId={changelog.connectorId} />
-          <p>Active Config <code>v{changelog.activeVersion}</code> · Status <code>{changelog.connectorStatus}</code></p>
+        <DossierTitle baseId={baseId} connectorId={changelog.connectorId} />
+        <div className="gridlock-header-controls">
+          <ConnectorStatusBadge connectorStatus={changelog.connectorStatus} activeVersion={changelog.activeVersion} />
+          {markdownHref ? (
+            <a className="gridlock-md-link" href={markdownHref}>
+              <span>Export Field Notes (.md)</span>
+              {EXPORT_ARROW_ICON}
+            </a>
+          ) : null}
         </div>
-        {markdownHref ? <a className="gridlock-md-link" href={markdownHref}>Export Field Notes (.md)</a> : null}
       </header>
       <ConnectorHealthBanner connectorStatus={changelog.connectorStatus} activeVersion={changelog.activeVersion} />
       <EfficiencyScorecardPanel ledger={efficiencyLedger} />
@@ -126,27 +116,36 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
   const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
   const rawActivePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
   const activePromise = rawActivePromise ? toSafeSnapshotPromise(rawActivePromise) : null;
-  const loadingShell = <><DossierTitle baseId={baseId} />{LOADING_PROGRESS_NODE}</>;
+  const loadingShell = (
+    <>
+      <header className="gridlock-repair-header">
+        <DossierTitle baseId={baseId} connectorId={connectorId} />
+      </header>
+      {LOADING_PLACEHOLDER_NODE}
+    </>
+  );
   const parsedStatic = changelog !== undefined
     ? { changelog: RepairChangelogResponseSchema.safeParse(changelog), ledger: EfficiencyLedgerSchema.safeParse(efficiencyLedger) }
     : null;
 
   return (
-    <section ref={ref} aria-labelledby={`${baseId}-title`} className="gridlock-repair-widget" data-gridlock-theme={theme}>
-      {WIDGET_STYLESHEET_NODE}
-      {parsedStatic ? (
-        !parsedStatic.changelog.success || !parsedStatic.ledger.success ? (
-          <DossierErrorShell baseId={baseId} message="Malformed Repair Changelog or Efficiency Ledger props" />
+    <MotionConfig reducedMotion="user">
+      <section ref={ref} aria-labelledby={`${baseId}-title`} className="gridlock-dossier-surface gridlock-repair-widget" data-gridlock-theme={theme}>
+        {WIDGET_STYLESHEET_NODE}
+        {parsedStatic ? (
+          !parsedStatic.changelog.success || !parsedStatic.ledger.success ? (
+            <DossierErrorShell baseId={baseId} message="Malformed Repair Changelog or Efficiency Ledger props" />
+          ) : (
+            <LoadedDossierContent baseId={baseId} changelog={parsedStatic.changelog.data} efficiencyLedger={parsedStatic.ledger.data} apiBaseUrl={apiBaseUrl} connectorId={connectorId} limit={limit} />
+          )
+        ) : activePromise ? (
+          <Suspense fallback={loadingShell}>
+            <PromiseDossierBoundary snapshotPromise={activePromise} baseId={baseId} apiBaseUrl={apiBaseUrl} connectorId={connectorId} limit={limit} onRetry={handleRetry} />
+          </Suspense>
         ) : (
-          <LoadedDossierContent baseId={baseId} changelog={parsedStatic.changelog.data} efficiencyLedger={parsedStatic.ledger.data} apiBaseUrl={apiBaseUrl} connectorId={connectorId} limit={limit} />
-        )
-      ) : activePromise ? (
-        <Suspense fallback={loadingShell}>
-          <PromiseDossierBoundary snapshotPromise={activePromise} baseId={baseId} apiBaseUrl={apiBaseUrl} connectorId={connectorId} limit={limit} onRetry={handleRetry} />
-        </Suspense>
-      ) : (
-        loadingShell
-      )}
-    </section>
+          loadingShell
+        )}
+      </section>
+    </MotionConfig>
   );
 }

@@ -1,16 +1,69 @@
+import { motion } from "motion/react";
 import type {
   ConnectorStatus,
   EfficiencyLedger,
   RepairChangelogEntry,
   RepairChangelogResponse,
 } from "@samasastudio/gridlock-core/schemas";
+import {
+  ALERT_TRIANGLE_ICON,
+  CopyCitationButton,
+  DossierNumber,
+  RELIEF_RETICLE_ICON,
+  RULE_DRAW_EASE,
+  VERIFIED_CHECK_ICON,
+} from "./DossierPrimitives.tsx";
 
-export const RELIEF_RETICLE_ICON = (
-  <svg width="18" height="18" viewBox="0 -18 18 18" fill="none" aria-hidden="true">
-    <rect x="1" y="-17" width="16" height="16" stroke="var(--relief-sky-mid, #6e7c87)" strokeWidth="1.25" />
-    <path d="M3 -5 L7 -11 L11 -8 L15 -14" stroke="var(--relief-coral-mid, #e06d53)" strokeWidth="1.5" />
-  </svg>
-);
+export function DossierTitle({ baseId, connectorId }: { baseId: string; connectorId?: string }) {
+  return (
+    <div className="gridlock-title-block">
+      <h2 id={`${baseId}-title`} className="gridlock-dossier-title">
+        {RELIEF_RETICLE_ICON}
+        <span>Autonomous Repair Changelog</span>
+        {connectorId ? <code className="gridlock-connector-chip">{connectorId}</code> : null}
+      </h2>
+      <motion.div
+        aria-hidden="true"
+        className="gridlock-title-rule"
+        style={{ originX: 0 }}
+        initial={{ scaleX: 0, opacity: 0 }}
+        animate={{ scaleX: 1, opacity: 1 }}
+        transition={{ duration: 0.95, delay: 0.08, ease: RULE_DRAW_EASE }}
+      />
+    </div>
+  );
+}
+
+export function DossierErrorShell(props: { baseId: string; message: string; onRetry?: () => void }) {
+  return (
+    <>
+      <header className="gridlock-repair-header">
+        <DossierTitle baseId={props.baseId} />
+      </header>
+      <RepairLogErrorBanner message={props.message} onRetry={props.onRetry} />
+    </>
+  );
+}
+
+export function RepairLogLoadingPlaceholder() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="Loading Repair Changelog"
+      data-loading-placeholder="repair-log"
+      className="gridlock-loading-placeholder"
+    >
+      <div className="gridlock-loading-stats" aria-hidden="true">
+        <div className="gridlock-loading-stat" />
+        <div className="gridlock-loading-stat" />
+        <div className="gridlock-loading-stat" />
+      </div>
+      <div className="gridlock-loading-chart" aria-hidden="true" />
+      <div className="gridlock-loading-sheet" aria-hidden="true" />
+    </div>
+  );
+}
 
 export function ConnectorHealthBanner(props: { connectorStatus: ConnectorStatus; activeVersion: number }) {
   if (props.connectorStatus === "healthy") return null;
@@ -20,7 +73,10 @@ export function ConnectorHealthBanner(props: { connectorStatus: ConnectorStatus;
       : `Connector paused (blocked_by_waf on ConnectorConfig v${props.activeVersion}): polite access gate halted ingestion at 0 Gemini tokens to respect portal WAF / rate-limit boundaries.`;
   return (
     <div role="alert" className="gridlock-banner">
-      <p><strong>Degraded Connector State:</strong> {detail}</p>
+      <div className="gridlock-banner-copy">
+        <span className="gridlock-banner-icon">{ALERT_TRIANGLE_ICON}</span>
+        <p><strong>Degraded Connector State:</strong> {detail}</p>
+      </div>
     </div>
   );
 }
@@ -28,7 +84,10 @@ export function ConnectorHealthBanner(props: { connectorStatus: ConnectorStatus;
 export function RepairLogErrorBanner(props: { message: string; onRetry?: () => void }) {
   return (
     <div role="alert" className="gridlock-banner">
-      <p><strong>Unable to load Repair Changelog:</strong> {props.message}</p>
+      <div className="gridlock-banner-copy">
+        <span className="gridlock-banner-icon">{ALERT_TRIANGLE_ICON}</span>
+        <p><strong>Unable to load Repair Changelog:</strong> {props.message}</p>
+      </div>
       {props.onRetry ? (
         <button type="button" className="gridlock-action-btn" onClick={props.onRetry}>Retry</button>
       ) : null}
@@ -43,7 +102,7 @@ export function EfficiencyScorecardPanel({ ledger }: { ledger: EfficiencyLedger 
       <dl className="gridlock-scorecard-grid">
         <div className="gridlock-metric-tile">
           <dt>Naive Tokens Avoided vs. Actual Used</dt>
-          <dd><strong>{ledger.naiveTokensAvoided.toLocaleString("en-US")}</strong> avoided · <span>{ledger.actualTokensUsed.toLocaleString("en-US")}</span> used</dd>
+          <dd><strong><DossierNumber value={ledger.naiveTokensAvoided} /></strong> avoided · <span>{ledger.actualTokensUsed.toLocaleString("en-US")}</span> used</dd>
         </div>
         <div className="gridlock-metric-tile">
           <dt>Token Reduction</dt>
@@ -100,7 +159,7 @@ export function RepairLogTimelineSection({ baseId, changelog }: { baseId: string
       {changelog.entries.length === 0 ? (
         <div className="gridlock-empty-panel">
           {changelog.connectorStatus === "healthy" ? (
-            <p><strong>100% deterministic uptime</strong> — 0 autonomous selector repairs required on ConnectorConfig <code>v{changelog.activeVersion}</code>.</p>
+            <p>{VERIFIED_CHECK_ICON} <strong>100% deterministic uptime</strong> — 0 autonomous selector repairs required on ConnectorConfig <code>v{changelog.activeVersion}</code>.</p>
           ) : (
             <p>0 promoted selector repairs recorded while ConnectorConfig <code>v{changelog.activeVersion}</code> is in <code>{changelog.connectorStatus}</code> state.</p>
           )}
@@ -116,7 +175,7 @@ export function RepairLogTimelineSection({ baseId, changelog }: { baseId: string
                 <p>{entry.rootCauseSummary}</p>
                 <p><strong>Autonomous MTTR:</strong> {entry.mttrMs.toLocaleString("en-US")} ms · <strong>Heal Amortization:</strong> {entry.subsequentDeterministicRunsServed.toLocaleString("en-US")} subsequent deterministic runs served</p>
                 <p><strong>Sandbox Replay Gate:</strong> {entry.historicalFixturesPassed}/{entry.historicalFixturesTested} historical fixtures passed ({entry.totalFixturesVerified} total verified) · <strong>Repair Cost:</strong> {entry.repairTokensUsed.toLocaleString("en-US")} tokens (${entry.estimatedRepairCostUsd.toFixed(6)})</p>
-                <p><strong>Broken Invariants:</strong> {entry.brokenInvariants.join("; ")} · <strong>Source Artifact:</strong> <code>sha256:{entry.quarantinedArtifactHash.slice(0, 12)}</code> · <strong>Interaction:</strong> <code>{entry.interactionId}</code></p>
+                <p><strong>Broken Invariants:</strong> {entry.brokenInvariants.join("; ")} · <CopyCitationButton value={entry.quarantinedArtifactHash} displayLabel={`sha256:${entry.quarantinedArtifactHash.slice(0, 12)}`} citationKind="Source Artifact SHA-256" /> · <CopyCitationButton value={entry.interactionId} displayLabel={entry.interactionId} citationKind="Interaction ID" /></p>
                 <SelectorDiffInspector entry={entry} captionId={`${baseId}-diff-${entry.id}`} />
               </article>
             </li>
