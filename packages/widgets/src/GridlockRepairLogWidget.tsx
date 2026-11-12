@@ -11,8 +11,8 @@ import {
   DossierTitle,
   EfficiencyScorecardPanel,
   RepairLogLoadingPlaceholder,
-  RepairLogTimelineSection,
 } from "./RepairLogSections.tsx";
+import { RepairLogTimelineSection } from "./RepairLogTimeline.tsx";
 
 export type { GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 

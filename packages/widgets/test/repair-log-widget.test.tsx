@@ -63,19 +63,23 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
 
     const sectionRef = createRef<HTMLElement>();
     const diurnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget ref={sectionRef} {...HealedWithAmortization.args} />);
-    assert.doesNotMatch(diurnalHtml, /gridlock-diff-table thead\)\s*\{\s*display:\s*none/);
+    const styleBlock = diurnalHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+    const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
+    assert.ok(remFontSizes.length > 0 && remFontSizes.every((s) => s >= 0.75), "Expected all rem font-size rules >= 0.75rem");
+    assert.doesNotMatch(styleBlock, /gridlock-diff-table thead\)\s*\{\s*display:\s*none/);
+    assert.doesNotMatch(diurnalHtml, /<details[^>]*open/);
     for (const pattern of [
       /<section[^>]*class="[^"]*\bgridlock-dossier-surface\b[^"]*\bgridlock-repair-widget\b"/,
-      /data-gridlock-theme="diurnal"/, /var\(--font-sans/, /--paper:\s*var\(--atlas-paper/, /--ink:\s*var\(--atlas-ink/,
+      /data-gridlock-theme="diurnal"/, /var\(--font-sans/, /--paper:\s*var\(--atlas-paper/, /--ink:\s*var\(--atlas-ink/, /--gridlock-radius:\s*0rem/,
       /--gridlock-card:\s*var\(--card,\s*color-mix\(in oklab,\s*var\(--gridlock-paper\)\s*92%,\s*var\(--gridlock-ink\)\)\)/,
       /--gridlock-muted:\s*var\(--muted-foreground,\s*color-mix\(in oklab,\s*var\(--gridlock-ink\)\s*68%,\s*var\(--gridlock-paper\)\)\)/,
       /--relief-coral-mid/, /:focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/,
       /data-chart="cumulative-efficiency"/, /Cumulative Tokens Avoided Across Runs/, /9 recent runs/, /data-series="avoided"/, /data-series="actual"/, /aria-pressed="true"/,
       /Inspect Out-of-Band Repair v1 → v2 \(2026-10-27\)/, /Inspect Out-of-Band Repair v2 → v3 \(2026-11-03\)/,
-      /<ol[^>]*role="list"/, /<time[^>]*dateTime="2026-10-27T14:00:01\.850Z"/,
-      /v1.*v2/, /1,850 ms/, /14.*deterministic runs served/i, /1\/1.*2 total verified/,
-      /sha256:bbbbbbbbbbbb/, /\.tabs-project-details-v2/, /Total Estimated Cost:/, /<details/, /<table/,
-      /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /number-section-integer/, /650,000/, /790/, /99\.88%/, /\$1\.62/,
+      /role="tablist"/, /role="tabpanel"/, /v1 → v2/, /v2 → v3/, /<time[^>]*dateTime="2026-11-03T14:00:01\.420Z"/,
+      /1,420/, /ms heal/, /12/, /runs amortized/, /3 replay verified \(2\/2 historical\)/,
+      /sha256:cccccccccccc/, /<details[^>]*class="gridlock-patch-disclosure"/, /Inspect patch \(2 selectors\)/, /dl\.tabs-filing-spec/, /Gross Square Footage:/,
+      /<table[^>]*class="gridlock-diff-table"/, /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /number-section-integer/, /650,000/, /790/, /99\.88%/, /\$1\.62/,
     ]) {
       assert.match(diurnalHtml, pattern);
     }
@@ -205,7 +209,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.equal(SelectorAnomalyDegraded.args.efficiencyLedger!.failedOrBlockedRunsCount, 1);
     assert.equal(BlockedByWafDegraded.args.efficiencyLedger!.failedOrBlockedRunsCount, 2);
     assert.match(renderToStaticMarkup(<StoryComponent {...HealthyZeroAnomalies.args} />), /316,000/);
-    assert.match(renderToStaticMarkup(<StoryComponent {...HealedWithAmortization.args} />), /Selector Diff Inspector/);
+    assert.match(renderToStaticMarkup(<StoryComponent {...HealedWithAmortization.args} />), /Inspect patch \(2 selectors\)/);
     assert.match(renderToStaticMarkup(<StoryComponent {...SelectorAnomalyDegraded.args} />), /selector_anomaly/);
     assert.match(renderToStaticMarkup(<StoryComponent {...BlockedByWafDegraded.args} />), /blocked_by_waf/);
     assert.match(renderToStaticMarkup(<StoryComponent {...NocturnalTheme.args} />), /data-gridlock-theme="nocturnal"/);
