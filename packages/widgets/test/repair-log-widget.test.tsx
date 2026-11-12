@@ -53,11 +53,12 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     const emptyHtml = renderToStaticMarkup(
       <GridlockRepairLogWidget
         changelog={{ connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }}
-        efficiencyLedger={HealthyZeroAnomalies.args.efficiencyLedger!}
+        efficiencyLedger={HealedWithAmortization.args.efficiencyLedger!}
         apiBaseUrl="https://api.example.com"
       />
     );
     assert.match(emptyHtml, /100% deterministic uptime/i);
+    assert.doesNotMatch(emptyHtml, /Inspect Out-of-Band Repair/, "Cross-connector repair runs must not render markers on ercot-gis");
     assert.match(emptyHtml, /href="https:\/\/api\.example\.com\/api\/repairs\/changelog\?connector_id=ercot-gis&amp;format=md"/);
 
     const sectionRef = createRef<HTMLElement>();
@@ -69,10 +70,12 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       /--gridlock-card:\s*var\(--card,\s*color-mix\(in oklab,\s*var\(--gridlock-paper\)\s*92%,\s*var\(--gridlock-ink\)\)\)/,
       /--gridlock-muted:\s*var\(--muted-foreground,\s*color-mix\(in oklab,\s*var\(--gridlock-ink\)\s*68%,\s*var\(--gridlock-paper\)\)\)/,
       /--relief-coral-mid/, /:focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/,
+      /data-chart="cumulative-efficiency"/, /Cumulative Tokens Avoided Across Runs/, /9 recent runs/, /data-series="avoided"/, /data-series="actual"/, /aria-pressed="true"/,
+      /Inspect Out-of-Band Repair v1 → v2 \(2026-10-27\)/, /Inspect Out-of-Band Repair v2 → v3 \(2026-11-03\)/,
       /<ol[^>]*role="list"/, /<time[^>]*dateTime="2026-10-27T14:00:01\.850Z"/,
       /v1.*v2/, /1,850 ms/, /14.*deterministic runs served/i, /1\/1.*2 total verified/,
       /sha256:bbbbbbbbbbbb/, /\.tabs-project-details-v2/, /Total Estimated Cost:/, /<details/, /<table/,
-      /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /number-section-integer/, /380/, /99\.89%/, /93\.33%/,
+      /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /number-section-integer/, /650,000/, /790/, /99\.88%/, /\$1\.62/,
     ]) {
       assert.match(diurnalHtml, pattern);
     }
@@ -150,12 +153,14 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
 
     const healedArgs = HealedWithAmortization.args;
     if (!healedArgs.changelog || !healedArgs.efficiencyLedger) throw new Error("Expected static story args");
-    const baseRepo = createInMemoryGridlockRepository();
-    await baseRepo.promoteConnectorConfig(
-      { ...DEFAULT_TDLR_CONNECTOR_CONFIG, version: 2, detailContainerSelector: ".project-details, .tabs-project-details-v2" },
-      healedArgs.changelog.entries[0]!,
-      { updatedLedger: healedArgs.efficiencyLedger }
-    );
+    const baseRepo = createInMemoryGridlockRepository(DEFAULT_TDLR_CONNECTOR_CONFIG, healedArgs.efficiencyLedger);
+    for (const entry of healedArgs.changelog.entries) {
+      await baseRepo.promoteConnectorConfig(
+        { ...DEFAULT_TDLR_CONNECTOR_CONFIG, version: entry.promotedVersion, detailContainerSelector: ".project-details, .tabs-project-details-v2" },
+        entry,
+        { updatedLedger: healedArgs.efficiencyLedger }
+      );
+    }
 
     let force500 = true;
     const repo: GridlockRepository = {
@@ -175,9 +180,12 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       assert.match(error500Html, /<button[^>]*type="button"[^>]*>Retry<\/button>/);
 
       force500 = false;
-      const recoveredHtml = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchRepairLogSnapshot({ apiBaseUrl })} />);
-      assert.match(recoveredHtml, /inter_widget_heal_v2/);
-      assert.match(recoveredHtml, /number-section-integer/);
+      const limitedSnap = await fetchRepairLogSnapshot({ apiBaseUrl, limit: 1 });
+      assert.equal(limitedSnap.ok && limitedSnap.changelog.entries.length, 1);
+      assert.equal(limitedSnap.ok && limitedSnap.efficiencyLedger.recentRuns.length, 9);
+      const recoveredHtml = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={Promise.resolve(limitedSnap)} />);
+      assert.equal(Array.from(recoveredHtml.matchAll(/<rect[^>]*role="button"/g)).length, 1, "Unlisted v2 repair marker must not expose dead role=button");
+      assert.match(recoveredHtml, /650,000/);
       assert.match(recoveredHtml, /href="[^"]*\/api\/repairs\/changelog\?connector_id=tdlr-tabs&amp;format=md"/);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
@@ -193,7 +201,10 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.equal(StoryComponent, GridlockRepairLogWidget);
     const namedStoryKeys = Object.keys(repairLogStories).filter((key) => key !== "default").sort();
     assert.deepEqual(namedStoryKeys, ["BlockedByWafDegraded", "HealedWithAmortization", "HealthyZeroAnomalies", "NocturnalTheme", "SelectorAnomalyDegraded"]);
-    assert.match(renderToStaticMarkup(<StoryComponent {...HealthyZeroAnomalies.args} />), /100% deterministic uptime/i);
+    assert.equal(HealthyZeroAnomalies.args.efficiencyLedger!.recentRuns.reduce((s, r) => s + r.naiveTokensAvoided, 0), HealthyZeroAnomalies.args.efficiencyLedger!.naiveTokensAvoided);
+    assert.equal(SelectorAnomalyDegraded.args.efficiencyLedger!.failedOrBlockedRunsCount, 1);
+    assert.equal(BlockedByWafDegraded.args.efficiencyLedger!.failedOrBlockedRunsCount, 2);
+    assert.match(renderToStaticMarkup(<StoryComponent {...HealthyZeroAnomalies.args} />), /316,000/);
     assert.match(renderToStaticMarkup(<StoryComponent {...HealedWithAmortization.args} />), /Selector Diff Inspector/);
     assert.match(renderToStaticMarkup(<StoryComponent {...SelectorAnomalyDegraded.args} />), /selector_anomaly/);
     assert.match(renderToStaticMarkup(<StoryComponent {...BlockedByWafDegraded.args} />), /blocked_by_waf/);

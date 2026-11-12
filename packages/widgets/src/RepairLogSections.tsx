@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { motion } from "motion/react";
 import type {
   ConnectorStatus,
@@ -9,6 +10,7 @@ import {
   ALERT_TRIANGLE_ICON,
   CopyCitationButton,
   DossierNumber,
+  EDITORIAL_EASE,
   RELIEF_RETICLE_ICON,
   RULE_DRAW_EASE,
   VERIFIED_CHECK_ICON,
@@ -95,28 +97,34 @@ export function RepairLogErrorBanner(props: { message: string; onRetry?: () => v
   );
 }
 
-export function EfficiencyScorecardPanel({ ledger }: { ledger: EfficiencyLedger }) {
+export function EfficiencyScorecardPanel(props: { ledger: EfficiencyLedger; children?: ReactNode }) {
+  const { children, ledger } = props;
   return (
-    <section>
-      <h3>Efficiency Ledger Scorecard</h3>
-      <dl className="gridlock-scorecard-grid">
-        <div className="gridlock-metric-tile">
-          <dt>Naive Tokens Avoided vs. Actual Used</dt>
-          <dd><strong><DossierNumber value={ledger.naiveTokensAvoided} /></strong> avoided · <span>{ledger.actualTokensUsed.toLocaleString("en-US")}</span> used</dd>
-        </div>
-        <div className="gridlock-metric-tile">
+    <section className="gridlock-scorecard-section" aria-label="Efficiency Ledger">
+      <dl className="gridlock-headline-stats">
+        <motion.div className="gridlock-headline-stat" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.08, ease: EDITORIAL_EASE }}>
           <dt>Token Reduction</dt>
-          <dd><strong>{ledger.tokenReductionPercentage.toFixed(2)}%</strong></dd>
-        </div>
-        <div className="gridlock-metric-tile">
-          <dt>Deterministic Execution Ratio</dt>
-          <dd><strong>{ledger.deterministicExecutionPercentage.toFixed(2)}%</strong> ({ledger.deterministicRunsCount.toLocaleString("en-US")}/{ledger.totalRunsCount.toLocaleString("en-US")} runs)</dd>
-        </div>
-        <div className="gridlock-metric-tile">
-          <dt>Estimated Civic Compute Saved</dt>
-          <dd><strong>${ledger.estimatedCostSavedUsd.toFixed(4)}</strong> · {ledger.subsequentDeterministicRunsServed.toLocaleString("en-US")} runs amortized</dd>
-        </div>
+          <dd>
+            <strong className="gridlock-kpi-value"><DossierNumber value={ledger.tokenReductionPercentage} format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }} suffix="%" /></strong>
+            <span className="gridlock-kpi-sub">{ledger.deterministicRunsCount.toLocaleString("en-US")}/{ledger.totalRunsCount.toLocaleString("en-US")} deterministic runs</span>
+          </dd>
+        </motion.div>
+        <motion.div className="gridlock-headline-stat" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.2, ease: EDITORIAL_EASE }}>
+          <dt>Tokens Avoided</dt>
+          <dd>
+            <strong className="gridlock-kpi-value"><DossierNumber value={ledger.naiveTokensAvoided} /></strong>
+            <span className="gridlock-kpi-sub">vs. {ledger.actualTokensUsed.toLocaleString("en-US")} actual LLM tokens</span>
+          </dd>
+        </motion.div>
+        <motion.div className="gridlock-headline-stat" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.32, ease: EDITORIAL_EASE }}>
+          <dt>Civic Compute Saved</dt>
+          <dd>
+            <strong className="gridlock-kpi-value"><DossierNumber value={ledger.estimatedCostSavedUsd} format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }} prefix="$" /></strong>
+            <span className="gridlock-kpi-sub">{ledger.subsequentDeterministicRunsServed.toLocaleString("en-US")} post-heal runs amortized</span>
+          </dd>
+        </motion.div>
       </dl>
+      {children}
     </section>
   );
 }
@@ -152,7 +160,13 @@ function SelectorDiffInspector({ entry, captionId }: { entry: RepairChangelogEnt
   );
 }
 
-export function RepairLogTimelineSection({ baseId, changelog }: { baseId: string; changelog: RepairChangelogResponse }) {
+export function RepairLogTimelineSection(props: {
+  baseId: string;
+  changelog: RepairChangelogResponse;
+  activeEntry?: RepairChangelogEntry;
+  onSelectEntry: (entryId: string) => void;
+}) {
+  const { activeEntry, baseId, changelog, onSelectEntry } = props;
   return (
     <section>
       <h3>Verified Self-Healing Timeline</h3>
@@ -168,7 +182,7 @@ export function RepairLogTimelineSection({ baseId, changelog }: { baseId: string
         <ol role="list" className="gridlock-timeline-list">
           {changelog.entries.map((entry) => (
             <li key={entry.id} className="gridlock-timeline-item">
-              <article className="gridlock-timeline-card">
+              <article className="gridlock-timeline-card" data-active-entry={entry.id === activeEntry?.id ? "true" : undefined} onClick={() => onSelectEntry(entry.id)}>
                 <h4>
                   ConnectorConfig <code>v{entry.previousVersion}</code> → <code>v{entry.promotedVersion}</code> · <time dateTime={entry.patchPromotedAt}>{entry.patchPromotedAt}</time>
                 </h4>
