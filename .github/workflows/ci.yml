@@ -21,11 +21,19 @@ jobs:
           MOTION_PLUS_TOKEN: ${{ secrets.MOTION_PLUS_TOKEN }}
         run: |
           if grep -q "api.motion.dev" .npmrc 2>/dev/null; then
-            if [ -z "$MOTION_PLUS_TOKEN" ]; then
+            CLEAN_TOKEN="$(printf '%s' "$MOTION_PLUS_TOKEN" | tr -d '\r\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/^(export[[:space:]]+)?(MOTION_PLUS_TOKEN|MOTION_TOKEN|.*_authToken)=//; s/^["\x27]//; s/["\x27]$//')"
+            if printf '%s' "$CLEAN_TOKEN" | grep -qE '^https?://.*[?&]token='; then
+              CLEAN_TOKEN="$(printf '%s' "$CLEAN_TOKEN" | sed -E 's/^.*[?&]token=([^&]+).*$/\1/')"
+            fi
+            if [ -z "$CLEAN_TOKEN" ]; then
               echo "::error::Missing MOTION_PLUS_TOKEN repository secret required by .npmrc (@motionplus registry)."
               exit 1
             fi
-            printf "//api.motion.dev/npm/:_authToken=%s\n" "$MOTION_PLUS_TOKEN" >> "$HOME/.npmrc"
+            if printf '%s' "$CLEAN_TOKEN" | grep -qE '^(https?:|//)|[[:space:]=]'; then
+              echo "::error::Invalid MOTION_PLUS_TOKEN format: set the raw Motion+ registry token from https://motion.dev/dashboard/tokens (no URL, prefix, quotes, or whitespace)."
+              exit 1
+            fi
+            printf "//api.motion.dev/npm/:_authToken=%s\n" "$CLEAN_TOKEN" >> "$HOME/.npmrc"
           fi
       - run: npm install
       - if: github.event_name == 'pull_request'

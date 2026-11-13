@@ -1,11 +1,22 @@
 import { execFileSync } from "node:child_process";
 import type { AddressInfo } from "node:net";
-import { createRef } from "react";
+import { act, createRef } from "react";
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { createRoot } from "react-dom/client";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
+import { Window } from "happy-dom";
 import { createGridlockHttpServer, createInMemoryGridlockRepository, DEFAULT_EFFICIENCY_LEDGER, DEFAULT_TDLR_CONNECTOR_CONFIG, type GridlockRepository } from "@samasastudio/gridlock-core";
-import { buildRepairChangelogUrl, fetchRepairLogSnapshot, GridlockRepairLogWidget } from "../src/index.ts";
+import {
+  buildRepairChangelogUrl,
+  ConnectorStatusBadge,
+  CopyCitationButton,
+  DossierStatusBadge,
+  EDITORIAL_EASE,
+  fetchRepairLogSnapshot,
+  GridlockRepairLogWidget,
+  useIsReducedMotion,
+} from "../src/index.ts";
 import repairLogWidgetMeta, * as repairLogStories from "../stories/GridlockRepairLogWidget.stories.tsx";
 
 const { BlockedByWafDegraded, HealedWithAmortization, HealthyZeroAnomalies, NocturnalTheme, SelectorAnomalyDegraded } = repairLogStories;
@@ -34,9 +45,11 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
         encoding: "utf-8",
       });
     });
+    assert.equal(typeof useIsReducedMotion, "function");
+    assert.equal(EDITORIAL_EASE.length, 4);
   });
 
-  test("Happy Path & Zero-Anomaly State: renders 100% deterministic uptime when empty, derives static export connectorId, and renders Repair Changelog + Efficiency Ledger across diurnal/nocturnal tokens", () => {
+  test("Happy Path & Zero-Anomaly State: renders 100% deterministic uptime when empty, derives static export connectorId, and renders Repair Changelog + Efficiency Ledger across diurnal/nocturnal/inherit tokens", () => {
     const emptyHtml = renderToStaticMarkup(
       <GridlockRepairLogWidget
         changelog={{ connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }}
@@ -49,21 +62,55 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
 
     const sectionRef = createRef<HTMLElement>();
     const diurnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget ref={sectionRef} {...HealedWithAmortization.args} />);
+    assert.doesNotMatch(diurnalHtml, /gridlock-diff-table thead\)\s*\{\s*display:\s*none/);
     for (const pattern of [
+      /<section[^>]*class="[^"]*\bgridlock-dossier-surface\b[^"]*\bgridlock-repair-widget\b"/,
       /data-gridlock-theme="diurnal"/, /var\(--font-sans/, /--paper:\s*var\(--atlas-paper/, /--ink:\s*var\(--atlas-ink/,
+      /--gridlock-card:\s*var\(--card,\s*color-mix\(in oklab,\s*var\(--gridlock-paper\)\s*92%,\s*var\(--gridlock-ink\)\)\)/,
+      /--gridlock-muted:\s*var\(--muted-foreground,\s*color-mix\(in oklab,\s*var\(--gridlock-ink\)\s*68%,\s*var\(--gridlock-paper\)\)\)/,
       /--relief-coral-mid/, /:focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/,
       /<ol[^>]*role="list"/, /<time[^>]*dateTime="2026-10-27T14:00:01\.850Z"/,
       /v1.*v2/, /1,850 ms/, /14.*deterministic runs served/i, /1\/1.*2 total verified/,
       /sha256:bbbbbbbbbbbb/, /\.tabs-project-details-v2/, /Total Estimated Cost:/, /<details/, /<table/,
-      /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /350,000/, /380/, /99\.89%/, /93\.33%/,
+      /<caption/, /<th[^>]*scope="col"/, /<th[^>]*scope="row"/, /number-section-integer/, /380/, /99\.89%/, /93\.33%/,
     ]) {
       assert.match(diurnalHtml, pattern);
     }
 
     const nocturnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget {...NocturnalTheme.args} />);
     assert.match(nocturnalHtml, /data-gridlock-theme="nocturnal"/);
-    assert.match(nocturnalHtml, /color-scheme:\s*dark/);
-    assert.match(nocturnalHtml, /--paper:\s*oklch\(0\.215 0\.026 244\)/);
+    assert.match(nocturnalHtml, /color-scheme:\s*only dark/);
+    assert.match(nocturnalHtml, /--paper:\s*var\(--terrain-estuary,\s*oklch\(0\.215 0\.026 244\)\)/);
+    assert.match(nocturnalHtml, /data-citation-transition="scramble"/);
+    assert.match(renderToStaticMarkup(<DossierStatusBadge tone="alert" label="quarantined" />), /data-tone="alert"[\s\S]*quarantined/);
+    assert.match(renderToStaticMarkup(<ConnectorStatusBadge connectorStatus="healthy" activeVersion={2} />), /v2 · healthy/);
+  });
+
+  test("CopyCitationButton resets copied state immediately when citation value changes in headless DOM", async () => {
+    const win = new Window({ url: "http://localhost:6006" });
+    const prevGlobals = { window: globalThis.window, document: globalThis.document, navigator: globalThis.navigator, HTMLElement: globalThis.HTMLElement };
+    let lastCopied = "";
+    Object.assign(globalThis, { window: win, document: win.document, HTMLElement: win.HTMLElement });
+    Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: async (v: string) => { lastCopied = v; } } }, configurable: true });
+    (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
+    const container = win.document.createElement("div");
+    win.document.body.appendChild(container);
+    const root = createRoot(container as unknown as Element);
+    try {
+      await act(async () => { root.render(<CopyCitationButton value="sha_alpha" displayLabel="sha256:alpha" citationKind="Source Artifact SHA-256" />); });
+      const btn = container.querySelector("button")!;
+      await act(async () => { btn.click(); });
+      assert.equal(lastCopied, "sha_alpha");
+      assert.equal(btn.getAttribute("data-copied"), "true");
+      await act(async () => { root.render(<CopyCitationButton value="sha_beta" displayLabel="sha256:beta" citationKind="Source Artifact SHA-256" />); });
+      assert.equal(btn.getAttribute("data-copied"), "false");
+      assert.match(btn.getAttribute("aria-label") ?? "", /Copy Source Artifact SHA-256 sha256:beta/);
+    } finally {
+      await act(async () => { root.unmount(); });
+      await win.happyDOM.close();
+      Object.assign(globalThis, { window: prevGlobals.window, document: prevGlobals.document, HTMLElement: prevGlobals.HTMLElement });
+      Object.defineProperty(globalThis, "navigator", { value: prevGlobals.navigator, configurable: true });
+    }
   });
 
   test("Seam 2 End-to-End API + Sad Paths: renders degraded alerts, validates static props, normalizes rejected snapshotPromise, and streams live HTTP 200/500/network states", async () => {
@@ -71,7 +118,9 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       buildRepairChangelogUrl({ apiBaseUrl: "https://api.example.com/", connectorId: "tdlr-tabs", limit: 5, format: "md" }),
       "https://api.example.com/api/repairs/changelog?connector_id=tdlr-tabs&limit=5&format=md"
     );
-    assert.match(renderToStaticMarkup(<GridlockRepairLogWidget apiBaseUrl="https://api.example.com" />), /<progress[^>]*aria-label="Loading Repair Changelog"/);
+    const loadingHtml = renderToStaticMarkup(<GridlockRepairLogWidget apiBaseUrl="https://api.example.com" />);
+    assert.match(loadingHtml, /data-loading-placeholder="repair-log"/);
+    assert.doesNotMatch(loadingHtml, /<progress/);
 
     const malformedStaticHtml = renderToStaticMarkup(
       <GridlockRepairLogWidget changelog={{ broken: true } as never} efficiencyLedger={DEFAULT_EFFICIENCY_LEDGER} />
@@ -128,7 +177,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       force500 = false;
       const recoveredHtml = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchRepairLogSnapshot({ apiBaseUrl })} />);
       assert.match(recoveredHtml, /inter_widget_heal_v2/);
-      assert.match(recoveredHtml, /350,000/);
+      assert.match(recoveredHtml, /number-section-integer/);
       assert.match(recoveredHtml, /href="[^"]*\/api\/repairs\/changelog\?connector_id=tdlr-tabs&amp;format=md"/);
     } finally {
       await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
