@@ -8,8 +8,27 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   :where(.gridlock-connector-chip) { display: inline-flex; align-items: center; padding-block: 0.2rem; padding-inline: 0.5rem; border: 1px solid var(--gridlock-border-strong); border-radius: var(--gridlock-radius); background-color: var(--gridlock-card); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
   :where(.gridlock-title-rule) { block-size: 2px; inline-size: 2.75rem; background-color: var(--gridlock-ink); }
   :where(.gridlock-header-controls) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; }
-  :where(.gridlock-scorecard-grid) { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; margin-block-end: 1.25rem; }
-  :where(.gridlock-metric-tile, .gridlock-timeline-card, .gridlock-empty-panel) { background-color: var(--gridlock-card); border: 1px solid var(--gridlock-border); padding-block: 0.75rem; padding-inline: 0.875rem; }
+  :where(.gridlock-scorecard-section) { display: flex; flex-direction: column; gap: 1.75rem; margin-block-end: 1.75rem; }
+  :where(.gridlock-headline-stats) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 1.25rem 2rem; }
+  :where(.gridlock-headline-stat) { display: flex; flex-direction: column; gap: 0.35rem; }
+  @container (width >= 42em) {
+    :where(.gridlock-headline-stat + .gridlock-headline-stat) { padding-inline-start: 1.75rem; border-inline-start: 1px solid var(--gridlock-border); }
+  }
+  :where(.gridlock-headline-stat dt) { font-family: var(--gridlock-font-sans); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-muted); }
+  :where(.gridlock-kpi-value) { display: block; contain: layout style; font-family: var(--gridlock-font-display); font-size-adjust: cap-height from-font; font-size: clamp(2rem, 1.65rem + 1.1vw, 2.75rem); font-weight: 900; letter-spacing: -0.03em; line-height: 1.02; font-variant-numeric: tabular-nums; color: var(--gridlock-ink); }
+  :where(.gridlock-kpi-sub) { display: block; margin-block-start: 0.25rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); }
+  :where(.gridlock-chart-frame) { display: flex; flex-direction: column; gap: 0.75rem; background-color: var(--gridlock-card); border-block: 1px solid var(--gridlock-border-strong); padding-block: 1.1rem 0.9rem; padding-inline: clamp(0.9rem, 2cqi, 1.35rem); }
+  :where(.gridlock-chart-header) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1.25rem; }
+  :where(.gridlock-chart-title) { font-family: var(--gridlock-font-sans); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-muted); }
+  :where(.gridlock-chart-legend) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 1rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-ink); }
+  :where(.gridlock-legend-item) { display: inline-flex; align-items: center; gap: 0.4rem; }
+  :where(.gridlock-legend-swatch) { display: inline-block; inline-size: 0.9rem; block-size: 2px; background-color: var(--gridlock-ink); }
+  :where(.gridlock-legend-swatch[data-swatch="actual"]) { background: repeating-linear-gradient(to right, var(--gridlock-accent) 0 4px, transparent 4px 7px); }
+  :where(.gridlock-line-svg) { display: block; inline-size: 100%; block-size: auto; min-block-size: 8.5rem; overflow: visible; }
+  :where(.gridlock-chart-marker) { cursor: pointer; }
+  :where(.gridlock-chart-axis) { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); }
+  :where(.gridlock-timeline-card, .gridlock-empty-panel) { background-color: var(--gridlock-card); border: 1px solid var(--gridlock-border); padding-block: 0.75rem; padding-inline: 0.875rem; }
+  :where(.gridlock-timeline-card[data-active-entry="true"]) { border-color: var(--gridlock-accent); }
   :where(.gridlock-timeline-list) { list-style: none; padding-inline-start: 0; margin-block: 0; }
   :where(.gridlock-timeline-item:not(:last-child)) { margin-block-end: 1rem; }
   :where(.gridlock-diff-scroll) { overflow: auto; max-inline-size: 100%; container-type: inline-size; border: 1px solid var(--gridlock-border); margin-block-start: 0.625rem; }

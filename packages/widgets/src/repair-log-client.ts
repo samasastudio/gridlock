@@ -9,6 +9,7 @@ export interface RepairLogQuery {
   apiBaseUrl: string;
   connectorId?: string;
   limit?: number;
+  runsLimit?: number;
 }
 
 export type RepairLogSnapshotResult =
@@ -51,7 +52,7 @@ export async function fetchRepairLogSnapshot(
   try {
     const [changelogRes, ledgerRes] = await Promise.all([
       globalThis.fetch(buildRepairChangelogUrl(options), { signal: options.signal }),
-      globalThis.fetch(buildEndpointUrl(options.apiBaseUrl, "/api/telemetry/efficiency", { limit: options.limit }), {
+      globalThis.fetch(buildEndpointUrl(options.apiBaseUrl, "/api/telemetry/efficiency", { limit: options.runsLimit }), {
         signal: options.signal,
       }),
     ]);
