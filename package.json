@@ -18,7 +18,7 @@
     "pretest": "bash ./scripts/ensure-ext4-deps.sh",
     "test": "node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx'",
     "preverify": "bash ./scripts/ensure-ext4-deps.sh",
-    "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx'",
+    "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx' && node --import ./scripts/tsx-loader.mjs ./scripts/widget-workbench.mjs --smoke-check",
     "prepreview:widgets": "bash ./scripts/ensure-ext4-deps.sh",
     "preview:widgets": "node --import ./scripts/tsx-loader.mjs ./scripts/widget-workbench.mjs"
   },
@@ -31,6 +31,7 @@
     "@types/node": "^22.13.10",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "esbuild": "^0.25.12",
     "happy-dom": "^21.0.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

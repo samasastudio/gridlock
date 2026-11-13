@@ -8,7 +8,7 @@ import {
 import { getEfficiencyScorecard } from "../use-cases/get-efficiency-scorecard.ts";
 import { sendJson } from "./http-utils.ts";
 
-export const EfficiencyQueryParamsSchema = z
+const EfficiencyQueryParamsSchema = z
   .object({
     limit: PositiveIntegerStringSchema.pipe(
       z.number().int().min(1).max(365)

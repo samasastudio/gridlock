@@ -76,7 +76,7 @@ export function ConnectorHealthBanner(props: { connectorStatus: ConnectorStatus;
   );
 }
 
-export function RepairLogErrorBanner(props: { message: string; onRetry?: () => void }) {
+function RepairLogErrorBanner(props: { message: string; onRetry?: () => void }) {
   return (
     <div role="alert" className="gridlock-banner">
       <div className="gridlock-banner-copy">

@@ -8,6 +8,7 @@ import {
   type TelemetryRunStatus,
   type TelemetrySpan,
   type TelemetrySpanSink,
+  type TelemetryStage,
 } from "../interfaces/index.ts";
 import {
   applyHealAmortization,
@@ -32,7 +33,7 @@ async function resolveActiveConnectorConfig(
 
 export async function recordStageTelemetry(
   input: TelemetryPainterDeltas & {
-    stage: string;
+    stage: TelemetryStage;
     connectorId?: string;
     projectNumber?: string;
     sourceArtifactHash?: string;
@@ -135,7 +136,7 @@ export async function recordStageTelemetry(
 
 export async function recordAgenticStageTelemetry(
   input: {
-    stage: string;
+    stage: TelemetryStage;
     connectorId?: string;
     projectNumber?: string;
     sourceArtifactHash?: string;

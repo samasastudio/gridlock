@@ -15,6 +15,7 @@ import {
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
+  type TelemetryStage,
 } from "../../interfaces/index.ts";
 
 export function calculateNaiveTokensAvoided(rawByteLength: number): number {
@@ -34,7 +35,7 @@ export function calculateEstimatedCostSavedUsd(
 }
 
 export function buildTelemetrySpan(params: {
-  stage: string;
+  stage: TelemetryStage;
   execution_mode: ExecutionMode;
   status: TelemetryRunStatus;
   startedAt: Date;
@@ -72,7 +73,7 @@ export function buildTelemetrySpan(params: {
 
 export function buildTelemetryRun(params: {
   runId?: string;
-  stage: string;
+  stage: TelemetryStage;
   connectorId?: string;
   projectNumber?: string;
   sourceArtifactHash?: string;

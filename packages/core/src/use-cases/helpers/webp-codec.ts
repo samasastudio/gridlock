@@ -20,13 +20,13 @@ const GLYPH_3X5: Readonly<Record<string, number>> = {
   "4": 0o55711, "5": 0o74716, "6": 0o34757, "7": 0o71122, "8": 0o75757, "9": 0o75716,
 };
 
-export const BIT_REV_8 = Uint8Array.from({ length: 256 }, (_, b) => {
+const BIT_REV_8 = Uint8Array.from({ length: 256 }, (_, b) => {
   const x1 = ((b & 0xf0) >>> 4) | ((b & 0x0f) << 4);
   const x2 = ((x1 & 0xcc) >>> 2) | ((x1 & 0x33) << 2);
   return ((x2 & 0xaa) >>> 1) | ((x2 & 0x55) << 1);
 });
 
-export const VP8L_FLAT_TREE_HEADER = (() => {
+const VP8L_FLAT_TREE_HEADER = (() => {
   const toBits = (val: number, count: number): number[] => Array.from({ length: count }, (_, i) => (val >>> i) & 1);
   const flatTreeBits = (alphabetSize: number, codeLengthCount: number): number[] => [
     ...toBits(0, 1),
@@ -43,19 +43,19 @@ export const VP8L_FLAT_TREE_HEADER = (() => {
   );
 })();
 
-export interface RiffChunk {
+interface RiffChunk {
   fourCc: string;
   data: Buffer;
 }
 
-export function buildRiffChunk(fourCc: string, payload: Buffer): Buffer {
+function buildRiffChunk(fourCc: string, payload: Buffer): Buffer {
   const header = Buffer.alloc(8);
   header.write(fourCc.padEnd(4, " ").slice(0, 4), 0, "ascii");
   header.writeUInt32LE(payload.byteLength, 4);
   return Buffer.concat([header, payload, payload.byteLength % 2 === 1 ? Buffer.from([0x00]) : Buffer.alloc(0)]);
 }
 
-export function wrapRiffWebpChunks(chunks: readonly Buffer[]): Buffer {
+function wrapRiffWebpChunks(chunks: readonly Buffer[]): Buffer {
   const body = Buffer.concat([Buffer.from("WEBP", "ascii"), ...chunks]);
   const header = Buffer.alloc(8);
   header.write("RIFF", 0, "ascii");
@@ -63,7 +63,7 @@ export function wrapRiffWebpChunks(chunks: readonly Buffer[]): Buffer {
   return Buffer.concat([header, body]);
 }
 
-export function readRiffChunks(buf: Buffer, off = 12, acc: readonly RiffChunk[] = []): RiffChunk[] | null {
+function readRiffChunks(buf: Buffer, off = 12, acc: readonly RiffChunk[] = []): RiffChunk[] | null {
   if (off === buf.byteLength) return [...acc];
   if (off + 8 > buf.byteLength) return null;
   const [fourCc, size] = [buf.subarray(off, off + 4).toString("ascii"), buf.readUInt32LE(off + 4)];
@@ -72,7 +72,7 @@ export function readRiffChunks(buf: Buffer, off = 12, acc: readonly RiffChunk[] 
   return readRiffChunks(buf, padEnd, [...acc, { fourCc, data: buf.subarray(off + 8, end) }]);
 }
 
-export function parseBitstreamDims(chunk: RiffChunk): { width: number; height: number; hasAlpha: boolean } | null {
+function parseBitstreamDims(chunk: RiffChunk): { width: number; height: number; hasAlpha: boolean } | null {
   if (chunk.fourCc === "VP8L" && chunk.data.byteLength >= 6 && chunk.data[0] === 0x2f) {
     const hdr = chunk.data.readUInt32LE(1);
     return (hdr >>> 29) === 0 ? { width: (hdr & 0x3fff) + 1, height: ((hdr >>> 14) & 0x3fff) + 1, hasAlpha: Boolean((hdr >>> 28) & 1) } : null;
@@ -111,7 +111,7 @@ export function isWebpBuffer(buf: Buffer): boolean {
   );
 }
 
-export function encodeRgbaToLosslessWebp(width: number, height: number, rgba: Buffer): Buffer {
+function encodeRgbaToLosslessWebp(width: number, height: number, rgba: Buffer): Buffer {
   const vp8lHeader = Buffer.alloc(5);
   vp8lHeader[0] = 0x2f;
   vp8lHeader.writeUInt32LE((((width - 1) & 0x3fff) | (((height - 1) & 0x3fff) << 14) | (1 << 28)) >>> 0, 1);
@@ -252,7 +252,7 @@ function tryInflate(buf: Buffer): Buffer | null {
   try { return inflateSync(buf); } catch { return null; }
 }
 
-export function decodePngToRgba(buf: Buffer): { width: number; height: number; rgba: Buffer } | null {
+function decodePngToRgba(buf: Buffer): { width: number; height: number; rgba: Buffer } | null {
   if (buf.byteLength < 33 || !buf.subarray(0, 8).equals(PNG_SIG)) return null;
   const chunks = parsePngChunks(buf);
   const ihdr = chunks?.[0]?.type === "IHDR" && chunks[0].data.byteLength === 13 ? chunks[0].data : null;

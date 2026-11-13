@@ -38,11 +38,13 @@ export {
   TelemetryRunSchema,
   TelemetryRunStatusSchema,
   TelemetrySpanSchema,
+  TelemetryStageSchema,
   type EfficiencyLedger,
   type ExecutionMode,
   type TelemetryRun,
   type TelemetryRunStatus,
   type TelemetrySpan,
+  type TelemetryStage,
 } from "./telemetry-models.ts";
 
 export {

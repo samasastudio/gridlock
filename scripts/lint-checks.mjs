@@ -24,6 +24,12 @@ export const ALLOWED_CORE_TOP_DIRS = new Set([
   "controllers",
 ]);
 
+const PUBLIC_PACKAGE_ENTRYPOINTS = new Set([
+  "packages/core/src/index.ts",
+  "packages/core/src/interfaces/index.ts",
+  "packages/widgets/src/index.ts",
+]);
+
 const LEGACY_BARREL_HELPER_EXPORTS = new Set([
   "sanitizeLocationAddressPii",
   "sanitizeTextPii",
@@ -71,9 +77,9 @@ const DYNAMIC_IMPORT_MASKED_RE =
   /(?<![.\w$])import\s*\(\s*"__LIT_(\d+)__"\s*(?:,\s*\{[\s\S]*?\}\s*)?\)/g;
 
 const STATIC_IMPORT_CLAUSE_MASKED_RE =
-  /(?<![.\w$])import\s+([\s\S]*?)\s*from\s+"__LIT_(\d+)__"|(?<![.\w$])import\s+"__LIT_(\d+)__"/g;
+  /(?<![.\w$])import\s+((?:type\s+)?(?:[A-Za-z_$][\w$]*(?:\s*,\s*(?:\*\s+as\s+[A-Za-z_$][\w$]*|\{[^}]*\}))?|\*\s+as\s+[A-Za-z_$][\w$]*|\{[^}]*\}))\s*from\s+"__LIT_(\d+)__"|(?<![.\w$])import\s+"__LIT_(\d+)__"/g;
 const EXPORT_CLAUSE_FROM_MASKED_RE =
-  /(?<![.\w$])export\s+([\s\S]*?)\s+from\s+"__LIT_(\d+)__"/g;
+  /(?<![.\w$])export\s+((?:type\s+)?(?:\*(?:\s+as\s+[A-Za-z_$][\w$]*)?|\{[^}]*\}))\s*from\s+"__LIT_(\d+)__"/g;
 
 function areBracedSpecifiersAllTypeOnly(bracedContent) {
   const items = bracedContent
@@ -109,33 +115,37 @@ function isExportFromClauseTypeOnly(rawClause) {
   return false;
 }
 
-function extractRuntimeImportSpecifiers(content) {
+function collectRuntimeModuleEdges(content) {
   const { masked, literals } = maskCommentsAndStrings(content);
-  const specifiers = [];
+  const edges = [];
   for (const match of masked.matchAll(STATIC_IMPORT_CLAUSE_MASKED_RE)) {
     if (match[3] !== undefined) {
       const spec = literals[Number(match[3])];
-      if (spec !== undefined) specifiers.push(spec);
+      if (spec !== undefined) edges.push({ spec, clause: "" });
       continue;
     }
     const clause = match[1] ?? "";
     const spec = literals[Number(match[2])];
     if (spec !== undefined && !isStaticImportClauseTypeOnly(clause)) {
-      specifiers.push(spec);
+      edges.push({ spec, clause });
     }
   }
   for (const match of masked.matchAll(EXPORT_CLAUSE_FROM_MASKED_RE)) {
     const clause = match[1] ?? "";
     const spec = literals[Number(match[2])];
     if (spec !== undefined && !isExportFromClauseTypeOnly(clause)) {
-      specifiers.push(spec);
+      edges.push({ spec, clause });
     }
   }
   for (const match of masked.matchAll(DYNAMIC_IMPORT_MASKED_RE)) {
     const spec = literals[Number(match[1])];
-    if (spec !== undefined) specifiers.push(spec);
+    if (spec !== undefined) edges.push({ spec, clause: "*" });
   }
-  return specifiers;
+  return edges;
+}
+
+function extractRuntimeImportSpecifiers(content) {
+  return collectRuntimeModuleEdges(content).map((edge) => edge.spec);
 }
 
 function evaluateCsfStoryMetaExports(relPath, content) {
@@ -506,19 +516,123 @@ export function checkPullRequestDiffSize(repoRoot, options = {}) {
   };
 }
 
-function collectSourceFiles(dir) {
+function collectSourceFiles(dir, extRe = /\.(ts|tsx)$/) {
   const entries = readdirSync(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     if (entry.name === "dist" || entry.name === "node_modules") continue;
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) {
-      files.push(...collectSourceFiles(fullPath));
-    } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
+      files.push(...collectSourceFiles(fullPath, extRe));
+    } else if (entry.isFile() && extRe.test(entry.name)) {
       files.push(fullPath);
     }
   }
   return files;
+}
+
+function resolveRelativeSourcePath(fromRelPath, spec, knownPaths) {
+  if (!spec.startsWith(".")) return null;
+  const raw = posix.normalize(posix.join(posix.dirname(fromRelPath), spec));
+  if (knownPaths.has(raw)) return raw;
+  const swapped = raw.replace(/\.(?:js|jsx|mjs|mts)$/, (ext) =>
+    ext === ".jsx" ? ".tsx" : ".ts"
+  );
+  if (knownPaths.has(swapped)) return swapped;
+  for (const suffix of [".ts", ".tsx", "/index.ts", "/index.tsx"]) {
+    if (knownPaths.has(`${raw}${suffix}`)) return `${raw}${suffix}`;
+  }
+  return raw;
+}
+
+function recordClauseImports(rawClause, targetPath, usedByFile) {
+  const clause = rawClause.trim();
+  if (!clause) return;
+  const set = usedByFile.get(targetPath) ?? new Set();
+  usedByFile.set(targetPath, set);
+  if (/(?:^|,)\s*\*/.test(clause)) {
+    set.add("*");
+  }
+  const braced = clause.match(/\{([\s\S]*?)\}/)?.[1];
+  if (braced) {
+    for (const rawItem of braced.split(",")) {
+      const trimmed = rawItem.trim();
+      if (!trimmed || /^type\s+[A-Za-z_$]/.test(trimmed)) continue;
+      const exportedSym = trimmed.split(/\s+as\s+/)[0]?.trim();
+      if (exportedSym) set.add(exportedSym);
+    }
+  }
+}
+
+function extractDeclaredValueExports(content) {
+  const { masked } = maskCommentsAndStrings(content);
+  const declared = new Set();
+  for (const re of [
+    /(?<![.\w$])export\s+(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\b/g,
+    /(?<![.\w$])export\s+(?:const|let|var|enum|(?:abstract\s+)?class)\s+([A-Za-z_$][\w$]*)\b/g,
+  ]) {
+    for (const match of masked.matchAll(re)) {
+      if (match[1]) declared.add(match[1]);
+    }
+  }
+  for (const match of masked.matchAll(/(?<![.\w$])export\s*\{([^}]*)\}/g)) {
+    for (const rawItem of (match[1] ?? "").split(",")) {
+      const trimmed = rawItem.trim();
+      if (!trimmed || /^type\s+[A-Za-z_$]/.test(trimmed)) continue;
+      const parts = trimmed.split(/\s+as\s+/);
+      const exportedName = (parts[1] ?? parts[0] ?? "").trim();
+      if (exportedName && exportedName !== "default") {
+        declared.add(exportedName);
+      }
+    }
+  }
+  return {
+    declared: [...declared],
+    hasWildcardReExport: /(?<![.\w$])export\s+\*\s+from\s+"__LIT_\d+__"/.test(masked),
+  };
+}
+
+export function evaluateUnusedModuleExports(fileEntries) {
+  const normalized = fileEntries.map(({ relPath, content }) => ({
+    relPath: relPath.replace(/\\/g, "/"),
+    content,
+  }));
+  const knownPaths = new Set(normalized.map((e) => e.relPath));
+  const usedByFile = new Map();
+
+  for (const { relPath, content } of normalized) {
+    for (const { spec, clause } of collectRuntimeModuleEdges(content)) {
+      if (!clause) continue;
+      const target = resolveRelativeSourcePath(relPath, spec, knownPaths);
+      if (target) recordClauseImports(clause, target, usedByFile);
+    }
+  }
+
+  const violations = [];
+  for (const { relPath, content } of normalized) {
+    if (
+      !/^packages\/[^/]+\/src\/.+\.(?:ts|tsx)$/.test(relPath) ||
+      PUBLIC_PACKAGE_ENTRYPOINTS.has(relPath)
+    ) {
+      continue;
+    }
+    const used = usedByFile.get(relPath);
+    if (used?.has("*")) continue;
+    const { declared, hasWildcardReExport } = extractDeclaredValueExports(content);
+    if (hasWildcardReExport && (!used || used.size === 0)) {
+      violations.push(
+        `${relPath}: Unused wildcard re-export \`export *\` — wire a caller or re-export solely from a public barrel (CODING_STANDARDS.md §1)`
+      );
+    }
+    for (const sym of declared) {
+      if (!used?.has(sym)) {
+        violations.push(
+          `${relPath}: Unused module export "${sym}" — wire it to a caller or public barrel within this slice, or omit \`export\` (CODING_STANDARDS.md §1)`
+        );
+      }
+    }
+  }
+  return violations;
 }
 
 export function runRepoLintChecks(repoRoot = process.cwd()) {
@@ -527,12 +641,30 @@ export function runRepoLintChecks(repoRoot = process.cwd()) {
     ? collectSourceFiles(packagesDir)
     : [];
 
+  const fileEntries = [];
   const violations = [];
   for (const filePath of sourceFiles) {
-    const relPath = relative(repoRoot, filePath);
+    const relPath = relative(repoRoot, filePath).replace(/\\/g, "/");
     const content = readFileSync(filePath, "utf-8");
+    fileEntries.push({ relPath, content });
     violations.push(...evaluateSourceFileLintRules(relPath, content));
   }
+
+  const scriptsDir = join(repoRoot, "scripts");
+  if (statSync(scriptsDir, { throwIfNoEntry: false })) {
+    for (const filePath of collectSourceFiles(
+      scriptsDir,
+      /\.(?:mjs|mts|js|ts|tsx)$/
+    )) {
+      const relPath = relative(repoRoot, filePath).replace(/\\/g, "/");
+      fileEntries.push({
+        relPath,
+        content: readFileSync(filePath, "utf-8"),
+      });
+    }
+  }
+
+  violations.push(...evaluateUnusedModuleExports(fileEntries));
   return violations;
 }
 

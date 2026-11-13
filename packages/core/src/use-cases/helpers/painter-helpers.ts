@@ -8,14 +8,11 @@ import {
   VisualPlateSchema,
   type GeminiInteractionResponse,
   type Observation,
+  type TelemetryStage,
   type VisualPlate,
 } from "../../interfaces/index.ts";
 
-export type PainterStage =
-  | "painter_milestone_gate"
-  | "painter_bootstrap"
-  | "painter_milestone_delta"
-  | "painter_branch_lineage";
+export type PainterStage = Extract<TelemetryStage, `painter_${string}`>;
 
 export interface PainterCompletedTurn {
   interaction: GeminiInteractionResponse;

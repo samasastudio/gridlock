@@ -25,5 +25,8 @@ export function checkPullRequestDiffSize(
   headRef: string;
   violations: string[];
 };
+export function evaluateUnusedModuleExports(
+  fileEntries: ReadonlyArray<{ relPath: string; content: string }>
+): string[];
 export function runRepoLintChecks(repoRoot?: string): string[];
 export function evaluateBranchName(branchName: string): string[];

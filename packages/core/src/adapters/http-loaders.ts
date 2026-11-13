@@ -16,7 +16,7 @@ export interface PlaywrightPageLike {
   content(): Promise<string>;
 }
 
-export function headersToRecord(headers: Headers): Record<string, string> {
+function headersToRecord(headers: Headers): Record<string, string> {
   return Object.fromEntries(
     Array.from(headers.entries(), ([key, value]) => [key.toLowerCase(), value])
   );

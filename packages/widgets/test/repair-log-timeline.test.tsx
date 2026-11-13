@@ -2,9 +2,7 @@ import type { AddressInfo } from "node:net";
 import { act } from "react";
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Window } from "happy-dom";
 import {
   CandidateSelectorPatchSchema,
   createGridlockHttpServer,
@@ -12,8 +10,9 @@ import {
   ingestTdlrFiling,
   runOutOfBandRepairAgent,
 } from "@samasastudio/gridlock-core";
-import { fetchRepairLogSnapshot, GridlockRepairLogWidget } from "../src/index.ts";
+import { CopyCitationButton, fetchRepairLogSnapshot, GridlockRepairLogWidget } from "../src/index.ts";
 import { HealedWithAmortization } from "../stories/GridlockRepairLogWidget.stories.tsx";
+import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 const HISTORICAL_HTML = `<div class="project-details"><dl class="dl-horizontal">
   <dt>Project Name:</dt><dd>Compass Datacenters - Building 10</dd><dt>Project Number:</dt><dd>TABS2027003697</dd>
@@ -86,21 +85,7 @@ describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive
   });
 
   test("Headless DOM: ArrowLeft/Home/End tabs, SVG chart marker click, collapsed <details> reset, and citation copy reset", async () => {
-    const win = new Window({ url: "http://localhost:6006" });
-    const g = globalThis as Record<string, unknown>;
-    const domKeys = ["window", "document", "Element", "HTMLElement", "SVGElement", "NodeList"] as const;
-    const prev = Object.fromEntries(domKeys.map((k) => [k, g[k]]));
-    const prevGetComputedStyle = g.getComputedStyle;
-    const prevNavigator = globalThis.navigator;
-    for (const k of domKeys) g[k] = k === "window" ? win : (win as unknown as Record<string, unknown>)[k];
-    g.getComputedStyle = win.getComputedStyle.bind(win);
-    Object.defineProperty(globalThis, "navigator", { value: { clipboard: { writeText: async () => {} } }, configurable: true });
-    g.IS_REACT_ACT_ENVIRONMENT = true;
-    const container = win.document.createElement("div");
-    win.document.body.appendChild(container);
-    const root = createRoot(container as unknown as Element);
-
-    try {
+    await withWidgetDom(async ({ window: win, container, root }) => {
       await act(async () => { root.render(<GridlockRepairLogWidget {...HealedWithAmortization.args} />); });
       const getTabs = () => Array.from(container.querySelectorAll('[role="tab"]'));
       const getMarkers = () => Array.from(container.querySelectorAll('rect[role="button"]'));
@@ -134,12 +119,23 @@ describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive
       await act(async () => { getMarkers()[1]!.dispatchEvent(new win.MouseEvent("click", { bubbles: true })); });
       assert.equal(getMarkers()[1]?.getAttribute("aria-pressed"), "true");
       assert.match(getShaAria(), /sha256:cccccccccccc/);
-    } finally {
-      await act(async () => { root.unmount(); });
-      await win.happyDOM.close();
-      for (const k of domKeys) g[k] = prev[k];
-      g.getComputedStyle = prevGetComputedStyle;
-      Object.defineProperty(globalThis, "navigator", { value: prevNavigator, configurable: true });
-    }
+    });
+  });
+
+  test("CopyCitationButton resets copied state immediately when citation value changes in headless DOM", async () => {
+    const hadWindowBefore = "window" in globalThis;
+    const navDescBefore = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    await withWidgetDom(async ({ container, root, getLastCopiedText }) => {
+      await act(async () => { root.render(<CopyCitationButton value="sha_alpha" displayLabel="sha256:alpha" citationKind="Source Artifact SHA-256" />); });
+      const btn = container.querySelector("button")!;
+      await act(async () => { btn.click(); });
+      assert.equal(getLastCopiedText(), "sha_alpha");
+      assert.equal(btn.getAttribute("data-copied"), "true");
+      await act(async () => { root.render(<CopyCitationButton value="sha_beta" displayLabel="sha256:beta" citationKind="Source Artifact SHA-256" />); });
+      assert.equal(btn.getAttribute("data-copied"), "false");
+      assert.match(btn.getAttribute("aria-label") ?? "", /Copy Source Artifact SHA-256 sha256:beta/);
+    });
+    assert.equal("window" in globalThis, hadWindowBefore);
+    assert.equal(typeof Object.getOwnPropertyDescriptor(globalThis, "navigator")?.get, typeof navDescBefore?.get);
   });
 });
