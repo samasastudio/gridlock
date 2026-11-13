@@ -9,10 +9,11 @@ description: >-
 
 ## 1. Single-Pass Verification
 
-- Run `npm run verify` for single-pass dependency mount, TypeScript project build/typecheck, architecture/style lint, and test execution, and `PR_BASE_REF=<base> npm run check:pr-size` to verify the `<= 700`-line PR budget.
-- Run `npm run preview:widgets` to launch the CSF3 Story + live HTTP API workbench on `http://localhost:6006` (or `npm run preview:widgets -- --smoke-check` for headless verification).
+- Run `npm run verify` for single-pass dependency mount, TypeScript project build/typecheck (`noUnusedLocals` / `noUnusedParameters`), architecture/unused-export lint, test execution, and headless widget workbench `--smoke-check`; run `PR_BASE_REF=<base> npm run check:pr-size` to verify the `<= 700`-line PR budget.
+- Run `npm run preview:widgets` to launch the CSF3 Story + live HTTP API workbench on `http://localhost:6006` (or `npm run preview:widgets -- --smoke-check` standalone).
   - Keep workbench controls inside the single slim `#18181b` `<select>` header bar with generous `<main>` canvas margin so harness chrome stays visually separated from widget surfaces.
   - `/bundle.js` rebuilds `packages/widgets/**` on every request, while `INDEX_HTML`, `buildVirtualClientEntry()`, and seeded `/api/*` fixtures load once at server startup—restart any running `:6006` process after editing `scripts/widget-workbench.mjs` or story module exports.
+  - For interactive `react-dom/client` widget tests on Node 24, mount via [`withWidgetDom`](../../../packages/widgets/test/helpers/dom-harness.ts) (pairing same-file SSR checks with `renderToStaticMarkup`, not `renderToReadableStream`). For local MotionScore audits against `:6006`, run `npx motionscore http://127.0.0.1:6006 --no-upload` (text mode; `--json` and `--threshold` require a paid plan).
 - For branching, stacked PR targeting, `/code-review`, `/pr`, and `gh` CLI commands, read [`docs/agents/issue-tracker.md`](../../../docs/agents/issue-tracker.md).
 
 ---

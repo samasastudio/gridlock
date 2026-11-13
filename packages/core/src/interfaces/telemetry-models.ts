@@ -17,10 +17,22 @@ export const TelemetryRunStatusSchema = z.enum([
 
 export type TelemetryRunStatus = z.infer<typeof TelemetryRunStatusSchema>;
 
+export const TelemetryStageSchema = z.enum([
+  "tdlr_ingest",
+  "tdlr_discovery_sweep",
+  "repair_agent",
+  "painter_bootstrap",
+  "painter_milestone_gate",
+  "painter_milestone_delta",
+  "painter_branch_lineage",
+]);
+
+export type TelemetryStage = z.infer<typeof TelemetryStageSchema>;
+
 export const TelemetrySpanSchema = z.object({
   traceId: z.string().min(1),
   spanId: z.string().min(1),
-  stage: z.string().min(1),
+  stage: TelemetryStageSchema,
   execution_mode: ExecutionModeSchema,
   status: TelemetryRunStatusSchema,
   durationMs: z.number().nonnegative(),
@@ -41,7 +53,7 @@ export type TelemetrySpan = z.infer<typeof TelemetrySpanSchema>;
 
 export const TelemetryRunSchema = z.object({
   runId: z.string().min(1),
-  stage: z.string().min(1),
+  stage: TelemetryStageSchema,
   connectorId: z.string().min(1).optional(),
   projectNumber: TdlrProjectNumberSchema.optional(),
   sourceArtifactHash: Sha256HashSchema.optional(),

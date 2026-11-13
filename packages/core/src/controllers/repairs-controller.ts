@@ -4,7 +4,7 @@ import { PositiveIntegerStringSchema, type GridlockRepository } from "../interfa
 import { getRepairChangelog } from "../use-cases/get-repair-changelog.ts";
 import { parseSingleValueSearchParams, sendJson, sendMarkdown } from "./http-utils.ts";
 
-export const RepairChangelogQueryParamsSchema = z
+const RepairChangelogQueryParamsSchema = z
   .object({
     connector_id: z.string().trim().min(1).max(64).optional(),
     limit: PositiveIntegerStringSchema.pipe(z.number().int().min(1).max(365)).optional(),

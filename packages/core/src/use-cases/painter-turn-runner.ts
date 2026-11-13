@@ -93,7 +93,7 @@ function observationTelemetryRef(observations: readonly Observation[]) {
     : {};
 }
 
-export async function recordMilestoneSkip(
+async function recordMilestoneSkip(
   ctx: PainterTurnContext,
   observations: readonly Observation[]
 ): Promise<StatefulPainterResult> {

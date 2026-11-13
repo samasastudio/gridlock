@@ -1,8 +1,8 @@
 import { createServer } from "node:http";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve } from "node:path";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import * as esbuild from "esbuild";
 import {
   createInMemoryGridlockRepository,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
@@ -17,24 +17,6 @@ const IS_SMOKE_CHECK = process.argv.includes("--smoke-check");
 const PORT = IS_SMOKE_CHECK ? 0 : Number(process.env.PORT ?? 6006);
 const HOST = process.env.HOST ?? (IS_SMOKE_CHECK ? "127.0.0.1" : existsSync("/mnt/shared") ? "0.0.0.0" : "127.0.0.1");
 
-function loadEsbuild() {
-  for (const pkgPath of [
-    join(GRIDLOCK_ROOT, "package.json"),
-    join(PROFILE_SITE_ROOT, "package.json"),
-  ]) {
-    if (!existsSync(pkgPath)) continue;
-    try {
-      return createRequire(pkgPath)("esbuild");
-    } catch {
-      // Try next candidate
-    }
-  }
-  throw new Error(
-    "esbuild not found in gridlock or ../profile-site node_modules; install esbuild to run preview:widgets."
-  );
-}
-
-const esbuild = loadEsbuild();
 const healedArgs = HealedWithAmortization.args;
 const baseRepo = createInMemoryGridlockRepository(DEFAULT_TDLR_CONNECTOR_CONFIG, healedArgs.efficiencyLedger);
 if (healedArgs.changelog && healedArgs.efficiencyLedger) {

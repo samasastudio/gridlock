@@ -59,6 +59,7 @@ export {
   TelemetryRunSchema,
   TelemetryRunStatusSchema,
   TelemetrySpanSchema,
+  TelemetryStageSchema,
   UnknownConnectorError,
   VisualPlateSchema,
   type CandidateSelectorPatch,
@@ -105,6 +106,7 @@ export {
   type TelemetryRunStatus,
   type TelemetrySpan,
   type TelemetrySpanSink,
+  type TelemetryStage,
   type VisualPlate,
 } from "./interfaces/index.ts";
 
