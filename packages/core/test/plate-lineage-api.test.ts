@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { describe, test } from "node:test";
 import {
@@ -13,13 +14,17 @@ import {
   createInMemoryGridlockRepository,
   DEFAULT_LINEAGE_ID,
   isWebpBuffer,
+  LineageNodeSchema,
+  MAX_SCENARIO_PROMPT_LENGTH,
   NINETY_DAYS_MS,
   ObservationSchema,
   paintMilestoneDelta,
   PlateLineageResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
   SourceArtifactSchema,
+  VisualPlateSchema,
   type GeminiInteractionCreateRequest,
+  type GeminiInteractionResponse,
   type GeminiInteractionsClient,
   type GridlockHttpDeps,
   type GridlockRepository,
@@ -222,6 +227,48 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
         edges: [],
       })
     );
+
+    const { obs1, t1, t2 } = await seedLineageGraph();
+    assert.equal(VisualPlateSchema.safeParse({ ...t1, plateId: "plate/1" }).success, false);
+    assert.equal(VisualPlateSchema.safeParse({ ...t1, lineageId: "austin/north" }).success, false);
+    assert.equal(VisualPlateSchema.safeParse({ ...t1, lineageId: "austin north" }).success, false);
+    const t1NodeBase = {
+      plate: t1,
+      assetPath: `/api/plates/assets/${t1.plateId}.webp`,
+      triggeringObservations: [obs1],
+      sourceArtifacts: [],
+    };
+    assert.equal(
+      LineageNodeSchema.safeParse({
+        ...t1NodeBase,
+        assetPath: "/api/plates/assets/other_plate.webp",
+      }).success,
+      false
+    );
+    assert.equal(
+      LineageNodeSchema.safeParse({
+        ...t1NodeBase,
+        triggeringObservations: [{ ...obs1, id: "obs_unreferenced" }],
+      }).success,
+      false
+    );
+    assert.equal(
+      PlateLineageResponseSchema.safeParse({
+        lineageId: DEFAULT_LINEAGE_ID,
+        activeCanonicalPlateId: t1.plateId,
+        nodes: [t1NodeBase],
+        edges: [
+          {
+            parentInteractionId: t1.interactionId,
+            childInteractionId: t2.interactionId,
+            parentPlateId: t1.plateId,
+            childPlateId: t2.plateId,
+            isBranch: false,
+          },
+        ],
+      }).success,
+      false
+    );
   });
 
   test("Hydrates multi-turn canonical + branch graph and enforces +90d branch TTL, non-milestone artifact expiry, and quarantine filtering", async () => {
@@ -318,6 +365,9 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
         for (const bad of [
           "?lineage_id=a&lineage_id=b",
           "?lineage_id=%20",
+          "?lineage_id=austin%2Fnorth",
+          "?lineage_id=..",
+          "?lineage_id=.",
           "?foo=1",
         ]) {
           await assertErr(
@@ -358,11 +408,14 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
     const { repository, t1, b1, b2 } = await seedLineageGraph();
     let clock = new Date("2026-11-01T00:00:00.000Z");
     let dropBlob = false;
+    let readWebpCalls = 0;
 
     const proxyRepo: GridlockRepository = {
       ...repository,
-      readVisualPlateWebp: async (id) =>
-        dropBlob ? null : repository.readVisualPlateWebp(id),
+      readVisualPlateWebp: async (id) => {
+        readWebpCalls += 1;
+        return dropBlob ? null : repository.readVisualPlateWebp(id);
+      },
     };
 
     await withPlatesServer(
@@ -397,6 +450,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           );
         }
 
+        readWebpCalls = 0;
         for (const bad of [
           "unknown_plate.webp",
           "",
@@ -405,12 +459,15 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           "sub/x.webp",
           "%E0%A4%A.webp",
           "a%2Fb.webp",
+          `%20${t1.plateId}%20.webp`,
+          "..webp",
         ]) {
           assert.equal(
             (await fetch(`${baseUrl}/api/plates/assets/${bad}`)).status,
             404
           );
         }
+        assert.equal(readWebpCalls, 0);
 
         dropBlob = true;
         await assertErr(
@@ -421,11 +478,13 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
         dropBlob = false;
 
         clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
+        readWebpCalls = 0;
         assert.equal(
           (await fetch(`${baseUrl}/api/plates/assets/${b1.plateId}.webp`))
             .status,
           404
         );
+        assert.equal(readWebpCalls, 0);
         assert.equal(
           (await fetch(`${baseUrl}/api/plates/assets/${t1.plateId}.webp`))
             .status,
@@ -471,6 +530,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
       sha_mismatch: flippedBuf,
     };
 
+    let readWebpCalls = 0;
     const proxyRepo: GridlockRepository = {
       ...repository,
       getVisualPlateById: async (id) => {
@@ -482,10 +542,12 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
         }
         return repository.getVisualPlateById(id);
       },
-      readVisualPlateWebp: async (id) =>
-        fault in blobFaults
+      readVisualPlateWebp: async (id) => {
+        readWebpCalls += 1;
+        return fault in blobFaults
           ? blobFaults[fault]!
-          : repository.readVisualPlateWebp(id),
+          : repository.readVisualPlateWebp(id);
+      },
     };
 
     await withPlatesServer(
@@ -514,12 +576,16 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           "throw",
         ] as const) {
           fault = mode;
+          readWebpCalls = 0;
           const corruptRes = await assertErr(
             fetch(assetUrl),
             500,
             "plate_asset_error"
           );
           assert.equal(corruptRes.headers.get("cache-control"), "no-store");
+          if (mode === "id_mismatch" || mode === "bad_schema") {
+            assert.equal(readWebpCalls, 0);
+          }
         }
 
         fault = "none";
@@ -632,5 +698,566 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
     assert.equal(recordedRequests.length, 1);
     assert.equal(recordedRequests[0]?.previous_interaction_id, t2.interactionId);
     assert.equal(recordedRequests[0]?.store, true);
+  });
+
+  test("Enforces 0-token / 0-telemetry preconditions across 405, 400 (including >16KB), 404, and 429 quota with post-TTL recovery", async () => {
+    const { repository, t1, t2, b1 } = await seedLineageGraph();
+    let clock = new Date("2026-11-01T00:00:00.000Z");
+    const recordedRequests: GeminiInteractionCreateRequest[] = [];
+
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        create: async (req) => {
+          recordedRequests.push(req);
+          return {
+            id: "inter_after_ttl",
+            status: "completed",
+            output_image: {
+              mime_type: "image/webp",
+              data: createFixtureWebpBuffer("ttl-freed").toString("base64"),
+            },
+            usage: { total_tokens: 90 },
+          };
+        },
+      },
+    };
+
+    const runsBefore = (await repository.listTelemetryRuns()).length;
+    const agenticBefore = (await repository.getEfficiencyLedger()).agenticRunsCount;
+
+    await withPlatesServer(
+      {
+        repository,
+        geminiClient,
+        maxBranchesPerLineage: 2,
+        now: () => clock,
+      },
+      async (baseUrl) => {
+        const methodErr = await assertErr(
+          fetch(`${baseUrl}/api/plates/branch`),
+          405,
+          "method_not_allowed"
+        );
+        assert.equal(methodErr.headers.get("allow"), "POST");
+
+        await assertErr(
+          postJson(`${baseUrl}/api/plates/branch?extra=1`, "{}"),
+          400,
+          "invalid_query_parameters"
+        );
+
+        const badBodies: Array<[string, string]> = [
+          ["", "invalid_request_body"],
+          ["{bad", "invalid_request_body"],
+          ["[]", "invalid_request_body"],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "ok",
+              pad: "x".repeat(17_000),
+            }),
+            "request_body_too_large",
+          ],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "ok",
+              parentInteractionId: "bad",
+            }),
+            "invalid_request_body",
+          ],
+          [
+            JSON.stringify({ interactionId: "   ", scenarioPrompt: "ok" }),
+            "invalid_request_body",
+          ],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "   ",
+            }),
+            "invalid_request_body",
+          ],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "a".repeat(MAX_SCENARIO_PROMPT_LENGTH + 1),
+            }),
+            "invalid_request_body",
+          ],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "ok",
+              lineageId: "austin/north",
+            }),
+            "invalid_request_body",
+          ],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "ok",
+              lineageId: "..",
+            }),
+            "invalid_request_body",
+          ],
+        ];
+        for (const [rawBody, expectedError] of badBodies) {
+          await assertErr(
+            postJson(`${baseUrl}/api/plates/branch`, rawBody),
+            400,
+            expectedError
+          );
+        }
+
+        for (const payload of [
+          { interactionId: "inter_missing", scenarioPrompt: "ok" },
+          {
+            interactionId: t2.interactionId,
+            scenarioPrompt: "ok",
+            lineageId: "other-corridor",
+          },
+        ]) {
+          await assertErr(
+            postJson(`${baseUrl}/api/plates/branch`, JSON.stringify(payload)),
+            404,
+            "parent_plate_not_found"
+          );
+        }
+
+        await assertErr(
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({
+              interactionId: t2.interactionId,
+              scenarioPrompt: "ok",
+            })
+          ),
+          429,
+          "branch_quota_exceeded"
+        );
+
+        clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
+        await assertErr(
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({
+              interactionId: b1.interactionId,
+              scenarioPrompt: "ok",
+            })
+          ),
+          404,
+          "parent_plate_not_found"
+        );
+
+        assert.equal(recordedRequests.length, 0);
+        assert.equal((await repository.listTelemetryRuns()).length, runsBefore);
+        assert.equal(
+          (await repository.getEfficiencyLedger()).agenticRunsCount,
+          agenticBefore
+        );
+
+        const recovered = await postJson(
+          `${baseUrl}/api/plates/branch`,
+          JSON.stringify({
+            interactionId: t2.interactionId,
+            scenarioPrompt: "Post-TTL branch",
+          })
+        );
+        assert.equal(recovered.status, 201);
+        assert.equal(recordedRequests.length, 1);
+      }
+    );
+  });
+
+  test("Orders 500/400/404/429 ahead of 503 unconfigured Gemini and maps Gemini/image faults to 502 with clean recovery", async () => {
+    const { repository, t2, b1 } = await seedLineageGraph();
+    let clock = new Date("2026-11-01T00:00:00.000Z");
+    let fault: "none" | "parent" | "lineage" | "obs" | "art" = "none";
+
+    const proxyRepo: GridlockRepository = {
+      ...repository,
+      getVisualPlateByInteractionId: async (id) =>
+        fault === "parent"
+          ? ({ ...t2, interactionId: "mismatch" } as never)
+          : repository.getVisualPlateByInteractionId(id),
+      listVisualPlatesByLineage: async (id) =>
+        fault === "lineage"
+          ? ([{ plateId: "corrupt" }] as never)
+          : repository.listVisualPlatesByLineage(id),
+      listObservationsByProject: async (projectNumber) =>
+        fault === "obs"
+          ? ([{ id: "bad" }] as never)
+          : repository.listObservationsByProject(projectNumber),
+      getSourceArtifactByHash: async (hash) =>
+        fault === "art"
+          ? ({ sha256: "mismatch" } as never)
+          : repository.getSourceArtifactByHash(hash),
+    };
+
+    const runsBefore503 = (await repository.listTelemetryRuns()).length;
+    await withPlatesServer(
+      {
+        repository: proxyRepo,
+        maxBranchesPerLineage: 2,
+        now: () => clock,
+      },
+      async (baseUrl) => {
+        for (const mode of ["parent", "lineage"] as const) {
+          fault = mode;
+          await assertErr(
+            postJson(
+              `${baseUrl}/api/plates/branch`,
+              JSON.stringify({
+                interactionId: t2.interactionId,
+                scenarioPrompt: "ok",
+              })
+            ),
+            500,
+            "plate_branch_error"
+          );
+        }
+
+        fault = "none";
+        await assertErr(
+          postJson(`${baseUrl}/api/plates/branch`, "{bad"),
+          400,
+          "invalid_request_body"
+        );
+        await assertErr(
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({ interactionId: "ghost", scenarioPrompt: "ok" })
+          ),
+          404,
+          "parent_plate_not_found"
+        );
+        await assertErr(
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({
+              interactionId: t2.interactionId,
+              scenarioPrompt: "ok",
+            })
+          ),
+          429,
+          "branch_quota_exceeded"
+        );
+
+        clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
+        for (const mode of ["obs", "art"] as const) {
+          fault = mode;
+          await assertErr(
+            postJson(
+              `${baseUrl}/api/plates/branch`,
+              JSON.stringify({
+                interactionId: t2.interactionId,
+                scenarioPrompt: "ok",
+              })
+            ),
+            500,
+            "plate_branch_error"
+          );
+        }
+
+        fault = "none";
+        await assertErr(
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({
+              interactionId: t2.interactionId,
+              scenarioPrompt: "ok",
+            })
+          ),
+          503,
+          "painter_unavailable"
+        );
+        assert.equal((await repository.listTelemetryRuns()).length, runsBefore503);
+      }
+    );
+
+    const queue: Array<() => GeminiInteractionResponse> = [
+      () => {
+        throw new Error("Gemini 503");
+      },
+      () => ({
+        id: "inter_failed",
+        status: "failed",
+        error: { message: "blocked" },
+      }),
+      () => ({
+        id: "inter_bad_img",
+        status: "completed",
+        output_image: { mime_type: "image/webp", data: "not-webp!!" },
+      }),
+      () => ({
+        id: "inter_recovered",
+        status: "completed",
+        output_image: {
+          mime_type: "image/webp",
+          data: createFixtureWebpBuffer("ok").toString("base64"),
+        },
+        usage: { total_tokens: 80 },
+      }),
+    ];
+
+    await withPlatesServer(
+      {
+        repository,
+        geminiClient: { interactions: { create: async () => queue.shift()!() } },
+        now: () => clock,
+      },
+      async (baseUrl) => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await assertErr(
+            postJson(
+              `${baseUrl}/api/plates/branch`,
+              JSON.stringify({
+                interactionId: t2.interactionId,
+                scenarioPrompt: "ok",
+              })
+            ),
+            502,
+            "painter_upstream_error"
+          );
+        }
+
+        const recovered = await postJson(
+          `${baseUrl}/api/plates/branch`,
+          JSON.stringify({
+            interactionId: t2.interactionId,
+            scenarioPrompt: "ok",
+          })
+        );
+        assert.equal(recovered.status, 201);
+      }
+    );
+  });
+
+  test("Serializes concurrent POST /api/plates/branch and branchLineage quota checks without calling Gemini twice", async () => {
+    const { repository, t2, b1 } = await seedLineageGraph();
+    const clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
+    const recordedRequests: GeminiInteractionCreateRequest[] = [];
+
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        create: async (req) => {
+          recordedRequests.push(req);
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          return {
+            id: `inter_concurrent_${recordedRequests.length}`,
+            status: "completed",
+            output_image: {
+              mime_type: "image/webp",
+              data: createFixtureWebpBuffer(`concurrent-${recordedRequests.length}`).toString("base64"),
+            },
+            usage: { total_tokens: 90 },
+          };
+        },
+      },
+    };
+
+    await withPlatesServer(
+      {
+        repository,
+        geminiClient,
+        maxBranchesPerLineage: 2,
+        now: () => clock,
+      },
+      async (baseUrl) => {
+        const raceResponses = await Promise.all([
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({
+              interactionId: t2.interactionId,
+              scenarioPrompt: "Concurrent POST A",
+            })
+          ),
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({
+              interactionId: t2.interactionId,
+              scenarioPrompt: "Concurrent POST B",
+            })
+          ),
+        ]);
+
+        const statuses = raceResponses.map((res) => res.status).sort((a, b) => a - b);
+        assert.deepEqual(statuses, [201, 429]);
+
+        const rejectedRes = raceResponses.find((res) => res.status === 429)!;
+        const rejectedBody = (await rejectedRes.json()) as { error: string };
+        assert.equal(rejectedBody.error, "branch_quota_exceeded");
+        assert.equal(recordedRequests.length, 1);
+      }
+    );
+
+    await withPlatesServer(
+      {
+        repository,
+        geminiClient,
+        maxBranchesPerLineage: 3,
+        now: () => clock,
+      },
+      async (baseUrl) => {
+        const [httpOutcome, directOutcome] = await Promise.all([
+          postJson(
+            `${baseUrl}/api/plates/branch`,
+            JSON.stringify({
+              interactionId: t2.interactionId,
+              scenarioPrompt: "Mixed HTTP branch",
+            })
+          ),
+          branchLineage(
+            {
+              parentInteractionId: t2.interactionId,
+              scenarioPrompt: "Mixed direct branch",
+              maxBranchesPerLineage: 3,
+              now: clock,
+            },
+            { repository, geminiClient }
+          ),
+        ]);
+
+        const paintedCount =
+          Number(httpOutcome.status === 201) +
+          Number(directOutcome.status === "plate_painted");
+        assert.equal(paintedCount, 1);
+        assert.equal(recordedRequests.length, 2);
+
+        if (httpOutcome.status !== 201) {
+          assert.equal(httpOutcome.status, 429);
+          const body = (await httpOutcome.json()) as { error: string };
+          assert.equal(body.error, "branch_quota_exceeded");
+        }
+        if (directOutcome.status === "painter_failed") {
+          assert.equal(directOutcome.errorCode, "branch_quota_exceeded");
+        } else if (directOutcome.status !== "plate_painted") {
+          assert.fail(`Unexpected directOutcome status: ${directOutcome.status}`);
+        }
+      }
+    );
+
+    const { repository: teleRepo, t2: teleT2, b1: teleB1 } = await seedLineageGraph();
+    const teleClock = new Date(Date.parse(teleB1.createdAt) + NINETY_DAYS_MS + 1_000);
+    let markSaved: (() => void) | undefined;
+    const savedPromise = new Promise<void>((resolve) => {
+      markSaved = resolve;
+    });
+    let releaseTelemetry: (() => void) | undefined;
+    const telemetryGate = new Promise<void>((resolve) => {
+      releaseTelemetry = resolve;
+    });
+    let notifiedSaved = false;
+    let blockedFirstTelemetry = false;
+
+    const delayedTelemetryRepo: GridlockRepository = {
+      ...teleRepo,
+      saveVisualPlate: async (plate, webpBuf) => {
+        await teleRepo.saveVisualPlate(plate, webpBuf);
+        if (plate.isBranch && !notifiedSaved) {
+          notifiedSaved = true;
+          markSaved?.();
+        }
+      },
+      recordTelemetryRun: async (run, updates) => {
+        if (run.stage === "painter_branch_lineage" && !blockedFirstTelemetry) {
+          blockedFirstTelemetry = true;
+          await telemetryGate;
+        }
+        return teleRepo.recordTelemetryRun(run, updates);
+      },
+    };
+
+    await withPlatesServer(
+      {
+        repository: delayedTelemetryRepo,
+        geminiClient,
+        maxBranchesPerLineage: 3,
+        now: () => teleClock,
+      },
+      async (baseUrl) => {
+        const post1Promise = postJson(
+          `${baseUrl}/api/plates/branch`,
+          JSON.stringify({
+            interactionId: teleT2.interactionId,
+            scenarioPrompt: "Telemetry overlap HTTP A",
+          })
+        );
+        await savedPromise;
+
+        const post2Res = await postJson(
+          `${baseUrl}/api/plates/branch`,
+          JSON.stringify({
+            interactionId: teleT2.interactionId,
+            scenarioPrompt: "Telemetry overlap HTTP B",
+          })
+        );
+        assert.equal(post2Res.status, 201);
+
+        releaseTelemetry?.();
+        const post1Res = await post1Promise;
+        assert.equal(post1Res.status, 201);
+      }
+    );
+  });
+
+  test("Flushes HTTP 400 and Connection: close for streaming payloads > 1 MiB before closing socket", async () => {
+    const repository = createInMemoryGridlockRepository();
+
+    await withPlatesServer({ repository }, async (baseUrl) => {
+      const outcome = await new Promise<{
+        status: number | undefined;
+        connection: string | string[] | undefined;
+        error: unknown;
+      }>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Timed out waiting for 400 response")),
+          2000
+        ).unref();
+
+        const req = httpRequest(
+          new URL("/api/plates/branch", baseUrl),
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+          },
+          (res) => {
+            const chunks: Buffer[] = [];
+            res.on("data", (chunk: Buffer) => {
+              chunks.push(chunk);
+            });
+            res.on("end", () => {
+              clearTimeout(timer);
+              const parsed = JSON.parse(
+                Buffer.concat(chunks).toString("utf-8")
+              ) as { error: unknown };
+              resolve({
+                status: res.statusCode,
+                connection: res.headers.connection,
+                error: parsed.error,
+              });
+            });
+          }
+        );
+
+        req.on("error", () => {});
+
+        const chunk = Buffer.alloc(65_536, 0x61);
+        const writeNext = (remaining: number): void => {
+          if (remaining === 0) {
+            req.end();
+            return;
+          }
+          if (!req.destroyed && !req.writableEnded) {
+            req.write(chunk, () => writeNext(remaining - 1));
+          }
+        };
+        writeNext(20);
+      });
+
+      assert.equal(outcome.status, 400);
+      assert.equal(outcome.connection, "close");
+      assert.equal(outcome.error, "request_body_too_large");
+    });
   });
 });
