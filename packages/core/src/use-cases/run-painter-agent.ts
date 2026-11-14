@@ -23,6 +23,11 @@ import {
 } from "./helpers/painter-helpers.ts";
 import { createCorridorBaseCanvasWebp, isWebpBuffer } from "./helpers/webp-codec.ts";
 import {
+  countOccupiedBranchSlots,
+  withLineageBranchAdmission,
+  wrapRepositoryWithBranchSlot,
+} from "./lineage-branch-slots.ts";
+import {
   evaluatePainterMilestoneGate,
   failClosedInteraction,
   failClosedPainter,
@@ -175,56 +180,76 @@ export async function branchLineage(input: BranchLineageInput, deps: PainterDeps
   const trimmedScenario = input.scenarioPrompt.trim();
   const parentPlate = await deps.repository.getVisualPlateByInteractionId(input.parentInteractionId);
   const lineageId = input.lineageId ?? parentPlate?.lineageId ?? DEFAULT_LINEAGE_ID;
-  const { ctx, existingPlates } = await preparePainterTurn(
-    { lineageId, ...(input.now !== undefined ? { now: input.now } : {}) },
-    deps
-  );
-
-  if (trimmedScenario.length === 0 || trimmedScenario.length > MAX_SCENARIO_PROMPT_LENGTH) {
-    return rejectBranchPrecondition(
-      ctx,
-      "invalid_scenario_prompt",
-      `scenarioPrompt must be between 1 and ${MAX_SCENARIO_PROMPT_LENGTH} characters`
-    );
-  }
-
-  if (!parentPlate || parentPlate.lineageId !== lineageId || !isVisualPlateActiveAt(parentPlate, ctx.now)) {
-    return rejectBranchPrecondition(
-      ctx,
-      "parent_not_found",
-      `Unknown or expired parent interactionId "${input.parentInteractionId}" for lineage "${lineageId}"`
-    );
-  }
-
   const maxBranches = input.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_LINEAGE;
-  const activeBranchesCount = existingPlates.filter((p) => p.isBranch && isVisualPlateActiveAt(p, ctx.now)).length;
-  if (activeBranchesCount >= maxBranches) {
-    return rejectBranchPrecondition(
-      ctx,
-      "branch_quota_exceeded",
-      `Branch quota exceeded for lineage "${lineageId}" (max ${maxBranches})`
+
+  const admission = await withLineageBranchAdmission(deps.repository, lineageId, async (reserve) => {
+    const { ctx, existingPlates } = await preparePainterTurn(
+      { lineageId, ...(input.now !== undefined ? { now: input.now } : {}) },
+      deps
     );
+    if (trimmedScenario.length === 0 || trimmedScenario.length > MAX_SCENARIO_PROMPT_LENGTH) {
+      return {
+        admitted: false as const,
+        result: rejectBranchPrecondition(
+          ctx,
+          "invalid_scenario_prompt",
+          `scenarioPrompt must be between 1 and ${MAX_SCENARIO_PROMPT_LENGTH} characters`
+        ),
+      };
+    }
+    if (!parentPlate || parentPlate.lineageId !== lineageId || !isVisualPlateActiveAt(parentPlate, ctx.now)) {
+      return {
+        admitted: false as const,
+        result: rejectBranchPrecondition(
+          ctx,
+          "parent_not_found",
+          `Unknown or expired parent interactionId "${input.parentInteractionId}" for lineage "${lineageId}"`
+        ),
+      };
+    }
+    if (countOccupiedBranchSlots(existingPlates, deps.repository, lineageId, ctx.now) >= maxBranches) {
+      return {
+        admitted: false as const,
+        result: rejectBranchPrecondition(
+          ctx,
+          "branch_quota_exceeded",
+          `Branch quota exceeded for lineage "${lineageId}" (max ${maxBranches})`
+        ),
+      };
+    }
+    return { admitted: true as const, ctx, validParent: parentPlate, slot: reserve() };
+  });
+  if (!admission.admitted) return admission.result;
+
+  try {
+    const parentObservations = await loadObservationsForPlate(deps.repository, admission.validParent);
+    const prompt = synthesizeScenarioBranchPrompt(admission.validParent, trimmedScenario);
+    const outcome = await requestChainedOrFallbackPainterInteraction({
+      geminiClient: deps.geminiClient,
+      repository: deps.repository,
+      parentPlate: admission.validParent,
+      prompt,
+    });
+    if (!outcome.ok) {
+      await admission.slot.release();
+      return failClosedInteraction(admission.ctx, "painter_branch_lineage", outcome, parentObservations);
+    }
+
+    return await finalizePaintedPlateTurn(
+      { ...admission.ctx, repository: wrapRepositoryWithBranchSlot(deps.repository, admission.slot) },
+      {
+        operation: "branchLineage",
+        stage: "painter_branch_lineage",
+        turn: outcome.turn,
+        parentPlate: admission.validParent,
+        observations: parentObservations,
+        prompt,
+        isBranch: true,
+        scenarioPrompt: trimmedScenario,
+        expiresAt: new Date(admission.ctx.now.getTime() + NINETY_DAYS_MS).toISOString(),
+      }
+    );
+  } finally {
+    await admission.slot.release();
   }
-
-  const parentObservations = await loadObservationsForPlate(deps.repository, parentPlate);
-  const prompt = synthesizeScenarioBranchPrompt(parentPlate, trimmedScenario);
-  const outcome = await requestChainedOrFallbackPainterInteraction({
-    geminiClient: deps.geminiClient,
-    repository: deps.repository,
-    parentPlate,
-    prompt,
-  });
-  if (!outcome.ok) return failClosedInteraction(ctx, "painter_branch_lineage", outcome, parentObservations);
-
-  return finalizePaintedPlateTurn(ctx, {
-    operation: "branchLineage",
-    stage: "painter_branch_lineage",
-    turn: outcome.turn,
-    parentPlate,
-    observations: parentObservations,
-    prompt,
-    isBranch: true,
-    scenarioPrompt: trimmedScenario,
-    expiresAt: new Date(ctx.now.getTime() + NINETY_DAYS_MS).toISOString(),
-  });
 }
