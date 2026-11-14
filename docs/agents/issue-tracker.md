@@ -4,13 +4,13 @@ Issues, specs, and pull requests for `samasastudio/gridlock` live on GitHub.
 
 ## Branch, Stacked PR & Review Workflow
 
-1. **Issue Before Branch**: Switch to a dedicated branch (`git switch -c feat/<issue>-<slug>`, `fix/<issue>-<slug>`, or `chore/<slug>`). `.githooks/pre-commit` enforces numeric GitHub issue IDs on `feat/` and `fix/` branches, blocks direct commits to `main`, and runs `npm run verify`. Follow-up work discovered after an issue closes gets a new sub-issue under `#1` before branching; when design or library choices remain open, apply `needs-info` and align with the human before writing production code.
+1. **Issue Before Branch**: Switch to a dedicated branch (`git switch -c feat/<issue>-<slug>`, `fix/<issue>-<slug>`, or `chore/<slug>`). `.githooks/pre-commit` enforces numeric GitHub issue IDs on `feat/` and `fix/` branches, blocks direct commits to `main`, and runs `npm run verify`. Follow-up work discovered after an issue closes gets a new sub-issue under `#1` before branching; when design or library choices remain open, align with the human before writing production code.
 2. **Slice Within `<= 700` Lines**: Run `PR_BASE_REF=<base> npm run check:pr-size` before opening or updating a PR. When a ticket exceeds `700` changed lines (`insertions + deletions`), slice it into stacked vertical PRs (`#N part 1/k..k/k`):
    - Branch slice `k` from slice `k - 1` and pass `--base <slice-(k-1)-branch>` to `gh pr create` so each PR's diff stays `<= 700` lines and compiles/tests cleanly on its own.
    - When amending an earlier slice, transplant downstream slices via `git rebase --onto <new-parent-sha> <old-parent-sha> <slice-branch>` so pre-amend parent commits are not replayed.
    - `delete_branch_on_merge` is enabled on `samasastudio/gridlock`: when slice `1/k` merges into `main`, GitHub deletes the merged head branch and auto-retargets slice `2/k` onto `main` server-side (if merging from the CLI, omit `-d` / `--delete-branch` so a client-side `git push --delete` does not race the auto-retargeter and close slice `2/k`).
-3. **Verify & Stop for Editor Review**: Run `npm run verify` (typecheck + build + lint + tests + workbench smoke check) and two-axis `/code-review` (**Standards** via [`CODING_STANDARDS.md`](../../CODING_STANDARDS.md) + **Spec** via the GitHub Issue and [`ROADMAP.md`](../../ROADMAP.md))—verifying and reviewing each slice's own diff (`<base_k>...<slice_k>`) when stacking PRs—then **leave all changes uncommitted in the working tree and stop** so the human can review them in the code editor.
-4. **Commit, Push & Open PR (`/pr`) Only When Requested**: Once the human explicitly asks to commit or push, commit on the feature branch, push (`git push -u origin HEAD`), verify all symbol names, `@samasastudio/*` package names, and `ADR-0001`–`ADR-0004` references in the `/pr` body against `git diff <base>...HEAD`, create or update the PR via `gh pr create`, and **stop and share the PR URL** (`gh pr merge` is human-only).
+3. **Verify & Stop for Editor Review**: Run `npm run verify` (typecheck + build + lint + tests + workbench smoke check) and a pre-PR review across **Acceptance Criteria / Spec** (the GitHub Issue and [`ROADMAP.md`](../../ROADMAP.md)) and **Standards** ([`CODING_STANDARDS.md`](../../CODING_STANDARDS.md), `GLOSSARY.md`, `docs/adr/`)—verifying and reviewing each slice's own diff (`<base_k>...<slice_k>`) when stacking PRs—then **leave all changes uncommitted in the working tree and stop** so the human can review them in the code editor.
+4. **Commit, Push & Open PR Only When Requested**: Once the human explicitly asks to commit or push, commit on the feature branch, push (`git push -u origin HEAD`), verify all symbol names, `@samasastudio/*` package names, and `ADR-0001`–`ADR-0004` references in the PR body against `git diff <base>...HEAD`, create or update the PR via `gh pr create`, and **stop and share the PR URL** (`gh pr merge` is human-only).
 
 ## `gh` CLI Conventions
 
@@ -43,13 +43,9 @@ Issues, specs, and pull requests for `samasastudio/gridlock` live on GitHub.
 - **List open issues**: `gh issue list --state open --json number,title,body,labels,comments`
 - **Find unblocked frontier**:
   ```bash
-  gh api --paginate 'repos/samasastudio/gridlock/issues?state=open&labels=ready-for-agent' \
-    --jq '.[] | select(.issue_dependencies_summary.blocked_by == 0) | "#\(.number): \(.title) (\(.html_url))"'
+  gh api --paginate 'repos/samasastudio/gridlock/issues?state=open' \
+    --jq '.[] | select(.pull_request == null and .issue_dependencies_summary.blocked_by == 0) | "#\(.number): \(.title) (\(.html_url))"'
   ```
 - **Sub-issues & blocking edges**:
   - Sub-issue: `gh api --method POST repos/samasastudio/gridlock/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>`
   - Blocker (`<db-id>` via `gh api repos/samasastudio/gridlock/issues/<n> --jq .id`): `gh api --method POST repos/samasastudio/gridlock/issues/<child>/dependencies/blocked_by -F issue_id=<blocker-db-id>`
-
-## Pull requests as a triage surface
-
-**PRs as a request surface: no.**

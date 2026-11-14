@@ -4,10 +4,27 @@ import {
   type Server,
   type ServerResponse,
 } from "node:http";
-import type { GridlockRepository } from "../interfaces/index.ts";
+import type {
+  GeminiInteractionsClient,
+  GridlockRepository,
+  PainterImageEncoder,
+  TelemetrySpanSink,
+} from "../interfaces/index.ts";
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
+import {
+  handleGetPlateLineage,
+} from "./plates-controller.ts";
 import { handleGetRepairChangelog } from "./repairs-controller.ts";
 import { handleGetEfficiencyTelemetry } from "./telemetry-controller.ts";
+
+export type GridlockHttpDeps = {
+  repository: GridlockRepository;
+  geminiClient?: GeminiInteractionsClient;
+  imageEncoder?: PainterImageEncoder;
+  spanSink?: TelemetrySpanSink;
+  maxBranchesPerLineage?: number;
+  now?: () => Date;
+};
 
 function tryParseRequestUrl(rawUrl: string | undefined): URL | null {
   try {
@@ -20,9 +37,7 @@ function tryParseRequestUrl(rawUrl: string | undefined): URL | null {
 export async function handleGridlockHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  deps: {
-    repository: GridlockRepository;
-  }
+  deps: GridlockHttpDeps
 ): Promise<void> {
   if (req.method === "OPTIONS") {
     res.writeHead(204, CORS_HEADERS);
@@ -51,15 +66,19 @@ export async function handleGridlockHttpRequest(
     return;
   }
 
+  if (pathname === "/api/plates/lineage") {
+    await handleGetPlateLineage(req, res, parsedUrl, deps);
+    return;
+  }
+
+
   sendJson(res, 404, {
     error: "not_found",
     message: `No route matching ${req.method ?? "GET"} ${pathname}`,
   });
 }
 
-export function createGridlockHttpServer(deps: {
-  repository: GridlockRepository;
-}): Server {
+export function createGridlockHttpServer(deps: GridlockHttpDeps): Server {
   return createServer((req, res) => {
     void handleGridlockHttpRequest(req, res, deps).catch((error) => {
       if (!res.headersSent) {
