@@ -7,6 +7,8 @@ import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
   branchLineage,
+  BranchPlateRequestSchema,
+  BranchPlateResponseSchema,
   createGridlockHttpServer,
   createInMemoryGridlockRepository,
   DEFAULT_LINEAGE_ID,
@@ -17,6 +19,7 @@ import {
   PlateLineageResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
   SourceArtifactSchema,
+  type GeminiInteractionCreateRequest,
   type GeminiInteractionsClient,
   type GridlockHttpDeps,
   type GridlockRepository,
@@ -42,6 +45,14 @@ async function withPlatesServer(
       server.close((err) => (err ? reject(err) : resolve()));
     });
   }
+}
+
+function postJson(url: string, body: string): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+  });
 }
 
 async function assertErr(
@@ -515,5 +526,111 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
         assert.equal((await fetch(assetUrl)).status, 200);
       }
     );
+  });
+});
+
+describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", () => {
+  test("Returns 201 Created with watermarked WebP + XMP dc:rights and updates GET /api/plates/lineage without advancing activeCanonicalPlateId", async () => {
+    const { repository, t2, h2, hAged } = await seedLineageGraph();
+    const recordedRequests: GeminiInteractionCreateRequest[] = [];
+    const clock = new Date("2026-11-02T12:00:00.000Z");
+
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        create: async (req) => {
+          recordedRequests.push(req);
+          return {
+            id: "inter_http_b1",
+            status: "completed",
+            output_image: {
+              mime_type: "image/webp",
+              data: createFixtureWebpBuffer("http-b1").toString("base64"),
+            },
+            usage: { total_tokens: 145 },
+          };
+        },
+      },
+    };
+
+    await withPlatesServer(
+      { repository, geminiClient, now: () => clock },
+      async (baseUrl) => {
+        const res = await postJson(
+          `${baseUrl}/api/plates/branch`,
+          JSON.stringify({
+            interactionId: t2.interactionId,
+            scenarioPrompt: "  Simulate +300MW Austin North substation  ",
+          })
+        );
+        assert.equal(res.status, 201);
+        assert.equal(res.headers.get("cache-control"), "no-store");
+
+        const created = BranchPlateResponseSchema.parse(await res.json());
+        assert.equal(created.plate.isBranch, true);
+        assert.equal(created.plate.epistemicLabel, SCENARIO_BRANCH_WATERMARK);
+        assert.equal(created.plate.watermarkText, SCENARIO_BRANCH_WATERMARK);
+        assert.equal(
+          created.plate.scenarioPrompt,
+          "Simulate +300MW Austin North substation"
+        );
+        assert.equal(
+          created.plate.expiresAt,
+          new Date(clock.getTime() + NINETY_DAYS_MS).toISOString()
+        );
+        assert.equal(created.tokensUsed, 145);
+        assert.equal(created.node.triggeringObservations.length, 3);
+        assert.deepEqual(
+          created.node.sourceArtifacts.map((art) => art.sha256),
+          [h2, hAged]
+        );
+
+        assert.throws(() =>
+          BranchPlateResponseSchema.parse({ ...created, plate: t2 })
+        );
+        assert.throws(() =>
+          BranchPlateRequestSchema.parse({
+            interactionId: t2.interactionId,
+            scenarioPrompt: "ok",
+            extra: 1,
+          })
+        );
+
+        const assetRes = await fetch(`${baseUrl}${created.node.assetPath}`);
+        assert.equal(assetRes.status, 200);
+        assert.equal(assetRes.headers.get("cache-control"), "no-store");
+
+        const webpBytes = Buffer.from(await assetRes.arrayBuffer());
+        assert.ok(isWebpBuffer(webpBytes));
+        assert.equal(
+          createHash("sha256").update(webpBytes).digest("hex"),
+          created.plate.sha256
+        );
+        assert.ok(
+          webpBytes
+            .toString("utf-8")
+            .includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`)
+        );
+
+        const lineage = PlateLineageResponseSchema.parse(
+          await (await fetch(`${baseUrl}/api/plates/lineage`)).json()
+        );
+        assert.equal(lineage.activeCanonicalPlateId, t2.plateId);
+        assert.ok(
+          lineage.nodes.some((node) => node.plate.plateId === created.plate.plateId)
+        );
+        assert.ok(
+          lineage.edges.some(
+            (edge) =>
+              edge.parentInteractionId === t2.interactionId &&
+              edge.childInteractionId === created.plate.interactionId &&
+              edge.isBranch
+          )
+        );
+      }
+    );
+
+    assert.equal(recordedRequests.length, 1);
+    assert.equal(recordedRequests[0]?.previous_interaction_id, t2.interactionId);
+    assert.equal(recordedRequests[0]?.store, true);
   });
 });

@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
+import { BranchPlateRequestSchema } from "../interfaces/index.ts";
+import { branchPlate } from "../use-cases/branch-plate.ts";
 import {
   getPlateLineage,
   getVisualPlateAsset,
@@ -7,6 +9,7 @@ import {
 import type { GridlockHttpDeps } from "./http-server.ts";
 import {
   parseSingleValueSearchParams,
+  readJsonObjectBody,
   sendJson,
   sendMethodNotAllowed,
   sendWebp,
@@ -128,4 +131,57 @@ export async function handleGetPlateAsset(
   }
 
   sendWebp(res, result.webpBuffer, { immutable: !result.plate.isBranch });
+}
+
+export async function handlePostPlateBranch(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parsedUrl: URL,
+  deps: GridlockHttpDeps
+): Promise<void> {
+  if (req.method !== "POST") {
+    sendMethodNotAllowed(res, "POST", "Only POST is supported on /api/plates/branch");
+    return;
+  }
+
+  const parsedQuery = parseSingleValueSearchParams(
+    parsedUrl.searchParams,
+    EmptyQueryParamsSchema
+  );
+  if (!parsedQuery.ok) {
+    sendJson(res, 400, {
+      error: "invalid_query_parameters",
+      message: parsedQuery.message,
+      issues: parsedQuery.issues,
+    });
+    return;
+  }
+
+  const bodyResult = await readJsonObjectBody(req, res);
+  if (!bodyResult.ok) {
+    sendJson(res, 400, { error: bodyResult.error, message: bodyResult.message });
+    return;
+  }
+
+  const parsedBody = BranchPlateRequestSchema.safeParse(bodyResult.value);
+  if (!parsedBody.success) {
+    const message = parsedBody.error.issues
+      .map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`)
+      .join("; ");
+    sendJson(res, 400, {
+      error: "invalid_request_body",
+      message,
+      issues: parsedBody.error.issues,
+    });
+    return;
+  }
+
+  const outcome = await branchPlate(parsedBody.data, deps);
+  sendJson(
+    res,
+    outcome.status,
+    outcome.ok
+      ? outcome.response
+      : { error: outcome.error, message: outcome.message }
+  );
 }

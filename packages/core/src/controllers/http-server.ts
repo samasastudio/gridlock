@@ -14,6 +14,7 @@ import { CORS_HEADERS, sendJson } from "./http-utils.ts";
 import {
   handleGetPlateAsset,
   handleGetPlateLineage,
+  handlePostPlateBranch,
   matchPlateAssetId,
 } from "./plates-controller.ts";
 import { handleGetRepairChangelog } from "./repairs-controller.ts";
@@ -73,6 +74,10 @@ export async function handleGridlockHttpRequest(
     return;
   }
 
+  if (pathname === "/api/plates/branch") {
+    await handlePostPlateBranch(req, res, parsedUrl, deps);
+    return;
+  }
 
   const assetPlateId = matchPlateAssetId(pathname);
   if (assetPlateId !== null) {

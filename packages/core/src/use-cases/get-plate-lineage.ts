@@ -50,7 +50,7 @@ const assetErr = (
   message: string
 ): GetVisualPlateAssetResult => ({ ok: false, error, message });
 
-async function hydrateLineageNodes(
+export async function hydrateLineageNodes(
   plates: readonly VisualPlate[],
   repository: Pick<
     GridlockRepository,
