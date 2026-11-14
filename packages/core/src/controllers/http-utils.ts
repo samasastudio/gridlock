@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import type { ServerResponse } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { z } from "zod";
 
 export const CORS_HEADERS = {
@@ -89,4 +89,100 @@ export function parseSingleValueSearchParams<TSchema extends z.ZodTypeAny>(
     };
   }
   return { ok: true, data: parsed.data };
+}
+
+const MAX_JSON_BODY_BYTES = 16_384;
+
+export type JsonObjectBodyResult =
+  | { ok: true; value: Record<string, unknown> }
+  | {
+      ok: false;
+      error: "invalid_request_body" | "request_body_too_large";
+      message: string;
+    };
+
+export function readJsonObjectBody(
+  req: IncomingMessage,
+  res?: ServerResponse
+): Promise<JsonObjectBodyResult> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const state = { totalBytes: 0, tooLarge: false, settled: false };
+
+    const tooLargeErr = (): JsonObjectBodyResult => ({
+      ok: false,
+      error: "request_body_too_large",
+      message: `Request body exceeds ${MAX_JSON_BODY_BYTES}-byte limit`,
+    });
+    const bodyErr = (message: string): JsonObjectBodyResult => ({
+      ok: false,
+      error: "invalid_request_body",
+      message,
+    });
+    const finish = (result: JsonObjectBodyResult): void => {
+      if (!state.settled) {
+        state.settled = true;
+        resolve(result);
+      }
+    };
+
+    req.on("data", (chunk: Buffer | string) => {
+      if (state.tooLarge) {
+        return;
+      }
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      state.totalBytes += buf.byteLength;
+      if (state.totalBytes > MAX_JSON_BODY_BYTES) {
+        state.tooLarge = true;
+        chunks.length = 0;
+        req.pause();
+        res?.setHeader("connection", "close");
+        const scheduleDestroy = (): void => {
+          setTimeout(() => {
+            if (!req.destroyed) {
+              req.destroy();
+            }
+          }, 50).unref();
+        };
+        if (res && !res.writableFinished) {
+          res.once("finish", scheduleDestroy);
+        } else {
+          scheduleDestroy();
+        }
+        finish(tooLargeErr());
+        return;
+      }
+      chunks.push(buf);
+    });
+
+    req.on("error", () => {
+      finish(state.tooLarge ? tooLargeErr() : bodyErr("Failed to read request body"));
+    });
+
+    req.on("close", () => {
+      finish(state.tooLarge ? tooLargeErr() : bodyErr("Request stream closed prematurely"));
+    });
+
+    req.on("end", () => {
+      if (state.tooLarge) {
+        finish(tooLargeErr());
+        return;
+      }
+      const raw = Buffer.concat(chunks).toString("utf-8").trim();
+      if (raw.length === 0) {
+        finish(bodyErr("Request body must be a non-empty JSON object"));
+        return;
+      }
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+          finish(bodyErr("Request body must be a JSON object"));
+          return;
+        }
+        finish({ ok: true, value: parsed as Record<string, unknown> });
+      } catch {
+        finish(bodyErr("Malformed JSON in request body"));
+      }
+    });
+  });
 }

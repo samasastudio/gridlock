@@ -61,12 +61,16 @@ export {
 } from "./repair-models.ts";
 
 export {
+  BranchPlateRequestSchema,
+  BranchPlateResponseSchema,
   EpistemicPlateLabelSchema,
   LineageEdgeSchema,
   LineageNodeSchema,
   LineageSourceCitationSchema,
   PlateLineageResponseSchema,
   VisualPlateSchema,
+  type BranchPlateRequest,
+  type BranchPlateResponse,
   type EpistemicPlateLabel,
   type LineageEdge,
   type LineageNode,

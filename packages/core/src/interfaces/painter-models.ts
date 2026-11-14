@@ -246,3 +246,49 @@ export const PlateLineageResponseSchema = z
   });
 
 export type PlateLineageResponse = z.infer<typeof PlateLineageResponseSchema>;
+
+export const BranchPlateRequestSchema = z
+  .object({
+    interactionId: z.string().trim().min(1),
+    scenarioPrompt: z.string().trim().min(1).max(MAX_SCENARIO_PROMPT_LENGTH),
+    lineageId: z.string().trim().max(128).pipe(SafeSegmentIdSchema).optional(),
+  })
+  .strict();
+
+export type BranchPlateRequest = z.infer<typeof BranchPlateRequestSchema>;
+
+export const BranchPlateResponseSchema = z
+  .object({
+    plate: VisualPlateSchema,
+    node: LineageNodeSchema,
+    lineageId: SafeSegmentIdSchema,
+    tokensUsed: z.number().int().nonnegative(),
+    rebootstrappedFromParentWebp: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      !data.plate.isBranch ||
+      data.plate.epistemicLabel !== SCENARIO_BRANCH_WATERMARK ||
+      data.plate.watermarkText !== SCENARIO_BRANCH_WATERMARK
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["plate"],
+        message: `BranchPlateResponse requires branched plate with "${SCENARIO_BRANCH_WATERMARK}"`,
+      });
+    }
+    if (
+      data.node.plate.plateId !== data.plate.plateId ||
+      data.plate.lineageId !== data.lineageId ||
+      data.plate.rebootstrappedFromParentWebp !== data.rebootstrappedFromParentWebp
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["node"],
+        message:
+          "BranchPlateResponse node, lineageId, and rebootstrappedFromParentWebp must match plate",
+      });
+    }
+  });
+
+export type BranchPlateResponse = z.infer<typeof BranchPlateResponseSchema>;

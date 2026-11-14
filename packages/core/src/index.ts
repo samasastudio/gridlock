@@ -17,6 +17,8 @@ import type {
 
 export {
   ARTIFACT_BUCKET_URI,
+  BranchPlateRequestSchema,
+  BranchPlateResponseSchema,
   CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
   CANONICAL_MILESTONE_LABEL,
   CandidateSelectorPatchSchema,
@@ -66,6 +68,8 @@ export {
   TelemetryStageSchema,
   UnknownConnectorError,
   VisualPlateSchema,
+  type BranchPlateRequest,
+  type BranchPlateResponse,
   type CandidateSelectorPatch,
   type ConnectorConfig,
   type ConnectorStatus,
