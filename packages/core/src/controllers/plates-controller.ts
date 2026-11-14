@@ -1,12 +1,20 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
-import { getPlateLineage } from "../use-cases/get-plate-lineage.ts";
+import {
+  getPlateLineage,
+  getVisualPlateAsset,
+} from "../use-cases/get-plate-lineage.ts";
 import type { GridlockHttpDeps } from "./http-server.ts";
 import {
   parseSingleValueSearchParams,
   sendJson,
   sendMethodNotAllowed,
+  sendWebp,
 } from "./http-utils.ts";
+
+const ASSET_PREFIX = "/api/plates/assets/";
+
+const EmptyQueryParamsSchema = z.object({}).strict();
 
 const LineageQueryParamsSchema = z
   .object({
@@ -19,6 +27,27 @@ const LineageQueryParamsSchema = z
       .optional(),
   })
   .strict();
+
+export function matchPlateAssetId(pathname: string): string | null {
+  if (!pathname.startsWith(ASSET_PREFIX)) {
+    return null;
+  }
+  const file = pathname.slice(ASSET_PREFIX.length);
+  if (!file.endsWith(".webp") || file.includes("/")) {
+    return null;
+  }
+  try {
+    const decoded = decodeURIComponent(file.slice(0, -5));
+    return decoded.length > 0 &&
+      decoded !== "." &&
+      decoded !== ".." &&
+      !/[\s/]/.test(decoded)
+      ? decoded
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function handleGetPlateLineage(
   req: IncomingMessage,
@@ -58,4 +87,45 @@ export async function handleGetPlateLineage(
   }
 
   sendJson(res, 200, result.lineage);
+}
+
+export async function handleGetPlateAsset(
+  req: IncomingMessage,
+  res: ServerResponse,
+  parsedUrl: URL,
+  plateId: string,
+  deps: GridlockHttpDeps
+): Promise<void> {
+  if (req.method !== "GET") {
+    sendMethodNotAllowed(res, "GET", `Only GET is supported on ${parsedUrl.pathname}`);
+    return;
+  }
+
+  const parsedQuery = parseSingleValueSearchParams(
+    parsedUrl.searchParams,
+    EmptyQueryParamsSchema
+  );
+  if (!parsedQuery.ok) {
+    sendJson(res, 400, {
+      error: "invalid_query_parameters",
+      message: parsedQuery.message,
+      issues: parsedQuery.issues,
+    });
+    return;
+  }
+
+  const result = await getVisualPlateAsset(
+    {
+      plateId,
+      ...(deps.now ? { now: deps.now() } : {}),
+    },
+    { repository: deps.repository }
+  );
+  if (!result.ok) {
+    const statusCode = result.error === "plate_not_found" ? 404 : 500;
+    sendJson(res, statusCode, { error: result.error, message: result.message });
+    return;
+  }
+
+  sendWebp(res, result.webpBuffer, { immutable: !result.plate.isBranch });
 }
