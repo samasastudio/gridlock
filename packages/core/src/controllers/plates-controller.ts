@@ -37,8 +37,13 @@ export function matchPlateAssetId(pathname: string): string | null {
     return null;
   }
   try {
-    const decoded = decodeURIComponent(file.slice(0, -5)).trim();
-    return decoded.length > 0 && !decoded.includes("/") ? decoded : null;
+    const decoded = decodeURIComponent(file.slice(0, -5));
+    return decoded.length > 0 &&
+      decoded !== "." &&
+      decoded !== ".." &&
+      !/[\s/]/.test(decoded)
+      ? decoded
+      : null;
   } catch {
     return null;
   }

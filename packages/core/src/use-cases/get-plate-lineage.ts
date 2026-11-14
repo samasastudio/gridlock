@@ -239,10 +239,7 @@ export async function getVisualPlateAsset(
 ): Promise<GetVisualPlateAssetResult> {
   const now = input.now ?? new Date();
   try {
-    const [plateCandidate, webpCandidate] = await Promise.all([
-      deps.repository.getVisualPlateById(input.plateId),
-      deps.repository.readVisualPlateWebp(input.plateId),
-    ]);
+    const plateCandidate = await deps.repository.getVisualPlateById(input.plateId);
     if (plateCandidate === null || plateCandidate === undefined) {
       return assetErr("plate_not_found", `VisualPlate "${input.plateId}" not found`);
     }
@@ -254,12 +251,15 @@ export async function getVisualPlateAsset(
         "Stored VisualPlate metadata failed runtime schema validation"
       );
     }
+    if (!isVisualPlateActiveAt(parsedPlate.data, now)) {
+      return assetErr(
+        "plate_not_found",
+        `VisualPlate asset "${input.plateId}" not found or expired`
+      );
+    }
 
-    if (
-      !isVisualPlateActiveAt(parsedPlate.data, now) ||
-      webpCandidate === null ||
-      webpCandidate === undefined
-    ) {
+    const webpCandidate = await deps.repository.readVisualPlateWebp(input.plateId);
+    if (webpCandidate === null || webpCandidate === undefined) {
       return assetErr(
         "plate_not_found",
         `VisualPlate asset "${input.plateId}" not found or expired`
