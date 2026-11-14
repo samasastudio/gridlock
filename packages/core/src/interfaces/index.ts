@@ -62,9 +62,17 @@ export {
 
 export {
   EpistemicPlateLabelSchema,
+  LineageEdgeSchema,
+  LineageNodeSchema,
+  LineageSourceCitationSchema,
+  PlateLineageResponseSchema,
   VisualPlateSchema,
   type EpistemicPlateLabel,
+  type LineageEdge,
+  type LineageNode,
+  type LineageSourceCitation,
   type PainterErrorCode,
+  type PlateLineageResponse,
   type StatefulPainterResult,
   type VisualPlate,
 } from "./painter-models.ts";

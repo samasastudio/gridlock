@@ -5,7 +5,10 @@ import {
   MAX_SCENARIO_PROMPT_LENGTH,
   SCENARIO_BRANCH_WATERMARK,
 } from "./constants.ts";
+import { ObservationSchema } from "./filing-models.ts";
 import { Sha256HashSchema, TdlrProjectNumberSchema } from "./primitives.ts";
+
+const SafeSegmentIdSchema = z.string().regex(/^(?!\.\.?$)[^\s/]+$/);
 
 export const EpistemicPlateLabelSchema = z.enum([
   CANONICAL_MILESTONE_LABEL,
@@ -16,13 +19,13 @@ export type EpistemicPlateLabel = z.infer<typeof EpistemicPlateLabelSchema>;
 
 export const VisualPlateSchema = z
   .object({
-    plateId: z.string().min(1),
-    lineageId: z.string().min(1),
+    plateId: SafeSegmentIdSchema,
+    lineageId: SafeSegmentIdSchema,
     turnNumber: z.number().int().positive(),
     model: z.string().min(1),
     interactionId: z.string().min(1),
     parentInteractionId: z.string().min(1).nullable(),
-    parentPlateId: z.string().min(1).nullable(),
+    parentPlateId: SafeSegmentIdSchema.nullable(),
     rebootstrappedFromParentWebp: z.boolean().default(false),
     projectNumbers: z.array(TdlrProjectNumberSchema),
     triggeringObservationIds: z.array(z.string().min(1)),
@@ -112,3 +115,134 @@ export type StatefulPainterResult =
       tokensUsed: number;
       activePlate: VisualPlate | null;
     };
+
+export const LineageSourceCitationSchema = z.object({
+  sha256: Sha256HashSchema,
+  sourceUrl: z.string().url(),
+  connectorId: z.string().min(1),
+  capturedAt: z.string().datetime(),
+  referencedByMilestone: z.boolean(),
+});
+
+export type LineageSourceCitation = z.infer<typeof LineageSourceCitationSchema>;
+
+export const LineageNodeSchema = z
+  .object({
+    plate: VisualPlateSchema,
+    assetPath: z.string().startsWith("/api/plates/assets/").endsWith(".webp"),
+    triggeringObservations: z.array(ObservationSchema),
+    sourceArtifacts: z.array(LineageSourceCitationSchema),
+  })
+  .superRefine((node, ctx) => {
+    const expectedPath = `/api/plates/assets/${encodeURIComponent(node.plate.plateId)}.webp`;
+    if (node.assetPath !== expectedPath) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["assetPath"],
+        message: `Expected assetPath "${expectedPath}"`,
+      });
+    }
+    if (
+      node.triggeringObservations.some(
+        (obs) => !node.plate.triggeringObservationIds.includes(obs.id)
+      )
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["triggeringObservations"],
+        message: "Observation ID not referenced by plate",
+      });
+    }
+    if (
+      node.sourceArtifacts.some(
+        (art) => !node.plate.sourceArtifactHashes.includes(art.sha256)
+      )
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["sourceArtifacts"],
+        message: "SourceArtifact sha256 not referenced by plate",
+      });
+    }
+  });
+
+export type LineageNode = z.infer<typeof LineageNodeSchema>;
+
+export const LineageEdgeSchema = z.object({
+  parentInteractionId: z.string().min(1),
+  childInteractionId: z.string().min(1),
+  parentPlateId: z.string().min(1),
+  childPlateId: z.string().min(1),
+  isBranch: z.boolean(),
+});
+
+export type LineageEdge = z.infer<typeof LineageEdgeSchema>;
+
+export const PlateLineageResponseSchema = z
+  .object({
+    lineageId: SafeSegmentIdSchema,
+    activeCanonicalPlateId: z.string().min(1).nullable(),
+    nodes: z.array(LineageNodeSchema),
+    edges: z.array(LineageEdgeSchema),
+  })
+  .superRefine((data, ctx) => {
+    const fail = (path: Array<string | number>, message: string) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
+
+    if (data.nodes.some((node) => node.plate.lineageId !== data.lineageId)) {
+      fail(["nodes"], "All LineageNodes must match lineageId");
+    }
+
+    const uniquePlateIds = new Set(data.nodes.map((node) => node.plate.plateId));
+    const uniqueInteractionIds = new Set(
+      data.nodes.map((node) => node.plate.interactionId)
+    );
+    if (
+      uniquePlateIds.size !== data.nodes.length ||
+      uniqueInteractionIds.size !== data.nodes.length
+    ) {
+      fail(["nodes"], "Duplicate plateId or interactionId in LineageNodes");
+    }
+
+    const canonicalIds = new Set(
+      data.nodes
+        .filter((node) => !node.plate.isBranch)
+        .map((node) => node.plate.plateId)
+    );
+    const hasValidActiveHead =
+      canonicalIds.size === 0
+        ? data.activeCanonicalPlateId === null
+        : data.activeCanonicalPlateId !== null &&
+          canonicalIds.has(data.activeCanonicalPlateId);
+    if (!hasValidActiveHead) {
+      fail(
+        ["activeCanonicalPlateId"],
+        "Invalid activeCanonicalPlateId for canonical nodes"
+      );
+    }
+
+    const byInteraction = new Map(
+      data.nodes.map((node) => [node.plate.interactionId, node.plate])
+    );
+    const invalidEdgeIdx = data.edges.findIndex((edge) => {
+      const parent = byInteraction.get(edge.parentInteractionId);
+      const child = byInteraction.get(edge.childInteractionId);
+      return (
+        !parent ||
+        !child ||
+        edge.parentInteractionId === edge.childInteractionId ||
+        parent.plateId !== edge.parentPlateId ||
+        child.plateId !== edge.childPlateId ||
+        child.parentInteractionId !== edge.parentInteractionId ||
+        child.isBranch !== edge.isBranch
+      );
+    });
+    if (invalidEdgeIdx !== -1) {
+      fail(
+        ["edges", invalidEdgeIdx],
+        "LineageEdge endpoints must match active parent-child nodes"
+      );
+    }
+  });
+
+export type PlateLineageResponse = z.infer<typeof PlateLineageResponseSchema>;

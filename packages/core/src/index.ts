@@ -35,6 +35,9 @@ export {
   ExecutionModeSchema,
   GRIDLOCK_USER_AGENT,
   IsoCalendarDateSchema,
+  LineageEdgeSchema,
+  LineageNodeSchema,
+  LineageSourceCitationSchema,
   MAX_CONCURRENCY,
   MAX_RECORDS_PER_RUN,
   MAX_SCENARIO_PROMPT_LENGTH,
@@ -44,6 +47,7 @@ export {
   NINETY_DAYS_MS,
   ObservationSchema,
   PAINTER_AGENT_MODEL,
+  PlateLineageResponseSchema,
   PositiveIntegerStringSchema,
   ProjectSchema,
   REPAIR_AGENT_MODEL,
@@ -76,12 +80,16 @@ export {
   type GridlockRepository,
   type IngestFilingResult,
   type IsoCalendarDate,
+  type LineageEdge,
+  type LineageNode,
+  type LineageSourceCitation,
   type Observation,
   type PageLoader,
   type PageLoaderResponse,
   type PainterErrorCode,
   type PainterImageEncodeResult,
   type PainterImageEncoder,
+  type PlateLineageResponse,
   type Project,
   type RepairAgentResult,
   type RepairChangelogEntry,
@@ -147,6 +155,11 @@ export {
   isWebpBuffer,
 } from "./use-cases/helpers/webp-codec.ts";
 
+export {
+  getPlateLineage,
+  type GetPlateLineageQuery,
+  type GetPlateLineageResult,
+} from "./use-cases/get-plate-lineage.ts";
 export {
   evaluatePainterMilestoneGate,
   type PainterMilestoneGateOutcome,
@@ -220,4 +233,5 @@ export async function runTdlrDiscoverySweep(
 export {
   createGridlockHttpServer,
   handleGridlockHttpRequest,
+  type GridlockHttpDeps,
 } from "./controllers/http-server.ts";

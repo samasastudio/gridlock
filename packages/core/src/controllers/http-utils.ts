@@ -30,6 +30,20 @@ export function sendMarkdown(res: ServerResponse, statusCode: number, markdown: 
   res.end(markdown);
 }
 
+export function sendMethodNotAllowed(
+  res: ServerResponse,
+  allowedMethod: "GET" | "POST",
+  message: string
+): void {
+  res.writeHead(405, {
+    "content-type": "application/json; charset=utf-8",
+    allow: allowedMethod,
+    ...CORS_HEADERS,
+    "cache-control": "no-store",
+  });
+  res.end(JSON.stringify({ error: "method_not_allowed", message }));
+}
+
 export type ParsedQueryResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string; issues: readonly z.ZodIssue[] };

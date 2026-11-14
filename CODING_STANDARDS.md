@@ -1,6 +1,6 @@
 # Gridlock Coding Standards (`CODING_STANDARDS.md`)
 
-Read during `/code-review` (Standards axis) and when designing modules across `packages/core` and `packages/widgets`. Every rule below must be satisfied before a Pull Request merges to `main`.
+Read during pre-PR code reviews (Standards axis) and when designing modules across `packages/core` and `packages/widgets`. Every rule below must be satisfied before a Pull Request merges to `main`.
 
 ---
 
@@ -9,7 +9,7 @@ Read during `/code-review` (Standards axis) and when designing modules across `p
 - **Branch per Ticket**: All changes land on a dedicated branch (`feat/<issue>-<slug>`, `fix/<issue>-<slug>`, or `chore/<slug>`). `.githooks/pre-commit` rejects direct commits to `main` and runs `npm run verify`.
 - **Pull Request Size Budget (`<= 700` Lines)**: Keep every Pull Request `<= 700` changed lines (`insertions + deletions` against its target base branch, enforced in CI via `npm run check:pr-size`). When a ticket requires more than `700` lines across implementation and tests, slice it into stacked vertical Pull Requests (`#N part 1/k..k/k`), each independently compiling, lint-clean, and test-verified.
 - **Self-Contained Vertical Slices & Post-Restack PR Accuracy**: Every PR slice must wire and exercise every newly introduced production symbol through a caller-facing seam within that slice (enforced for non-barrel exports by `npm run lint`); defer future-ticket entrypoints to their own issue. After restacking or amending commits, verify every symbol identifier, `@samasastudio/*` package name, and `ADR-0001`–`ADR-0004` reference in the PR body against `git diff <base>...HEAD`.
-- **Two-Axis Review, Editor Review Gate & Human-Only Merge**: Run `/code-review` across **Standards** (this file + `GLOSSARY.md` + `docs/adr/`) and **Spec** (the originating GitHub Issue + `ROADMAP.md` Happy/Sad Path gates)—for stacked PRs, verify (`npm run verify`) and review each slice's own diff (`<base_k>...<slice_k>`), not just the stack tip—then leave verified changes uncommitted in the working tree and stop for human review in the code editor. Only when explicitly instructed by the user, commit, push, shape the PR body with `/pr` (`## Summary`, `## Evidence`, `## Merge Danger`), and stop after `gh pr create` (`gh pr merge` is human-only).
+- **Two-Axis Review, Editor Review Gate & Human-Only Merge**: Run a pre-PR review across **Acceptance Criteria / Spec** (the originating GitHub Issue + `ROADMAP.md` Happy/Sad Path gates) and **Standards** (this file + `GLOSSARY.md` + `docs/adr/`)—for stacked PRs, verify (`npm run verify`) and review each slice's own diff (`<base_k>...<slice_k>`), not just the stack tip—then leave verified changes uncommitted in the working tree and stop for human review in the code editor. Only when explicitly instructed by the user, commit, push, shape a concise PR body (`## Summary`, `## Evidence`, `## Merge Danger`), and stop after `gh pr create` (`gh pr merge` is human-only).
 
 ---
 
