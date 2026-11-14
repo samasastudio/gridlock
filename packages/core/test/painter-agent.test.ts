@@ -23,6 +23,7 @@ import {
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
+  type GridlockRepository,
   type PainterErrorCode,
   type TelemetrySpan,
 } from "../src/index.ts";
@@ -735,5 +736,143 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       { repository, geminiClient }
     );
     assert.equal(postExpiryBranch.status, "plate_painted");
+  });
+
+  test("Part 5 (branchLineage Serialized Slot Admission & Post-Save Telemetry Release): avoids double-counting slots during telemetry writes and prevents stale-snapshot over-admission", async () => {
+    const baseRepo = createInMemoryGridlockRepository();
+    const { milestoneObs: obs } = createPainterTestObservations();
+    await baseRepo.appendObservation(obs);
+    const webp = createFixtureWebpBuffer("slot-coordinator");
+
+    let interSeq = 0;
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        create: async (req) => {
+          await new Promise((resolve) => setTimeout(resolve, 15));
+          return {
+            id: `inter_slot_${++interSeq}`,
+            status: "completed",
+            ...(req.previous_interaction_id !== undefined
+              ? { previous_interaction_id: req.previous_interaction_id }
+              : {}),
+            output_image: { mime_type: "image/webp", data: webp.toString("base64") },
+            usage: { total_tokens: 150 },
+          };
+        },
+      },
+    };
+
+    const rootRelease = await bootstrapCanvas(
+      {
+        lineageId: "corridor-slot-release",
+        observations: [obs],
+        now: new Date("2026-10-27T18:05:00.000Z"),
+      },
+      { repository: baseRepo, geminiClient }
+    );
+    assert.equal(rootRelease.status, "plate_painted");
+
+    let notifyPlateSaved: (() => void) | undefined;
+    const firstPlateSaved = new Promise<void>((resolve) => {
+      notifyPlateSaved = resolve;
+    });
+    let releaseTelemetry: (() => void) | undefined;
+    const telemetryGate = new Promise<void>((resolve) => {
+      releaseTelemetry = resolve;
+    });
+
+    let branchSavedOnce = false;
+    let delayedFirstTelemetry = false;
+    const trackedRepo: GridlockRepository = {
+      ...baseRepo,
+      saveVisualPlate: async (plate, webpBuf) => {
+        await baseRepo.saveVisualPlate(plate, webpBuf);
+        if (plate.isBranch && !branchSavedOnce) {
+          branchSavedOnce = true;
+          notifyPlateSaved?.();
+        }
+      },
+      recordTelemetryRun: async (run, updates) => {
+        if (run.stage === "painter_branch_lineage" && !delayedFirstTelemetry) {
+          delayedFirstTelemetry = true;
+          await telemetryGate;
+        }
+        return baseRepo.recordTelemetryRun(run, updates);
+      },
+    };
+
+    const nowRelease = new Date("2026-10-28T10:00:00.000Z");
+    const firstBranchPromise = branchLineage(
+      {
+        parentInteractionId: rootRelease.plate.interactionId,
+        scenarioPrompt: "Slot release branch 1",
+        maxBranchesPerLineage: 2,
+        now: nowRelease,
+      },
+      { repository: trackedRepo, geminiClient }
+    );
+
+    await firstPlateSaved;
+    const secondBranchResult = await branchLineage(
+      {
+        parentInteractionId: rootRelease.plate.interactionId,
+        scenarioPrompt: "Slot release branch 2 during telemetry write",
+        maxBranchesPerLineage: 2,
+        now: nowRelease,
+      },
+      { repository: trackedRepo, geminiClient }
+    );
+    assert.equal(secondBranchResult.status, "plate_painted");
+
+    releaseTelemetry?.();
+    const firstBranchResult = await firstBranchPromise;
+    assert.equal(firstBranchResult.status, "plate_painted");
+
+    const rootSerialize = await bootstrapCanvas(
+      {
+        lineageId: "corridor-slot-serialize",
+        observations: [obs],
+        now: new Date("2026-10-27T18:05:00.000Z"),
+      },
+      { repository: baseRepo, geminiClient }
+    );
+    assert.equal(rootSerialize.status, "plate_painted");
+
+    const callsBeforeRace = interSeq;
+    const delayedReadRepo: GridlockRepository = {
+      ...baseRepo,
+      listVisualPlatesByLineage: async (lineageId) => {
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        return baseRepo.listVisualPlatesByLineage(lineageId);
+      },
+    };
+
+    const raceResults = await Promise.all([
+      branchLineage(
+        {
+          parentInteractionId: rootSerialize.plate.interactionId,
+          scenarioPrompt: "Serialized admission A",
+          maxBranchesPerLineage: 1,
+          now: nowRelease,
+        },
+        { repository: delayedReadRepo, geminiClient }
+      ),
+      branchLineage(
+        {
+          parentInteractionId: rootSerialize.plate.interactionId,
+          scenarioPrompt: "Serialized admission B",
+          maxBranchesPerLineage: 1,
+          now: nowRelease,
+        },
+        { repository: delayedReadRepo, geminiClient }
+      ),
+    ]);
+
+    const painted = raceResults.filter((r) => r.status === "plate_painted");
+    const rejected = raceResults.filter((r) => r.status === "painter_failed");
+    assert.equal(painted.length, 1);
+    assert.equal(rejected.length, 1);
+    assert.equal(rejected[0]?.errorCode, "branch_quota_exceeded");
+    assert.equal(interSeq - callsBeforeRace, 1);
   });
 });
