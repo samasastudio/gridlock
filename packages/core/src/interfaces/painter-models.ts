@@ -8,6 +8,8 @@ import {
 import { ObservationSchema } from "./filing-models.ts";
 import { Sha256HashSchema, TdlrProjectNumberSchema } from "./primitives.ts";
 
+const SafeSegmentIdSchema = z.string().regex(/^(?!\.\.?$)[^\s/]+$/);
+
 export const EpistemicPlateLabelSchema = z.enum([
   CANONICAL_MILESTONE_LABEL,
   SCENARIO_BRANCH_WATERMARK,
@@ -17,13 +19,13 @@ export type EpistemicPlateLabel = z.infer<typeof EpistemicPlateLabelSchema>;
 
 export const VisualPlateSchema = z
   .object({
-    plateId: z.string().min(1),
-    lineageId: z.string().min(1),
+    plateId: SafeSegmentIdSchema,
+    lineageId: SafeSegmentIdSchema,
     turnNumber: z.number().int().positive(),
     model: z.string().min(1),
     interactionId: z.string().min(1),
     parentInteractionId: z.string().min(1).nullable(),
-    parentPlateId: z.string().min(1).nullable(),
+    parentPlateId: SafeSegmentIdSchema.nullable(),
     rebootstrappedFromParentWebp: z.boolean().default(false),
     projectNumbers: z.array(TdlrProjectNumberSchema),
     triggeringObservationIds: z.array(z.string().min(1)),
@@ -178,7 +180,7 @@ export type LineageEdge = z.infer<typeof LineageEdgeSchema>;
 
 export const PlateLineageResponseSchema = z
   .object({
-    lineageId: z.string().min(1),
+    lineageId: SafeSegmentIdSchema,
     activeCanonicalPlateId: z.string().min(1).nullable(),
     nodes: z.array(LineageNodeSchema),
     edges: z.array(LineageEdgeSchema),

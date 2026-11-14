@@ -10,7 +10,13 @@ import {
 
 const LineageQueryParamsSchema = z
   .object({
-    lineage_id: z.string().trim().min(1).max(128).optional(),
+    lineage_id: z
+      .string()
+      .trim()
+      .min(1)
+      .max(128)
+      .regex(/^(?!\.\.?$)[^\s/]+$/)
+      .optional(),
   })
   .strict();
 
