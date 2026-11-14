@@ -137,13 +137,13 @@ flowchart TD
 
 - [ ] **[`gridlock#8`](https://github.com/samasastudio/gridlock/issues/8) — Plate Lineage API & `<GridlockPlateWidget />` Scrubber (Seam 3 UI)** *(Parent tracker — closes with `#35`)*
   - **Sub-issues (Single-PR Vertical Slices)**:
-    - [ ] **[`gridlock#33`](https://github.com/samasastudio/gridlock/issues/33) — Plate Lineage & Scenario Branch HTTP API (Seam 3 API)** (`~500` changed lines)
+    - [x] **[`gridlock#33`](https://github.com/samasastudio/gridlock/issues/33) — Plate Lineage & Scenario Branch HTTP API (Seam 3 API)** (`~500` changed lines)
       - **Blocked by**: [`#7`](https://github.com/samasastudio/gridlock/issues/7) *(closed — **unblocked**)*
       - **Unlocks**: `#34`, `#36`
       - **Delivers**: Browser-safe `Lineage` / `Branch` Zod schemas in `painter-models.ts`, `getPlateLineage` use case, and `plates-controller.ts` exposing `GET /api/plates/lineage`, `GET /api/plates/assets/:plateId.webp`, and `POST /api/plates/branch` (`branchLineage`).
       - **Testing Validation Gate**:
-        - [ ] **Happy Path**: `GET /api/plates/lineage` returns active `VisualPlate` nodes, `interactionId` → `parentInteractionId` edges, and linked `Observation` metadata; `GET /api/plates/assets/:plateId.webp` serves `image/webp` bytes; `POST /api/plates/branch` returns a `"Scenario Branch / Unverified Projection"` plate.
-        - [ ] **Sad Path**: `POST /api/plates/branch` rejects empty/oversized `scenarioPrompt` (`400`), unknown/expired `interactionId` (`404`), and branch quota breaches (`429`) at `0` Gemini tokens; rejects non-`GET`/`POST` (`405`), missing `.webp` assets (`404`), and corrupted records (`500`).
+        - [x] **Happy Path**: `GET /api/plates/lineage` returns active `VisualPlate` nodes, `interactionId` → `parentInteractionId` edges, and linked `Observation` metadata; `GET /api/plates/assets/:plateId.webp` serves `image/webp` bytes; `POST /api/plates/branch` returns a `"Scenario Branch / Unverified Projection"` plate.
+        - [x] **Sad Path**: `POST /api/plates/branch` rejects empty/oversized `scenarioPrompt` (`400`), unknown/expired `interactionId` (`404`), and branch quota breaches (`429`) at `0` Gemini tokens; rejects non-`GET`/`POST` (`405`), missing `.webp` assets (`404`), and corrupted records (`500`).
     - [ ] **[`gridlock#34`](https://github.com/samasastudio/gridlock/issues/34) — `<GridlockPlateWidget />` Temporal Lineage Scrubber & Provenance Sheet (Seam 3 UI Part 1)** (`~560` changed lines)
       - **Blocked by**: [`#33`](https://github.com/samasastudio/gridlock/issues/33)
       - **Unlocks**: `#35`, `#39`
