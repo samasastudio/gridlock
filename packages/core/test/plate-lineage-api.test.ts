@@ -14,6 +14,7 @@ import {
   createInMemoryGridlockRepository,
   DEFAULT_LINEAGE_ID,
   isWebpBuffer,
+  LineageNodeSchema,
   MAX_SCENARIO_PROMPT_LENGTH,
   NINETY_DAYS_MS,
   ObservationSchema,
@@ -21,6 +22,7 @@ import {
   PlateLineageResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
   SourceArtifactSchema,
+  VisualPlateSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
@@ -225,6 +227,48 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
         edges: [],
       })
     );
+
+    const { obs1, t1, t2 } = await seedLineageGraph();
+    assert.equal(VisualPlateSchema.safeParse({ ...t1, plateId: "plate/1" }).success, false);
+    assert.equal(VisualPlateSchema.safeParse({ ...t1, lineageId: "austin/north" }).success, false);
+    assert.equal(VisualPlateSchema.safeParse({ ...t1, lineageId: "austin north" }).success, false);
+    const t1NodeBase = {
+      plate: t1,
+      assetPath: `/api/plates/assets/${t1.plateId}.webp`,
+      triggeringObservations: [obs1],
+      sourceArtifacts: [],
+    };
+    assert.equal(
+      LineageNodeSchema.safeParse({
+        ...t1NodeBase,
+        assetPath: "/api/plates/assets/other_plate.webp",
+      }).success,
+      false
+    );
+    assert.equal(
+      LineageNodeSchema.safeParse({
+        ...t1NodeBase,
+        triggeringObservations: [{ ...obs1, id: "obs_unreferenced" }],
+      }).success,
+      false
+    );
+    assert.equal(
+      PlateLineageResponseSchema.safeParse({
+        lineageId: DEFAULT_LINEAGE_ID,
+        activeCanonicalPlateId: t1.plateId,
+        nodes: [t1NodeBase],
+        edges: [
+          {
+            parentInteractionId: t1.interactionId,
+            childInteractionId: t2.interactionId,
+            parentPlateId: t1.plateId,
+            childPlateId: t2.plateId,
+            isBranch: false,
+          },
+        ],
+      }).success,
+      false
+    );
   });
 
   test("Hydrates multi-turn canonical + branch graph and enforces +90d branch TTL, non-milestone artifact expiry, and quarantine filtering", async () => {
@@ -321,6 +365,9 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
         for (const bad of [
           "?lineage_id=a&lineage_id=b",
           "?lineage_id=%20",
+          "?lineage_id=austin%2Fnorth",
+          "?lineage_id=..",
+          "?lineage_id=.",
           "?foo=1",
         ]) {
           await assertErr(
@@ -361,11 +408,14 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
     const { repository, t1, b1, b2 } = await seedLineageGraph();
     let clock = new Date("2026-11-01T00:00:00.000Z");
     let dropBlob = false;
+    let readWebpCalls = 0;
 
     const proxyRepo: GridlockRepository = {
       ...repository,
-      readVisualPlateWebp: async (id) =>
-        dropBlob ? null : repository.readVisualPlateWebp(id),
+      readVisualPlateWebp: async (id) => {
+        readWebpCalls += 1;
+        return dropBlob ? null : repository.readVisualPlateWebp(id);
+      },
     };
 
     await withPlatesServer(
@@ -400,6 +450,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           );
         }
 
+        readWebpCalls = 0;
         for (const bad of [
           "unknown_plate.webp",
           "",
@@ -408,12 +459,15 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           "sub/x.webp",
           "%E0%A4%A.webp",
           "a%2Fb.webp",
+          `%20${t1.plateId}%20.webp`,
+          "..webp",
         ]) {
           assert.equal(
             (await fetch(`${baseUrl}/api/plates/assets/${bad}`)).status,
             404
           );
         }
+        assert.equal(readWebpCalls, 0);
 
         dropBlob = true;
         await assertErr(
@@ -424,11 +478,13 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
         dropBlob = false;
 
         clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
+        readWebpCalls = 0;
         assert.equal(
           (await fetch(`${baseUrl}/api/plates/assets/${b1.plateId}.webp`))
             .status,
           404
         );
+        assert.equal(readWebpCalls, 0);
         assert.equal(
           (await fetch(`${baseUrl}/api/plates/assets/${t1.plateId}.webp`))
             .status,
@@ -474,6 +530,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
       sha_mismatch: flippedBuf,
     };
 
+    let readWebpCalls = 0;
     const proxyRepo: GridlockRepository = {
       ...repository,
       getVisualPlateById: async (id) => {
@@ -485,10 +542,12 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
         }
         return repository.getVisualPlateById(id);
       },
-      readVisualPlateWebp: async (id) =>
-        fault in blobFaults
+      readVisualPlateWebp: async (id) => {
+        readWebpCalls += 1;
+        return fault in blobFaults
           ? blobFaults[fault]!
-          : repository.readVisualPlateWebp(id),
+          : repository.readVisualPlateWebp(id);
+      },
     };
 
     await withPlatesServer(
@@ -517,12 +576,16 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           "throw",
         ] as const) {
           fault = mode;
+          readWebpCalls = 0;
           const corruptRes = await assertErr(
             fetch(assetUrl),
             500,
             "plate_asset_error"
           );
           assert.equal(corruptRes.headers.get("cache-control"), "no-store");
+          if (mode === "id_mismatch" || mode === "bad_schema") {
+            assert.equal(readWebpCalls, 0);
+          }
         }
 
         fault = "none";
@@ -718,6 +781,22 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
             JSON.stringify({
               interactionId: t1.interactionId,
               scenarioPrompt: "a".repeat(MAX_SCENARIO_PROMPT_LENGTH + 1),
+            }),
+            "invalid_request_body",
+          ],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "ok",
+              lineageId: "austin/north",
+            }),
+            "invalid_request_body",
+          ],
+          [
+            JSON.stringify({
+              interactionId: t1.interactionId,
+              scenarioPrompt: "ok",
+              lineageId: "..",
             }),
             "invalid_request_body",
           ],
@@ -1055,6 +1134,69 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         } else if (directOutcome.status !== "plate_painted") {
           assert.fail(`Unexpected directOutcome status: ${directOutcome.status}`);
         }
+      }
+    );
+
+    const { repository: teleRepo, t2: teleT2, b1: teleB1 } = await seedLineageGraph();
+    const teleClock = new Date(Date.parse(teleB1.createdAt) + NINETY_DAYS_MS + 1_000);
+    let markSaved: (() => void) | undefined;
+    const savedPromise = new Promise<void>((resolve) => {
+      markSaved = resolve;
+    });
+    let releaseTelemetry: (() => void) | undefined;
+    const telemetryGate = new Promise<void>((resolve) => {
+      releaseTelemetry = resolve;
+    });
+    let notifiedSaved = false;
+    let blockedFirstTelemetry = false;
+
+    const delayedTelemetryRepo: GridlockRepository = {
+      ...teleRepo,
+      saveVisualPlate: async (plate, webpBuf) => {
+        await teleRepo.saveVisualPlate(plate, webpBuf);
+        if (plate.isBranch && !notifiedSaved) {
+          notifiedSaved = true;
+          markSaved?.();
+        }
+      },
+      recordTelemetryRun: async (run, updates) => {
+        if (run.stage === "painter_branch_lineage" && !blockedFirstTelemetry) {
+          blockedFirstTelemetry = true;
+          await telemetryGate;
+        }
+        return teleRepo.recordTelemetryRun(run, updates);
+      },
+    };
+
+    await withPlatesServer(
+      {
+        repository: delayedTelemetryRepo,
+        geminiClient,
+        maxBranchesPerLineage: 3,
+        now: () => teleClock,
+      },
+      async (baseUrl) => {
+        const post1Promise = postJson(
+          `${baseUrl}/api/plates/branch`,
+          JSON.stringify({
+            interactionId: teleT2.interactionId,
+            scenarioPrompt: "Telemetry overlap HTTP A",
+          })
+        );
+        await savedPromise;
+
+        const post2Res = await postJson(
+          `${baseUrl}/api/plates/branch`,
+          JSON.stringify({
+            interactionId: teleT2.interactionId,
+            scenarioPrompt: "Telemetry overlap HTTP B",
+          })
+        );
+        assert.equal(post2Res.status, 201);
+
+        releaseTelemetry?.();
+        const post1Res = await post1Promise;
+        assert.equal(post1Res.status, 201);
       }
     );
   });
