@@ -10,8 +10,8 @@
 At the start of any coding session, run this command to query GitHub's native dependency graph and list every open ticket whose `blocked_by` count is `0`:
 
 ```bash
-gh api --paginate 'repos/samasastudio/gridlock/issues?state=open&labels=ready-for-agent' \
-  --jq '.[] | select(.issue_dependencies_summary.blocked_by == 0) | "#\(.number): \(.title) (\(.html_url))"'
+gh api --paginate 'repos/samasastudio/gridlock/issues?state=open' \
+  --jq '.[] | select(.pull_request == null and .issue_dependencies_summary.blocked_by == 0) | "#\(.number): \(.title) (\(.html_url))"'
 ```
 
 ### Issue Close Quality Gate
@@ -38,19 +38,27 @@ flowchart TD
     T17 --> T7["#7 Stateful Painter Agent (gemini-3-pro-image) (~350 LOC)"]
   end
 
-  subgraph Wave3["Wave 3 — Parallel Storybook Widgets (Seam 2 & 3 UI)"]
+  subgraph Wave3["Wave 3 — Visual Plate Lineage API & Widget (Seam 3)"]
     T17 --> T6["#6 Repair Changelog API & <GridlockRepairLogWidget /> (~350 LOC)"]
-    T7 --> T8["#8 Plate Lineage API & <GridlockPlateWidget /> (~400 LOC)"]
+    T7 --> T33["#33 [under #8] Plate Lineage & Branch HTTP API (~500 diff lines)"]
+    T33 --> T34["#34 [under #8] <GridlockPlateWidget /> Scrubber & Provenance (~560 diff lines)"]
+    T34 --> T35["#35 [under #8] <GridlockPlateWidget /> Branching & Comparison (~500 diff lines)"]
   end
 
   subgraph Wave4["Wave 4 — Generative UI Workspace (Seam 4 Core & UI)"]
-    T6 --> T9["#9 Investigation Planner & POST /api/investigate/plan (~350 LOC)"]
-    T8 --> T9
-    T9 --> T10["#10 <GridlockConsoleWidget /> & 5 AST Cards (~350 LOC)"]
+    T6 --> T36["#36 [under #9] UI AST Contracts & Workspace Hydrator (~520 diff lines)"]
+    T33 --> T36
+    T36 --> T37["#37 [under #9] Investigation Planner & POST /api/investigate/plan (~480 diff lines)"]
+    T36 --> T38["#38 [under #10] Filing & Comparative UI AST Cards (~560 diff lines)"]
+    T34 --> T39["#39 [under #10] Visual & Health UI AST Cards + Error Boundary (~520 diff lines)"]
+    T38 --> T39
+    T37 --> T40["#40 [under #10] <GridlockConsoleWidget /> Workspace & Live Refinement (~600 diff lines)"]
+    T39 --> T40
   end
 
   subgraph Wave5["Wave 5 — Production Cloud Run & Host Integration"]
-    T10 --> T11["#11 [gridlock] Cloud Run, Firestore TTL & GCS Lifecycle (~250 LOC)"]
+    T35 --> T11["#11 [gridlock] Cloud Run, Firestore TTL & GCS Lifecycle (~250 LOC)"]
+    T40 --> T11
     T11 --> P1["profile-site#1 Embed Live Gridlock Widgets (~300 LOC)"]
   end
 ```
@@ -127,40 +135,81 @@ flowchart TD
     - [x] **Happy Path**: `GET /api/repairs/changelog` returns valid JSON and `?format=md` Markdown; `<GridlockRepairLogWidget />` renders the repair history, before/after selector diffs, `mttrMs`, `subsequentDeterministicRunsServed`, and **Efficiency Ledger** scorecard across diurnal and nocturnal themes.
     - [x] **Sad Path**: Cleanly renders zero-anomaly empty states (`100% deterministic uptime`), active `selector_anomaly` / `blocked_by_waf` warning banners when a connector is degraded, and non-crashing error/retry states on HTTP `500` or network failure.
 
-- [ ] **[`gridlock#8`](https://github.com/samasastudio/gridlock/issues/8) — Plate Lineage API & `<GridlockPlateWidget />` Scrubber (Seam 3 UI)** (`~400 LOC`)
-  - **Blocked by**: [`#7`](https://github.com/samasastudio/gridlock/issues/7)
-  - **Unlocks**: `#9` (alongside `#6`)
-  - **Delivers**: Exposes `GET /api/plates/lineage` and `POST /api/plates/branch`, and ships `<GridlockPlateWidget />` in `@samasastudio/gridlock-widgets` with temporal scrubbing across `interaction_id` frames and scenario branch comparison in Storybook.
-  - **Testing Validation Gate**:
-    - [ ] **Happy Path**: `GET /api/plates/lineage` and `POST /api/plates/branch` return valid **Lineage** trees and new branched plates; `<GridlockPlateWidget />` scrubs across historical `interaction_id` frames, displays triggering **Observations** and SHA-256 **Source Artifact** citations, and toggles scenario branches with visible `"Scenario Branch / Unverified Projection"` badges.
-    - [ ] **Sad Path**: `POST /api/plates/branch` rejects empty/oversized scenario prompts (`400`), unknown `interactionId` parents (`404`), and branch quota breaches (`429`); `<GridlockPlateWidget />` handles single-frame lineages, broken `.webp` asset URLs, and failed branch requests with graceful fallback UI.
+- [ ] **[`gridlock#8`](https://github.com/samasastudio/gridlock/issues/8) — Plate Lineage API & `<GridlockPlateWidget />` Scrubber (Seam 3 UI)** *(Parent tracker — closes with `#35`)*
+  - **Sub-issues (Single-PR Vertical Slices)**:
+    - [ ] **[`gridlock#33`](https://github.com/samasastudio/gridlock/issues/33) — Plate Lineage & Scenario Branch HTTP API (Seam 3 API)** (`~500` changed lines)
+      - **Blocked by**: [`#7`](https://github.com/samasastudio/gridlock/issues/7) *(closed — **unblocked**)*
+      - **Unlocks**: `#34`, `#36`
+      - **Delivers**: Browser-safe `Lineage` / `Branch` Zod schemas in `painter-models.ts`, `getPlateLineage` use case, and `plates-controller.ts` exposing `GET /api/plates/lineage`, `GET /api/plates/assets/:plateId.webp`, and `POST /api/plates/branch` (`branchLineage`).
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: `GET /api/plates/lineage` returns active `VisualPlate` nodes, `interactionId` → `parentInteractionId` edges, and linked `Observation` metadata; `GET /api/plates/assets/:plateId.webp` serves `image/webp` bytes; `POST /api/plates/branch` returns a `"Scenario Branch / Unverified Projection"` plate.
+        - [ ] **Sad Path**: `POST /api/plates/branch` rejects empty/oversized `scenarioPrompt` (`400`), unknown/expired `interactionId` (`404`), and branch quota breaches (`429`) at `0` Gemini tokens; rejects non-`GET`/`POST` (`405`), missing `.webp` assets (`404`), and corrupted records (`500`).
+    - [ ] **[`gridlock#34`](https://github.com/samasastudio/gridlock/issues/34) — `<GridlockPlateWidget />` Temporal Lineage Scrubber & Provenance Sheet (Seam 3 UI Part 1)** (`~560` changed lines)
+      - **Blocked by**: [`#33`](https://github.com/samasastudio/gridlock/issues/33)
+      - **Unlocks**: `#35`, `#39`
+      - **Delivers**: `fetchPlateLineageSnapshot` (`plate-lineage-client.ts`), reusable `PlateFrameStage`, and `<GridlockPlateWidget />` open editorial sheet with keyboard-accessible milestone scrubbing (`ArrowLeft`/`ArrowRight`/`Home`/`End`), triggering `Observation` prose, SHA-256 `SourceArtifact` `CopyCitationButton`, and `<details>` provenance chain.
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: Scrubs across `interaction_id` frames, synchronously updates triggering **Observations**, SHA-256 **Source Artifact** citations, and `"Scenario Branch / Unverified Projection"` badges across diurnal, nocturnal, and inherit themes.
+        - [ ] **Sad Path**: Cleanly handles single-frame lineages, zero-plate empty states, broken `.webp` asset URL fallbacks, and HTTP `500`/network retry states without crashing.
+    - [ ] **[`gridlock#35`](https://github.com/samasastudio/gridlock/issues/35) — `<GridlockPlateWidget />` Scenario Branching & Comparison Controls (Seam 3 UI Part 2)** (`~500` changed lines; *closes `#35` & `#8`*)
+      - **Blocked by**: [`#34`](https://github.com/samasastudio/gridlock/issues/34)
+      - **Unlocks**: `#11` (alongside `#40`)
+      - **Delivers**: `submitPlateBranch` (`POST /api/plates/branch`), interactive scenario prompt form (`<= MAX_SCENARIO_PROMPT_LENGTH`) with duplicate-submit lock, canonical-vs-branch comparison view in `<GridlockPlateWidget />`, and live Seam 3 seeding in `scripts/widget-workbench.mjs`.
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: Submitting a scenario prompt forks a `"Scenario Branch / Unverified Projection"` plate from the active `interaction_id`, updates the lineage in place, and toggles comparison against the canonical parent frame.
+        - [ ] **Sad Path**: Surfaces bounded inline mineral alerts on HTTP `400` (invalid prompt), `404` (unknown/expired parent), `429` (branch quota exceeded), and `500`/network failures while preserving canonical selection and blocking concurrent submissions.
 
 ---
 
 ### Wave 4 — Generative UI Workspace (Seam 4 Core & UI)
 
-- [ ] **[`gridlock#9`](https://github.com/samasastudio/gridlock/issues/9) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core)** (`~350 LOC`)
-  - **Blocked by**: [`#6`](https://github.com/samasastudio/gridlock/issues/6), [`#8`](https://github.com/samasastudio/gridlock/issues/8)
-  - **Unlocks**: `#10`
-  - **Delivers**: Translates natural-language investigative queries and in-place workspace mutations into a Zod-validated `UI AST` restricted to the 5 curated Atlas Dossier components and hydrated strictly with real Firestore records and SHA-256 **Source Artifact** citations.
-  - **Testing Validation Gate**:
-    - [ ] **Happy Path**: `POST /api/investigate/plan` returns a Zod-validated `UI AST` using only the 5 permitted component types, with every metric and project prop deterministically hydrated from Firestore and paired with its SHA-256 `SourceArtifact` hash.
-    - [ ] **Sad Path**: Rejects hallucinated/unknown component names (`z.enum` failure) or fabricated entity IDs absent from Firestore, returns a valid empty-state `UI AST` when a query matches zero records in Firestore (never inventing numbers), and returns `400` on empty or malformed query bodies.
+- [ ] **[`gridlock#9`](https://github.com/samasastudio/gridlock/issues/9) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core)** *(Parent tracker — closes with `#37`)*
+  - **Sub-issues (Single-PR Vertical Slices)**:
+    - [ ] **[`gridlock#36`](https://github.com/samasastudio/gridlock/issues/36) — `UI AST` Zod Contracts & Deterministic Workspace Hydrator (Seam 4 Core Part 1)** (`~520` changed lines)
+      - **Blocked by**: [`#33`](https://github.com/samasastudio/gridlock/issues/33)
+      - **Unlocks**: `#37`, `#38`
+      - **Delivers**: Browser-safe 5-card `UI AST` Zod contracts (`UiAstComponentTypeSchema`, `PlannerLayoutSpecSchema`, discriminated-union `UiWidgetNodeSchema`, `UiWorkspaceAstSchema`, `InvestigatePlanRequestSchema`/`ResponseSchema`) and `hydrateInvestigationWorkspace` resolving entity IDs strictly against `GridlockRepository` with SHA-256 `SourceArtifact` citations.
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: Hydrates all 5 permitted component types exclusively from verified Firestore/repository records paired with SHA-256 `SourceArtifact` hashes and upstream URLs, returning a valid empty-state `UiWorkspaceAst` when zero records match.
+        - [ ] **Sad Path**: Fails closed on unknown/hallucinated component names (`z.enum` failure) or fabricated `projectNumber` / `lineageId` / `connectorId` IDs absent from `GridlockRepository` (zero invented numbers).
+    - [ ] **[`gridlock#37`](https://github.com/samasastudio/gridlock/issues/37) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core Part 2)** (`~480` changed lines; *closes `#37` & `#9`*)
+      - **Blocked by**: [`#36`](https://github.com/samasastudio/gridlock/issues/36)
+      - **Unlocks**: `#40`
+      - **Delivers**: `runInvestigationPlanner` (`gemini-3.8-flash` structured JSON output + `hydrateInvestigationWorkspace` + `investigation_planner` `TelemetryRun`/`TelemetrySpan`) and `POST /api/investigate/plan` supporting fresh queries and in-place `currentAst` mutations.
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: `POST /api/investigate/plan` plans via `gemini-3.8-flash`, deterministically hydrates props from repository records with SHA-256 citations, supports in-place `currentAst` refinement, and records telemetry spans.
+        - [ ] **Sad Path**: Rejects empty/oversized/malformed bodies (`400` at `0` tokens) and non-`POST` (`405`), returns a valid empty-state `UI AST` on zero matching records, and fails closed (`422`/`502`) on malformed Gemini JSON, unknown components, or fabricated IDs.
 
-- [ ] **[`gridlock#10`](https://github.com/samasastudio/gridlock/issues/10) — `<GridlockConsoleWidget />` & 5 Atlas Dossier AST Cards (Seam 4 UI)** (`~350 LOC`)
-  - **Blocked by**: [`#9`](https://github.com/samasastudio/gridlock/issues/9)
-  - **Unlocks**: `#11`
-  - **Delivers**: Ships `<GridlockConsoleWidget />` and its 5 bounded AST components (`ProjectDossierCard`, `VisualPlateScrubber`, `ObservationTimeline`, `MetricComparisonTable`, `ConnectorHealthCard`) in `@samasastudio/gridlock-widgets` with Storybook interaction tests.
-  - **Testing Validation Gate**:
-    - [ ] **Happy Path**: Renders all 5 **UI AST** components from a planner response, supports in-place workspace refinement without a chat transcript, and opens/links SHA-256 **Source Artifact** provenance citations across all cards.
-    - [ ] **Sad Path**: Card-level error boundary isolates any malformed AST node without crashing the workspace, prevents duplicate concurrent query submissions while a request is in flight, and renders a clear error banner with retry when `POST /api/investigate/plan` returns `429`/`500`.
+- [ ] **[`gridlock#10`](https://github.com/samasastudio/gridlock/issues/10) — `<GridlockConsoleWidget />` & 5 Atlas Dossier AST Cards (Seam 4 UI)** *(Parent tracker — closes with `#40`)*
+  - **Sub-issues (Single-PR Vertical Slices)**:
+    - [ ] **[`gridlock#38`](https://github.com/samasastudio/gridlock/issues/38) — Atlas Dossier Filing & Comparative `UI AST` Cards (Seam 4 UI Part 1)** (`~560` changed lines)
+      - **Blocked by**: [`#36`](https://github.com/samasastudio/gridlock/issues/36)
+      - **Unlocks**: `#39`
+      - **Delivers**: `ProjectDossierCard`, `ObservationTimeline`, and `MetricComparisonTable` (`<= 220` lines each) exported from `@samasastudio/gridlock-widgets`, Atlas Dossier CSS, CSF3 stories (`GridlockAstCards.stories.tsx`), and component/DOM tests.
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: Renders all 3 cards with `Geomanist` tabular figures, `Tinos` prose, upstream portal links, and interactive SHA-256 `CopyCitationButton` badges across diurnal/nocturnal themes.
+        - [ ] **Sad Path**: Cleanly handles empty timeline/comparison states, `320px` narrow viewports without horizontal overflow, and synchronous citation copy-state reset on prop changes.
+    - [ ] **[`gridlock#39`](https://github.com/samasastudio/gridlock/issues/39) — Visual & Health `UI AST` Cards, Renderer & Card Error Boundary (Seam 4 UI Part 2)** (`~520` changed lines)
+      - **Blocked by**: [`#34`](https://github.com/samasastudio/gridlock/issues/34), [`#38`](https://github.com/samasastudio/gridlock/issues/38)
+      - **Unlocks**: `#40`
+      - **Delivers**: `VisualPlateScrubber` (composing `PlateFrameStage` from `#34`), `ConnectorHealthCard`, `AstCardErrorBoundary`, and `UiAstCardRenderer` dispatching all 5 `UiWidgetNode` component types, with CSF3 stories and fault-isolation tests.
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: `UiAstCardRenderer` deterministically renders all 5 MVP `UI AST` component variants with SHA-256 provenance citations across diurnal and nocturnal themes.
+        - [ ] **Sad Path**: `AstCardErrorBoundary` + per-node `UiWidgetNodeSchema.safeParse` isolates any malformed or throwing AST node into a bounded mineral alert card without unmounting sibling workspace cards.
+    - [ ] **[`gridlock#40`](https://github.com/samasastudio/gridlock/issues/40) — `<GridlockConsoleWidget />` Generative UI Workspace & Live Refinement (Seam 4 UI Part 3)** (`~600` changed lines; *closes `#40` & `#10`*)
+      - **Blocked by**: [`#37`](https://github.com/samasastudio/gridlock/issues/37), [`#39`](https://github.com/samasastudio/gridlock/issues/39)
+      - **Unlocks**: `#11` (alongside `#35`)
+      - **Delivers**: `submitInvestigationPlan` (`investigate-client.ts`) and `<GridlockConsoleWidget />` open-sheet workspace with investigative command bar (no chat transcript), in-place `currentAst` refinement, CSF3 stories, and live `/api/investigate/plan` seeding in `scripts/widget-workbench.mjs`.
+      - **Testing Validation Gate**:
+        - [ ] **Happy Path**: Renders validated multi-panel `UiWorkspaceAst` layouts across all 5 AST card types, submits natural-language queries and in-place refinements against `POST /api/investigate/plan`, and links SHA-256 provenance across cards.
+        - [ ] **Sad Path**: Prevents duplicate concurrent query submissions while a request is in flight, renders zero-match empty-state workspaces cleanly, and renders a mineral error banner with retry when `POST /api/investigate/plan` returns `429`/`500` or fails.
 
 ---
 
 ### Wave 5 — Production Google Cloud Spine & `profile-site` Integration
 
 - [ ] **[`gridlock#11`](https://github.com/samasastudio/gridlock/issues/11) — Cloud Run Job/Service, Firestore TTL & GCS Lifecycle Spine** (`~250 LOC`)
-  - **Blocked by**: [`#10`](https://github.com/samasastudio/gridlock/issues/10)
+  - **Blocked by**: [`#8`](https://github.com/samasastudio/gridlock/issues/8) ([`#35`](https://github.com/samasastudio/gridlock/issues/35)), [`#10`](https://github.com/samasastudio/gridlock/issues/10) ([`#40`](https://github.com/samasastudio/gridlock/issues/40))
   - **Unlocks**: [`samasastudio/profile-site#1`](https://github.com/samasastudio/profile-site/issues/1)
   - **Delivers**: Containerizes `packages/core` for Cloud Run Job (`0 14 * * 1-5` UTC + `--backfill`) and Cloud Run Service, and codifies the 90-day Firestore TTL on unreferenced `source_artifacts` and GCS lifecycle rules on `/quarantine/` and `/branches/ephemeral/`.
   - **Testing Validation Gate**:
