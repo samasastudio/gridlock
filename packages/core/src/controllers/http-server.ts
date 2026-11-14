@@ -12,7 +12,9 @@ import type {
 } from "../interfaces/index.ts";
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
 import {
+  handleGetPlateAsset,
   handleGetPlateLineage,
+  matchPlateAssetId,
 } from "./plates-controller.ts";
 import { handleGetRepairChangelog } from "./repairs-controller.ts";
 import { handleGetEfficiencyTelemetry } from "./telemetry-controller.ts";
@@ -71,6 +73,12 @@ export async function handleGridlockHttpRequest(
     return;
   }
 
+
+  const assetPlateId = matchPlateAssetId(pathname);
+  if (assetPlateId !== null) {
+    await handleGetPlateAsset(req, res, parsedUrl, assetPlateId, deps);
+    return;
+  }
 
   sendJson(res, 404, {
     error: "not_found",

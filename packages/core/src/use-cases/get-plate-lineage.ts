@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import {
   DEFAULT_LINEAGE_ID,
   LineageNodeSchema,
@@ -17,6 +19,7 @@ import {
   isVisualPlateActiveAt,
   selectActiveCanonicalPlate,
 } from "./helpers/painter-helpers.ts";
+import { isWebpBuffer } from "./helpers/webp-codec.ts";
 
 export interface GetPlateLineageQuery {
   lineageId?: string;
@@ -26,6 +29,10 @@ export interface GetPlateLineageQuery {
 export type GetPlateLineageResult =
   | { ok: true; lineage: PlateLineageResponse }
   | { ok: false; error: "plate_lineage_error"; message: string };
+
+export type GetVisualPlateAssetResult =
+  | { ok: true; plate: VisualPlate; webpBuffer: Buffer }
+  | { ok: false; error: "plate_not_found" | "plate_asset_error"; message: string };
 
 type LineageRepo = Pick<
   GridlockRepository,
@@ -37,6 +44,11 @@ const lineageErr = (message: string) => ({
   error: "plate_lineage_error" as const,
   message,
 });
+
+const assetErr = (
+  error: "plate_not_found" | "plate_asset_error",
+  message: string
+): GetVisualPlateAssetResult => ({ ok: false, error, message });
 
 async function hydrateLineageNodes(
   plates: readonly VisualPlate[],
@@ -217,6 +229,63 @@ export async function getPlateLineage(
   } catch (error) {
     return lineageErr(
       error instanceof Error ? error.message : "Failed to read VisualPlate lineage"
+    );
+  }
+}
+
+export async function getVisualPlateAsset(
+  input: { plateId: string; now?: Date },
+  deps: { repository: Pick<GridlockRepository, "getVisualPlateById" | "readVisualPlateWebp"> }
+): Promise<GetVisualPlateAssetResult> {
+  const now = input.now ?? new Date();
+  try {
+    const [plateCandidate, webpCandidate] = await Promise.all([
+      deps.repository.getVisualPlateById(input.plateId),
+      deps.repository.readVisualPlateWebp(input.plateId),
+    ]);
+    if (plateCandidate === null || plateCandidate === undefined) {
+      return assetErr("plate_not_found", `VisualPlate "${input.plateId}" not found`);
+    }
+
+    const parsedPlate = VisualPlateSchema.safeParse(plateCandidate);
+    if (!parsedPlate.success || parsedPlate.data.plateId !== input.plateId) {
+      return assetErr(
+        "plate_asset_error",
+        "Stored VisualPlate metadata failed runtime schema validation"
+      );
+    }
+
+    if (
+      !isVisualPlateActiveAt(parsedPlate.data, now) ||
+      webpCandidate === null ||
+      webpCandidate === undefined
+    ) {
+      return assetErr(
+        "plate_not_found",
+        `VisualPlate asset "${input.plateId}" not found or expired`
+      );
+    }
+
+    const actualSha = Buffer.isBuffer(webpCandidate)
+      ? createHash("sha256").update(webpCandidate).digest("hex")
+      : "";
+    const isIntegrityValid =
+      Buffer.isBuffer(webpCandidate) &&
+      webpCandidate.byteLength === parsedPlate.data.byteLength &&
+      isWebpBuffer(webpCandidate) &&
+      actualSha === parsedPlate.data.sha256;
+    if (!isIntegrityValid) {
+      return assetErr(
+        "plate_asset_error",
+        "Stored VisualPlate WebP asset failed integrity verification"
+      );
+    }
+
+    return { ok: true, plate: parsedPlate.data, webpBuffer: webpCandidate };
+  } catch (error) {
+    return assetErr(
+      "plate_asset_error",
+      error instanceof Error ? error.message : "Failed to read VisualPlate asset"
     );
   }
 }

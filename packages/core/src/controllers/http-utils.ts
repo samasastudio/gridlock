@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import type { ServerResponse } from "node:http";
 import type { z } from "zod";
 
@@ -42,6 +43,23 @@ export function sendMethodNotAllowed(
     "cache-control": "no-store",
   });
   res.end(JSON.stringify({ error: "method_not_allowed", message }));
+}
+
+export function sendWebp(
+  res: ServerResponse,
+  webpBuffer: Buffer,
+  options: { immutable: boolean }
+): void {
+  const cacheControl = options.immutable
+    ? "public, max-age=31536000, immutable"
+    : "no-store";
+  res.writeHead(200, {
+    "content-type": "image/webp",
+    "content-length": String(webpBuffer.byteLength),
+    ...CORS_HEADERS,
+    "cache-control": cacheControl,
+  });
+  res.end(webpBuffer);
 }
 
 export type ParsedQueryResult<T> =
