@@ -9,12 +9,12 @@ import {
   RULE_DRAW_EASE,
 } from "./DossierPrimitives.tsx";
 
-export function DossierTitle({ baseId, connectorId }: { baseId: string; connectorId?: string }) {
+export function DossierTitle({ baseId, connectorId, title = "Autonomous Repair Changelog" }: { baseId: string; connectorId?: string; title?: string }) {
   return (
     <div className="gridlock-title-block">
       <h2 id={`${baseId}-title`} className="gridlock-dossier-title">
         {RELIEF_RETICLE_ICON}
-        <span>Autonomous Repair Changelog</span>
+        <span>{title}</span>
         {connectorId ? <code className="gridlock-connector-chip">{connectorId}</code> : null}
       </h2>
       <motion.div
@@ -29,13 +29,13 @@ export function DossierTitle({ baseId, connectorId }: { baseId: string; connecto
   );
 }
 
-export function DossierErrorShell(props: { baseId: string; message: string; onRetry?: () => void }) {
+export function DossierErrorShell(props: { baseId: string; message: string; title?: string; connectorId?: string; errorPrefix?: string; onRetry?: () => void }) {
   return (
     <>
       <header className="gridlock-repair-header">
-        <DossierTitle baseId={props.baseId} />
+        <DossierTitle baseId={props.baseId} title={props.title} connectorId={props.connectorId} />
       </header>
-      <RepairLogErrorBanner message={props.message} onRetry={props.onRetry} />
+      <RepairLogErrorBanner message={props.message} errorPrefix={props.errorPrefix} onRetry={props.onRetry} />
     </>
   );
 }
@@ -76,12 +76,13 @@ export function ConnectorHealthBanner(props: { connectorStatus: ConnectorStatus;
   );
 }
 
-function RepairLogErrorBanner(props: { message: string; onRetry?: () => void }) {
+function RepairLogErrorBanner(props: { message: string; errorPrefix?: string; onRetry?: () => void }) {
+  const prefix = props.errorPrefix ?? "Unable to load Repair Changelog:";
   return (
     <div role="alert" className="gridlock-banner">
       <div className="gridlock-banner-copy">
         <span className="gridlock-banner-icon">{ALERT_TRIANGLE_ICON}</span>
-        <p><strong>Unable to load Repair Changelog:</strong> {props.message}</p>
+        <p><strong>{prefix}</strong> {props.message}</p>
       </div>
       {props.onRetry ? (
         <button type="button" className="gridlock-action-btn" onClick={props.onRetry}>Retry</button>

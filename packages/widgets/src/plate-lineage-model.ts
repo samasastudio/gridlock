@@ -1,4 +1,13 @@
-import type { LineageNode } from "@samasastudio/gridlock-core/schemas";
+import type {
+  LineageNode,
+  PlateLineageResponse,
+} from "@samasastudio/gridlock-core/schemas";
+
+export interface PlateLineageKpis {
+  canonicalMilestonesCount: number;
+  scenarioBranchesCount: number;
+  linkedFilingsCount: number;
+}
 
 export function orderLineageNodes(nodes: readonly LineageNode[]): LineageNode[] {
   return [...nodes].sort((left, right) => {
@@ -58,3 +67,28 @@ export function buildPlateTurnLabels(
   }
   return labels;
 }
+
+export function computePlateLineageKpis(lineage: PlateLineageResponse): PlateLineageKpis {
+  const canonicalMilestonesCount = lineage.nodes.filter((node) => !node.plate.isBranch).length;
+  const scenarioBranchesCount = lineage.nodes.length - canonicalMilestonesCount;
+  const linkedFilingsCount = new Set(lineage.nodes.flatMap((node) => node.plate.projectNumbers)).size;
+  return { canonicalMilestonesCount, scenarioBranchesCount, linkedFilingsCount };
+}
+
+export function resolveActiveLineageNode(options: {
+  orderedNodes: readonly LineageNode[];
+  activeCanonicalPlateId: string | null;
+  selectedPlateId?: string | null;
+  initialPlateId?: string | null;
+}): LineageNode | undefined {
+  const { orderedNodes, activeCanonicalPlateId, selectedPlateId, initialPlateId } = options;
+  if (orderedNodes.length === 0) return undefined;
+  const byPlateId = new Map(orderedNodes.map((node) => [node.plate.plateId, node]));
+  for (const candidateId of [selectedPlateId, initialPlateId, activeCanonicalPlateId]) {
+    if (candidateId && byPlateId.has(candidateId)) {
+      return byPlateId.get(candidateId);
+    }
+  }
+  return resolveStageActiveNode(orderedNodes);
+}
+
