@@ -144,13 +144,13 @@ flowchart TD
       - **Testing Validation Gate**:
         - [x] **Happy Path**: `GET /api/plates/lineage` returns active `VisualPlate` nodes, `interactionId` → `parentInteractionId` edges, and linked `Observation` metadata; `GET /api/plates/assets/:plateId.webp` serves `image/webp` bytes; `POST /api/plates/branch` returns a `"Scenario Branch / Unverified Projection"` plate.
         - [x] **Sad Path**: `POST /api/plates/branch` rejects empty/oversized `scenarioPrompt` (`400`), unknown/expired `interactionId` (`404`), and branch quota breaches (`429`) at `0` Gemini tokens; rejects non-`GET`/`POST` (`405`), missing `.webp` assets (`404`), and corrupted records (`500`).
-    - [ ] **[`gridlock#34`](https://github.com/samasastudio/gridlock/issues/34) — `<GridlockPlateWidget />` Temporal Lineage Scrubber & Provenance Sheet (Seam 3 UI Part 1)** (`~560` changed lines)
+    - [x] **[`gridlock#34`](https://github.com/samasastudio/gridlock/issues/34) — `<GridlockPlateWidget />` Temporal Lineage Scrubber & Provenance Sheet (Seam 3 UI Part 1)** (`~560` changed lines)
       - **Blocked by**: [`#33`](https://github.com/samasastudio/gridlock/issues/33)
       - **Unlocks**: `#35`, `#39`
       - **Delivers**: `fetchPlateLineageSnapshot` (`plate-lineage-client.ts`), reusable `PlateFrameStage`, and `<GridlockPlateWidget />` open editorial sheet with keyboard-accessible milestone scrubbing (`ArrowLeft`/`ArrowRight`/`Home`/`End`), triggering `Observation` prose, SHA-256 `SourceArtifact` `CopyCitationButton`, and `<details>` provenance chain.
       - **Testing Validation Gate**:
-        - [ ] **Happy Path**: Scrubs across `interaction_id` frames, synchronously updates triggering **Observations**, SHA-256 **Source Artifact** citations, and `"Scenario Branch / Unverified Projection"` badges across diurnal, nocturnal, and inherit themes.
-        - [ ] **Sad Path**: Cleanly handles single-frame lineages, zero-plate empty states, broken `.webp` asset URL fallbacks, and HTTP `500`/network retry states without crashing.
+        - [x] **Happy Path**: Scrubs across `interaction_id` frames, synchronously updates triggering **Observations**, SHA-256 **Source Artifact** citations, and `"Scenario Branch / Unverified Projection"` badges across diurnal, nocturnal, and inherit themes.
+        - [x] **Sad Path**: Cleanly handles single-frame lineages, zero-plate empty states, broken `.webp` asset URL fallbacks, and HTTP `500`/network retry states without crashing.
     - [ ] **[`gridlock#35`](https://github.com/samasastudio/gridlock/issues/35) — `<GridlockPlateWidget />` Scenario Branching & Comparison Controls (Seam 3 UI Part 2)** (`~500` changed lines; *closes `#35` & `#8`*)
       - **Blocked by**: [`#34`](https://github.com/samasastudio/gridlock/issues/34)
       - **Unlocks**: `#11` (alongside `#40`)
