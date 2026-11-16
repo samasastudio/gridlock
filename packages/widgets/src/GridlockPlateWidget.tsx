@@ -6,6 +6,7 @@ import { fetchPlateLineageSnapshot, type PlateLineageQuery, type PlateLineageSna
 import { orderLineageNodes, resolveActiveLineageNode } from "./plate-lineage-model.ts";
 import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
 import { PlateFrameStage } from "./PlateFrameStage.tsx";
+import { PlateProvenanceSection } from "./PlateProvenanceSection.tsx";
 import { PlateHeadlineKpiStrip, PlateSummarySection, PlateWidgetLoadingPlaceholder } from "./PlateSummarySection.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairLogSections.tsx";
 
@@ -98,7 +99,9 @@ function LoadedPlateDossierContent(props: {
         assetUrlOverrides={viewOptions.assetUrlOverrides}
       >
         {activeNode ? (
-          <PlateSummarySection activeNode={activeNode} orderedNodes={orderedNodes} />
+          <PlateSummarySection activeNode={activeNode} orderedNodes={orderedNodes}>
+            <PlateProvenanceSection lineage={lineage} activeNode={activeNode} onSelectPlate={handleSelectPlate} />
+          </PlateSummarySection>
         ) : null}
       </PlateFrameStage>
     </>

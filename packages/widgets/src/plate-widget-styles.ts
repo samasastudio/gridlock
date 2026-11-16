@@ -58,7 +58,32 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   :where(.gridlock-plate-stage .gridlock-inline-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.65rem; min-inline-size: 0; max-inline-size: 100%; font-family: var(--gridlock-font-mono); font-variant-numeric: tabular-nums; font-size: 0.75rem; color: var(--gridlock-muted); overflow-wrap: anywhere; }
   :where(.gridlock-additional-obs) { margin: 0; padding-inline-start: 1.15rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.875rem; color: var(--gridlock-ink); overflow-wrap: anywhere; }
   :where(.gridlock-additional-obs-meta) { font-family: var(--gridlock-font-mono); font-variant-numeric: tabular-nums; font-size: 0.75rem; color: var(--gridlock-muted); }
+  :where(.gridlock-citations-row) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem 0.9rem; padding-block-start: 0.15rem; }
+  :where(.gridlock-citation-item) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; max-inline-size: 100%; }
+  :where(.gridlock-citation-link) { display: inline-flex; align-items: center; gap: 0.3rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-ink); text-decoration: underline; text-decoration-color: var(--gridlock-border-strong); transition: color 240ms cubic-bezier(0.16, 1, 0.3, 1), text-decoration-color 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+  :where(.gridlock-citation-link:hover) { text-decoration-color: var(--gridlock-accent); }
+  :where(.gridlock-citation-aged) { display: inline-flex; align-items: center; padding-block: 0.2rem; padding-inline: 0.5rem; border: 1px solid var(--gridlock-border); border-radius: var(--gridlock-radius); background-color: var(--gridlock-card); font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); }
+  :where(.gridlock-plate-disclosure) { margin-block-start: 0.35rem; border-block-start: 1px solid var(--gridlock-border); }
+  :where(.gridlock-plate-disclosure-summary) { list-style: none; display: inline-flex; align-items: center; gap: 0.5rem; min-block-size: 2.5rem; cursor: pointer; font-family: var(--gridlock-font-sans); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-muted); transition: color 300ms cubic-bezier(0.16, 1, 0.3, 1); }
+  :where(.gridlock-plate-disclosure-summary::-webkit-details-marker) { display: none; }
+  :where(.gridlock-plate-disclosure-summary)::before { content: "+"; font-family: var(--gridlock-font-mono); font-size: 0.875rem; color: var(--gridlock-accent); }
+  :where(.gridlock-plate-disclosure[open] > .gridlock-plate-disclosure-summary)::before { content: "−"; }
+  :where(.gridlock-plate-disclosure-summary:hover) { color: var(--gridlock-ink); }
+  @keyframes gridlock-plate-disclosure-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+  :where(.gridlock-plate-disclosure-body) { display: flex; flex-direction: column; gap: 0.75rem; padding-block: 0.5rem 0.25rem; min-inline-size: 0; }
+  :where(.gridlock-plate-disclosure[open] > .gridlock-plate-disclosure-body) { animation: gridlock-plate-disclosure-in 480ms cubic-bezier(0.16, 1, 0.3, 1); }
+  :where(.gridlock-plate-invariant-strip) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding-block: 0.65rem; padding-inline: 0.9rem; background-color: var(--gridlock-card); border: 1px solid var(--gridlock-border); font-size: 0.8125rem; overflow-wrap: anywhere; }
+  :where(.gridlock-plate-stage .gridlock-provenance-meta) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; max-inline-size: 100%; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); }
+  :where(.gridlock-plate-stage .gridlock-provenance-meta .gridlock-copy-chip) { max-inline-size: 100%; overflow-wrap: anywhere; text-align: start; }
+  :where(.gridlock-provenance-hops) { margin: 0; padding-inline-start: 1.25rem; display: flex; flex-direction: column; gap: 0.45rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-ink); }
+  :where(.gridlock-provenance-hop) { line-height: 1.45; overflow-wrap: anywhere; }
+  :where(.gridlock-hop-btn) { padding-block: 0.15rem; padding-inline: 0.45rem; border: 1px solid var(--gridlock-border-strong); border-radius: var(--gridlock-radius); background-color: var(--gridlock-paper); color: var(--gridlock-ink); font-family: var(--gridlock-font-mono); font-size: 0.75rem; text-align: start; cursor: pointer; overflow-wrap: anywhere; transition: border-color 240ms cubic-bezier(0.16, 1, 0.3, 1), background-color 240ms cubic-bezier(0.16, 1, 0.3, 1); }
+  :where(.gridlock-hop-btn:hover) { border-color: var(--gridlock-accent); background-color: var(--gridlock-card); }
+  :where(.gridlock-hop-note) { display: inline-block; margin-inline-start: 0.45rem; color: var(--gridlock-muted); overflow-wrap: anywhere; }
+  :where(.gridlock-painter-prompt) { padding-block: 0.6rem; padding-inline: 0.9rem; border: 1px solid var(--gridlock-border); background-color: var(--gridlock-card); font-size: 0.8125rem; color: var(--gridlock-ink); overflow-wrap: anywhere; }
   @media (prefers-reduced-motion: reduce) {
-    :where(.gridlock-plate-tab) { transition: none; }
+    :where(.gridlock-plate-disclosure[open] > .gridlock-plate-disclosure-body) { animation: none; }
+    :where(.gridlock-plate-tab, .gridlock-plate-disclosure-summary, .gridlock-citation-link, .gridlock-hop-btn) { transition: none; }
   }
 }`;
+

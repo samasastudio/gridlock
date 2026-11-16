@@ -1,5 +1,6 @@
 import type {
   LineageNode,
+  LineageSourceCitation,
   PlateLineageResponse,
 } from "@samasastudio/gridlock-core/schemas";
 
@@ -90,5 +91,76 @@ export function resolveActiveLineageNode(options: {
     }
   }
   return resolveStageActiveNode(orderedNodes);
+}
+
+export type ResolvedPlateCitation =
+  | ({ kind: "hydrated" } & LineageSourceCitation)
+  | { kind: "hash_only_ttl_aged"; sha256: string };
+
+export interface ProvenanceHop {
+  interactionId: string;
+  parentInteractionId: string | null;
+  plateId: string | null;
+  turnNumber: number | null;
+  isBranch: boolean;
+  isActiveTarget: boolean;
+  isAgedOutParent: boolean;
+  rebootstrappedFromParentWebp: boolean;
+}
+
+export function resolveNodeSourceCitations(node: LineageNode): ResolvedPlateCitation[] {
+  const hydratedByHash = new Map(node.sourceArtifacts.map((art) => [art.sha256, art]));
+  return Array.from(new Set(node.plate.sourceArtifactHashes), (sha256) => {
+    const hydrated = hydratedByHash.get(sha256);
+    return hydrated ? { kind: "hydrated", ...hydrated } : { kind: "hash_only_ttl_aged", sha256 };
+  });
+}
+
+export function buildAncestorProvenanceChain(
+  lineage: PlateLineageResponse,
+  activeNode: LineageNode
+): ProvenanceHop[] {
+  const byInteraction = new Map(lineage.nodes.map((node) => [node.plate.interactionId, node]));
+  const edgeByChild = new Map(lineage.edges.map((edge) => [edge.childInteractionId, edge]));
+  const reversedHops: ProvenanceHop[] = [];
+  const visited = new Set<string>();
+  let current: LineageNode | undefined = activeNode;
+
+  while (current && !visited.has(current.plate.interactionId)) {
+    visited.add(current.plate.interactionId);
+    const parentInteractionId =
+      edgeByChild.get(current.plate.interactionId)?.parentInteractionId ??
+      current.plate.parentInteractionId;
+
+    reversedHops.push({
+      interactionId: current.plate.interactionId,
+      parentInteractionId,
+      plateId: current.plate.plateId,
+      turnNumber: current.plate.turnNumber,
+      isBranch: current.plate.isBranch,
+      isActiveTarget: current.plate.plateId === activeNode.plate.plateId,
+      isAgedOutParent: false,
+      rebootstrappedFromParentWebp: current.plate.rebootstrappedFromParentWebp,
+    });
+
+    if (!parentInteractionId || visited.has(parentInteractionId)) break;
+    const parentNode = byInteraction.get(parentInteractionId);
+    if (!parentNode) {
+      reversedHops.push({
+        interactionId: parentInteractionId,
+        parentInteractionId: null,
+        plateId: current.plate.parentPlateId,
+        turnNumber: null,
+        isBranch: true,
+        isActiveTarget: false,
+        isAgedOutParent: true,
+        rebootstrappedFromParentWebp: false,
+      });
+      break;
+    }
+    current = parentNode;
+  }
+
+  return reversedHops.reverse();
 }
 
