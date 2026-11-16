@@ -30,3 +30,4 @@ export {
 export { buildRepairChangelogUrl, fetchRepairLogSnapshot, type RepairLogQuery, type RepairLogSnapshotResult } from "./repair-log-client.ts";
 export { buildPlateAssetUrl, buildPlateLineageUrl, fetchPlateLineageSnapshot, type PlateLineageQuery, type PlateLineageSnapshotResult } from "./plate-lineage-client.ts";
 export { PlateFrameStage, type PlateFrameStageProps } from "./PlateFrameStage.tsx";
+export { GridlockPlateWidget, type GridlockPlateWidgetProps } from "./GridlockPlateWidget.tsx";

@@ -18,6 +18,22 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   }
   :where(.gridlock-plate-stage code) { font-family: var(--gridlock-font-mono); font-size-adjust: from-font; font-variant-numeric: tabular-nums; font-size: max(0.75rem, 0.875em); }
   :where(.gridlock-plate-stage :is(button, a, [role="button"], [tabindex="0"], summary)):focus-visible { outline: 2px solid var(--gridlock-ink); outline-offset: 2px; }
+  :where(.gridlock-plate-widget .gridlock-repair-header) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding-block-end: 1.35rem; margin-block-end: 1.75rem; border-block-end: 1px solid var(--gridlock-border); }
+  :where(.gridlock-plate-widget .gridlock-title-block) { display: flex; flex-direction: column; gap: 0.5rem; min-inline-size: 0; max-inline-size: 100%; }
+  :where(.gridlock-plate-widget .gridlock-dossier-title) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-family: var(--gridlock-font-display); font-size: clamp(1.35rem, 1.15rem + 0.55cqi, 1.65rem); font-weight: 800; letter-spacing: -0.025em; line-height: 1.1; }
+  :where(.gridlock-plate-widget .gridlock-connector-chip) { display: inline-flex; align-items: center; max-inline-size: 100%; padding-block: 0.2rem; padding-inline: 0.5rem; border: 1px solid var(--gridlock-border-strong); border-radius: var(--gridlock-radius); background-color: var(--gridlock-card); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; overflow-wrap: anywhere; }
+  :where(.gridlock-plate-widget .gridlock-title-rule) { block-size: 2px; inline-size: 2.75rem; background-color: var(--gridlock-ink); }
+  :where(.gridlock-plate-widget .gridlock-header-controls) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; }
+  :where(.gridlock-plate-widget .gridlock-scorecard-section) { display: flex; flex-direction: column; gap: 1.75rem; }
+  :where(.gridlock-plate-widget .gridlock-headline-stats) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 1.25rem 2rem; }
+  :where(.gridlock-plate-widget .gridlock-headline-stat) { display: flex; flex-direction: column; gap: 0.35rem; min-inline-size: 0; }
+  @container (width >= 42em) {
+    :where(.gridlock-plate-widget .gridlock-headline-stat + .gridlock-headline-stat) { padding-inline-start: 1.75rem; border-inline-start: 1px solid var(--gridlock-border); }
+  }
+  :where(.gridlock-plate-widget .gridlock-headline-stat dt) { font-family: var(--gridlock-font-sans); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-muted); }
+  :where(.gridlock-plate-widget .gridlock-kpi-value) { display: block; contain: layout style; font-family: var(--gridlock-font-display); font-size-adjust: cap-height from-font; font-size: clamp(2rem, 1.65rem + 1.1vw, 2.75rem); font-weight: 900; letter-spacing: -0.03em; line-height: 1.02; font-variant-numeric: tabular-nums; color: var(--gridlock-ink); }
+  :where(.gridlock-plate-widget .gridlock-kpi-sub) { display: block; margin-block-start: 0.25rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); overflow-wrap: anywhere; }
+  :where(.gridlock-plate-widget .gridlock-plate-stage) { margin-block-start: 2.25rem; padding-block-start: 1.5rem; border-block-start: 1px solid var(--gridlock-border); }
   :where(.gridlock-plate-stage) { display: flex; flex-direction: column; gap: 1rem; min-inline-size: 0; }
   :where(.gridlock-plate-scrubber-bar) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; border-block-end: 1px solid var(--gridlock-border); padding-block-end: 0.5rem; }
   :where(.gridlock-plate-stage .gridlock-section-heading) { margin: 0; font-family: var(--gridlock-font-display); font-size-adjust: cap-height from-font; font-size: 0.875rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-ink); }
@@ -37,6 +53,11 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   :where(.gridlock-plate-fallback-head) { display: inline-flex; align-items: center; gap: 0.55rem; font-family: var(--gridlock-font-display); font-size: 0.9375rem; font-weight: 700; }
   :where(.gridlock-plate-fallback-copy) { margin: 0; max-inline-size: 62ch; font-size: 0.875rem; color: var(--gridlock-muted); overflow-wrap: anywhere; }
   :where(.gridlock-plate-stage .gridlock-empty-row) { margin: 0; display: flex; align-items: center; gap: 0.55rem; padding-block: 1.25rem 0.25rem; font-size: 0.9375rem; color: var(--gridlock-ink); }
+  :where(.gridlock-plate-specimen) { display: flex; flex-direction: column; gap: 0.85rem; padding-block-start: 0.25rem; min-inline-size: 0; }
+  :where(.gridlock-plate-lead) { max-inline-size: 64ch; font-family: var(--gridlock-font-serif); font-size-adjust: from-font; font-size: clamp(1.15rem, 1.05rem + 0.35vw, 1.32rem); line-height: 1.62; color: var(--gridlock-ink); }
+  :where(.gridlock-plate-stage .gridlock-inline-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.65rem; min-inline-size: 0; max-inline-size: 100%; font-family: var(--gridlock-font-mono); font-variant-numeric: tabular-nums; font-size: 0.75rem; color: var(--gridlock-muted); overflow-wrap: anywhere; }
+  :where(.gridlock-additional-obs) { margin: 0; padding-inline-start: 1.15rem; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.875rem; color: var(--gridlock-ink); overflow-wrap: anywhere; }
+  :where(.gridlock-additional-obs-meta) { font-family: var(--gridlock-font-mono); font-variant-numeric: tabular-nums; font-size: 0.75rem; color: var(--gridlock-muted); }
   @media (prefers-reduced-motion: reduce) {
     :where(.gridlock-plate-tab) { transition: none; }
   }
