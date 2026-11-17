@@ -135,7 +135,7 @@ flowchart TD
     - [x] **Happy Path**: `GET /api/repairs/changelog` returns valid JSON and `?format=md` Markdown; `<GridlockRepairLogWidget />` renders the repair history, before/after selector diffs, `mttrMs`, `subsequentDeterministicRunsServed`, and **Efficiency Ledger** scorecard across diurnal and nocturnal themes.
     - [x] **Sad Path**: Cleanly renders zero-anomaly empty states (`100% deterministic uptime`), active `selector_anomaly` / `blocked_by_waf` warning banners when a connector is degraded, and non-crashing error/retry states on HTTP `500` or network failure.
 
-- [ ] **[`gridlock#8`](https://github.com/samasastudio/gridlock/issues/8) — Plate Lineage API & `<GridlockPlateWidget />` Scrubber (Seam 3 UI)** *(Parent tracker — closes with `#35`)*
+- [x] **[`gridlock#8`](https://github.com/samasastudio/gridlock/issues/8) — Plate Lineage API & `<GridlockPlateWidget />` Scrubber (Seam 3 UI)** *(Parent tracker — closes with `#35`)*
   - **Sub-issues (Single-PR Vertical Slices)**:
     - [x] **[`gridlock#33`](https://github.com/samasastudio/gridlock/issues/33) — Plate Lineage & Scenario Branch HTTP API (Seam 3 API)** (`~500` changed lines)
       - **Blocked by**: [`#7`](https://github.com/samasastudio/gridlock/issues/7) *(closed — **unblocked**)*
@@ -151,13 +151,13 @@ flowchart TD
       - **Testing Validation Gate**:
         - [x] **Happy Path**: Scrubs across `interaction_id` frames, synchronously updates triggering **Observations**, SHA-256 **Source Artifact** citations, and `"Scenario Branch / Unverified Projection"` badges across diurnal, nocturnal, and inherit themes.
         - [x] **Sad Path**: Cleanly handles single-frame lineages, zero-plate empty states, broken `.webp` asset URL fallbacks, and HTTP `500`/network retry states without crashing.
-    - [ ] **[`gridlock#35`](https://github.com/samasastudio/gridlock/issues/35) — `<GridlockPlateWidget />` Scenario Branching & Comparison Controls (Seam 3 UI Part 2)** (`~500` changed lines; *closes `#35` & `#8`*)
+    - [x] **[`gridlock#35`](https://github.com/samasastudio/gridlock/issues/35) — `<GridlockPlateWidget />` Scenario Branching & Comparison Controls (Seam 3 UI Part 2)** (`~500` changed lines; *closes `#35` & `#8`*)
       - **Blocked by**: [`#34`](https://github.com/samasastudio/gridlock/issues/34)
       - **Unlocks**: `#11` (alongside `#40`)
       - **Delivers**: `submitPlateBranch` (`POST /api/plates/branch`), interactive scenario prompt form (`<= MAX_SCENARIO_PROMPT_LENGTH`) with duplicate-submit lock, canonical-vs-branch comparison view in `<GridlockPlateWidget />`, and live Seam 3 seeding in `scripts/widget-workbench.mjs`.
       - **Testing Validation Gate**:
-        - [ ] **Happy Path**: Submitting a scenario prompt forks a `"Scenario Branch / Unverified Projection"` plate from the active `interaction_id`, updates the lineage in place, and toggles comparison against the canonical parent frame.
-        - [ ] **Sad Path**: Surfaces bounded inline mineral alerts on HTTP `400` (invalid prompt), `404` (unknown/expired parent), `429` (branch quota exceeded), and `500`/network failures while preserving canonical selection and blocking concurrent submissions.
+        - [x] **Happy Path**: Submitting a scenario prompt forks a `"Scenario Branch / Unverified Projection"` plate from the active `interaction_id`, updates the lineage in place, and toggles comparison against the canonical parent frame.
+        - [x] **Sad Path**: Surfaces bounded inline mineral alerts on HTTP `400` (invalid prompt), `404` (unknown/expired parent), `429` (branch quota exceeded), and `500`/network failures while preserving canonical selection and blocking concurrent submissions.
 
 ---
 

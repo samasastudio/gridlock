@@ -1,12 +1,22 @@
+import { Buffer } from "node:buffer";
 import { createServer } from "node:http";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import {
+  ARTIFACT_BUCKET_URI,
+  bootstrapCanvas,
+  branchLineage,
+  createCorridorBaseCanvasWebp,
   createInMemoryGridlockRepository,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   handleGridlockHttpRequest,
+  isWebpBuffer,
+  ObservationSchema,
+  paintMilestoneDelta,
+  ProjectSchema,
+  SourceArtifactSchema,
 } from "../packages/core/src/index.ts";
 import { HealedWithAmortization } from "../packages/widgets/stories/GridlockRepairLogWidget.stories.tsx";
 
@@ -34,6 +44,179 @@ if (healedArgs.changelog && healedArgs.efficiencyLedger) {
   }
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isoDaysFrom(anchorMs, daysDelta) {
+  return new Date(anchorMs + daysDelta * DAY_MS).toISOString();
+}
+
+function buildWorkbenchArtifact(sha256, capturedAt, expiresAt) {
+  return SourceArtifactSchema.parse({
+    sha256,
+    connectorId: "tdlr-tabs",
+    sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${sha256.slice(0, 8)}`,
+    contentType: "text/html",
+    rawByteLength: 512,
+    compressedByteLength: 128,
+    storageUri: `${ARTIFACT_BUCKET_URI}/artifacts/${sha256}.gz`,
+    capturedAt,
+    expiresAt,
+    referencedByMilestone: false,
+  });
+}
+
+async function seedWorkbenchPlateLineage(repo) {
+  const anchorMs = Date.now();
+  const [hashT1, hashT2, hashAged] = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
+  const gzBytes = Buffer.from("gridlock-workbench-gz");
+  const painterState = { seq: 0 };
+
+  const projects = [
+    ProjectSchema.parse({
+      projectNumber: "TABS2027003697",
+      projectName: "Red Oak 345kV Hyperscale Data Center Hall A",
+      facilityName: "Red Oak Technology Campus",
+      ownerName: "Compass Datacenters Red Oak LLC",
+      designFirmName: "Corgan Associates Inc.",
+      locationAddress: "1400 Ovilla Rd, Red Oak, TX 75154",
+      county: "Ellis",
+      estimatedCostUsd: 125_000_000,
+      squareFootage: 250_000,
+      typeOfWork: "New Construction",
+      scopeOfWork: "250,000 sq ft structural steel erection and chilled-water loop expansion",
+      currentStatus: "Construction Started",
+      startDate: "2026-11-01",
+      completionDate: "2027-09-30",
+      latestSourceArtifactHash: hashT2,
+      updatedAt: isoDaysFrom(anchorMs, -2),
+    }),
+    ProjectSchema.parse({
+      projectNumber: "TABS2027004200",
+      projectName: "Red Oak Switchgear Interconnect Building",
+      facilityName: "Red Oak 345kV Substation Yard",
+      ownerName: "Oncor Electric Delivery Company LLC",
+      locationAddress: "1420 Ovilla Rd, Red Oak, TX 75154",
+      county: "Ellis",
+      estimatedCostUsd: 65_000_000,
+      squareFootage: 140_000,
+      typeOfWork: "New Construction",
+      scopeOfWork: "140,000 sq ft adjacent switchgear interconnect building",
+      currentStatus: "Project Registered",
+      startDate: "2026-11-15",
+      completionDate: "2027-10-15",
+      latestSourceArtifactHash: hashAged,
+      updatedAt: isoDaysFrom(anchorMs, -2),
+    }),
+  ];
+
+  await Promise.all(projects.map((project) => repo.upsertProject(project)));
+
+  await Promise.all([
+    repo.saveSourceArtifact(
+      buildWorkbenchArtifact(hashT1, isoDaysFrom(anchorMs, -4), isoDaysFrom(anchorMs, 85)),
+      gzBytes
+    ),
+    repo.saveSourceArtifact(
+      buildWorkbenchArtifact(hashT2, isoDaysFrom(anchorMs, -3), isoDaysFrom(anchorMs, 85)),
+      gzBytes
+    ),
+  ]);
+
+  const obs1 = ObservationSchema.parse({
+    id: "obs_workbench_3697_t1",
+    projectNumber: "TABS2027003697",
+    sourceArtifactHash: hashT1,
+    observedAt: isoDaysFrom(anchorMs, -4),
+    status: "Project Registered",
+    estimatedCostUsd: 125_000_000,
+    squareFootage: 250_000,
+    scopeOfWork: "250,000 sq ft hyperscale data center hall and 345kV substation yard",
+    isMilestone: true,
+  });
+
+  const obs2 = ObservationSchema.parse({
+    ...obs1,
+    id: "obs_workbench_3697_t2",
+    sourceArtifactHash: hashT2,
+    observedAt: isoDaysFrom(anchorMs, -3),
+    status: "Construction Started",
+    scopeOfWork: "250,000 sq ft structural steel erection and chilled-water loop expansion",
+  });
+
+  const obs3 = ObservationSchema.parse({
+    id: "obs_workbench_4200_t2",
+    projectNumber: "TABS2027004200",
+    sourceArtifactHash: hashAged,
+    observedAt: isoDaysFrom(anchorMs, -3),
+    status: "Project Registered",
+    estimatedCostUsd: 65_000_000,
+    squareFootage: 140_000,
+    scopeOfWork: "140,000 sq ft adjacent switchgear interconnect building",
+    isMilestone: true,
+  });
+
+  await [obs1, obs2, obs3].reduce(
+    (chain, obs) => chain.then(() => repo.appendObservation(obs)),
+    Promise.resolve()
+  );
+
+  const geminiClient = {
+    interactions: {
+      async create() {
+        painterState.seq += 1;
+        const seq = painterState.seq;
+
+        return {
+          id: `inter_workbench_${seq}`,
+          status: "completed",
+          output_image: {
+            mime_type: "image/webp",
+            data: createCorridorBaseCanvasWebp(`workbench-plate-${seq}`).toString("base64"),
+          },
+          usage: { total_tokens: 140 },
+        };
+      },
+    },
+  };
+
+  const t1Result = await bootstrapCanvas(
+    { observations: [obs1], now: new Date(anchorMs - 4 * DAY_MS + 300_000) },
+    { repository: repo, geminiClient }
+  );
+  if (t1Result.status !== "plate_painted") {
+    throw new Error(`Failed to bootstrap workbench Turn 1: ${t1Result.status}`);
+  }
+
+  const t2Result = await paintMilestoneDelta(
+    { observations: [obs2, obs3], now: new Date(anchorMs - 3 * DAY_MS + 300_000) },
+    { repository: repo, geminiClient }
+  );
+  if (t2Result.status !== "plate_painted") {
+    throw new Error(`Failed to paint workbench Turn 2: ${t2Result.status}`);
+  }
+
+  await repo.saveSourceArtifact(
+    buildWorkbenchArtifact(hashAged, isoDaysFrom(anchorMs, -100), isoDaysFrom(anchorMs, -10)),
+    gzBytes
+  );
+
+  const b1Result = await branchLineage(
+    {
+      parentInteractionId: t2Result.plate.interactionId,
+      scenarioPrompt: "Simulate +400MW ERCOT 345kV substation queue delay across Red Oak campus",
+      now: new Date(anchorMs - DAY_MS),
+    },
+    { repository: repo, geminiClient }
+  );
+  if (b1Result.status !== "plate_painted") {
+    throw new Error(`Failed to branch workbench Turn 3: ${b1Result.status}`);
+  }
+
+  return geminiClient;
+}
+
+const geminiClient = await seedWorkbenchPlateLineage(baseRepo);
+
 let force500 = false;
 const repository = {
   ...baseRepo,
@@ -41,6 +224,11 @@ const repository = {
     return force500
       ? [{ malformedSimulatedCorruption: true }]
       : baseRepo.listRepairChangelog(connectorId);
+  },
+  async listVisualPlatesByLineage(lineageId) {
+    return force500
+      ? [{ malformedSimulatedCorruption: true }]
+      : baseRepo.listVisualPlatesByLineage(lineageId);
   },
 };
 
@@ -97,7 +285,7 @@ function WorkbenchApp() {
     <div>
       <header style={{ background: "#18181b", color: "#f4efe6", padding: "0.6rem 1.25rem", borderBottom: "1px solid rgba(244,239,230,0.16)" }}>
         <div style={{ maxWidth: "1040px", margin: "0 auto", display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: "0.75rem", alignItems: "center" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", fontSize: "0.75rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.88 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", minWidth: 0, alignItems: "center", gap: "0.65rem", fontSize: "0.75rem", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.88 }}>
             <span>Widget Preview</span>
             {MODULES.length > 1 && (
               <select name="widget-module" value={modIdx} onChange={(e) => { const idx = Number(e.target.value); const nextKeys = getStoryKeys(MODULES[idx] ?? MODULES[0]); setModIdx(idx); setLiveMode(false); setStoryKey(nextKeys.includes("HealedWithAmortization") ? "HealedWithAmortization" : (nextKeys[0] ?? "")); }} style={barCtrlStyle}>
@@ -105,7 +293,7 @@ function WorkbenchApp() {
               </select>
             )}
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", minWidth: 0, gap: "0.5rem", alignItems: "center" }}>
             <select name="widget-story" aria-label="Story fixture" value={activeSourceValue} onChange={(e) => { if (e.target.value === "__live__") setLiveMode(true); else { setLiveMode(false); setStoryKey(e.target.value); } }} style={barCtrlStyle}>
               {storyKeys.map((k) => <option key={k} value={k}>Story: {k}</option>)}
               <option value="__live__">Source: Live API</option>
@@ -130,13 +318,17 @@ function WorkbenchApp() {
         </div>
       </header>
       <main style={{ maxWidth: narrow ? "420px" : "1040px", margin: "0 auto", padding: "2.5rem 1.25rem 4rem" }}>
-        {liveMode ? <Component key={mountKey} apiBaseUrl="" theme={effectiveTheme} /> : activeStory ? <Component {...activeStory.args} apiBaseUrl={activeStory.args.apiBaseUrl ?? ""} theme={effectiveTheme} /> : null}
+        {liveMode ? (
+          <Component key={mountKey} apiBaseUrl="" theme={effectiveTheme} />
+        ) : activeStory ? (
+          <Component {...activeStory.args} theme={effectiveTheme} />
+        ) : null}
       </main>
     </div>
   );
 }
 
-const barCtrlStyle: React.CSSProperties = { padding: "0.32rem 0.6rem", border: "1px solid rgba(244,239,230,0.28)", background: "#22272d", color: "#f4efe6", fontFamily: "var(--font-sans)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" };
+const barCtrlStyle: React.CSSProperties = { maxWidth: "100%", padding: "0.32rem 0.6rem", border: "1px solid rgba(244,239,230,0.28)", background: "#22272d", color: "#f4efe6", fontFamily: "var(--font-sans)", fontSize: "0.75rem", fontWeight: 600, cursor: "pointer" };
 const root = document.getElementById("root");
 if (root) createRoot(root).render(<WorkbenchApp />);
 `;
@@ -211,7 +403,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname.startsWith("/api/")) {
-      await handleGridlockHttpRequest(req, res, { repository });
+      await handleGridlockHttpRequest(req, res, { repository, geminiClient });
       return;
     }
     if (url.pathname === "/" || url.pathname === "/index.html") {
@@ -251,22 +443,106 @@ const server = createServer(async (req, res) => {
   }
 });
 
+const SMOKE_ROUTES = [
+  "/",
+  "/bundle.js",
+  "/atlas-tokens.css",
+  "/api/repairs/changelog",
+  "/api/telemetry/efficiency",
+];
+
+async function verifySmokeRoute(baseUrl, path) {
+  const res = await fetch(`${baseUrl}${path}`);
+  if (!res.ok) {
+    throw new Error(`${path} returned HTTP ${res.status}`);
+  }
+
+  if (path === "/api/telemetry/efficiency") {
+    const ledger = await res.json();
+    if (!Array.isArray(ledger.recentRuns) || ledger.recentRuns.length === 0) {
+      throw new Error("Expected seeded recentRuns in /api/telemetry/efficiency");
+    }
+  }
+}
+
+async function verifyWebpAssetRoute(baseUrl, assetPath) {
+  const assetRes = await fetch(`${baseUrl}${assetPath}`);
+  if (!assetRes.ok) {
+    throw new Error(`${assetPath} returned HTTP ${assetRes.status}`);
+  }
+
+  const contentType = assetRes.headers.get("content-type") ?? "";
+  if (!contentType.includes("image/webp")) {
+    throw new Error(`Expected image/webp content-type for ${assetPath}, got ${contentType}`);
+  }
+
+  const bytes = Buffer.from(await assetRes.arrayBuffer());
+  if (!isWebpBuffer(bytes)) {
+    throw new Error(`Expected valid RIFF/WEBP payload at ${assetPath}`);
+  }
+}
+
+async function verifyWorkbenchPlateSeam(baseUrl) {
+  const lineageRes = await fetch(`${baseUrl}/api/plates/lineage`);
+  if (!lineageRes.ok) {
+    throw new Error(`/api/plates/lineage returned HTTP ${lineageRes.status}`);
+  }
+
+  const lineage = await lineageRes.json();
+  if (
+    !Array.isArray(lineage.nodes) ||
+    lineage.nodes.length < 3 ||
+    !lineage.activeCanonicalPlateId
+  ) {
+    throw new Error(
+      "Expected >= 3 seeded VisualPlate nodes and activeCanonicalPlateId in /api/plates/lineage"
+    );
+  }
+
+  const activeNode = lineage.nodes.find(
+    (node) => node.plate.plateId === lineage.activeCanonicalPlateId
+  );
+  if (!activeNode) {
+    throw new Error("Active canonical node missing from /api/plates/lineage nodes");
+  }
+
+  await verifyWebpAssetRoute(baseUrl, activeNode.assetPath);
+
+  const branchRes = await fetch(`${baseUrl}/api/plates/branch`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      interactionId: activeNode.plate.interactionId,
+      scenarioPrompt: "Smoke check 345kV substation reroute",
+    }),
+  });
+  if (branchRes.status !== 201) {
+    throw new Error(`/api/plates/branch expected HTTP 201, got ${branchRes.status}`);
+  }
+
+  const branched = await branchRes.json();
+  if (branched?.plate?.isBranch !== true || !branched?.node?.assetPath) {
+    throw new Error("Expected branched VisualPlate payload from POST /api/plates/branch");
+  }
+
+  await verifyWebpAssetRoute(baseUrl, branched.node.assetPath);
+}
+
 server.listen(PORT, HOST, async () => {
   const addr = server.address();
   const actualPort = typeof addr === "object" && addr ? addr.port : PORT;
   if (IS_SMOKE_CHECK) {
+    const baseUrl = `http://127.0.0.1:${actualPort}`;
+
     try {
-      for (const path of ["/", "/bundle.js", "/atlas-tokens.css", "/api/repairs/changelog", "/api/telemetry/efficiency"]) {
-        const res = await fetch(`http://127.0.0.1:${actualPort}${path}`);
-        if (!res.ok) throw new Error(`${path} returned HTTP ${res.status}`);
-        if (path === "/api/telemetry/efficiency") {
-          const ledger = await res.json();
-          if (!Array.isArray(ledger.recentRuns) || ledger.recentRuns.length === 0) {
-            throw new Error("Expected seeded recentRuns in /api/telemetry/efficiency");
-          }
-        }
-      }
-      console.log("Widget workbench smoke check OK (/, /bundle.js, /atlas-tokens.css, /api/repairs/changelog, /api/telemetry/efficiency)");
+      await SMOKE_ROUTES.reduce(
+        (chain, path) => chain.then(() => verifySmokeRoute(baseUrl, path)),
+        Promise.resolve()
+      );
+      await verifyWorkbenchPlateSeam(baseUrl);
+      console.log(
+        "Widget workbench smoke check OK (/, /bundle.js, /atlas-tokens.css, /api/repairs/changelog, /api/telemetry/efficiency, /api/plates/*)"
+      );
       server.close(() => process.exit(0));
     } catch (err) {
       console.error(err);

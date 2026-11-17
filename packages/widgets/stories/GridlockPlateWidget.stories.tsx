@@ -96,6 +96,31 @@ const NODE_B3 = makePlateNode({
   createdAt: "2026-10-29T11:00:00.000Z", expiresAt: "2027-01-27T11:00:00.000Z",
 }, [], [makeCitation(HASH_T2, "2026-10-28T09:00:00.000Z")]);
 
+const NODE_B4 = makePlateNode(
+  {
+    plateId: "plate_branch_t4",
+    turnNumber: 4,
+    interactionId: "inter_painter_b4",
+    parentInteractionId: "inter_painter_b3",
+    parentPlateId: "plate_branch_t3",
+    rebootstrappedFromParentWebp: false,
+    projectNumbers: ["TABS2027003697", "TABS2027004200"],
+    triggeringObservationIds: [],
+    sourceArtifactHashes: [HASH_T2],
+    prompt: "Project dual-feed 345kV transmission ring bus expansion north of Red Oak substation",
+    storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/plate_branch_t4.webp`,
+    sha256: "4".repeat(64),
+    isBranch: true,
+    scenarioPrompt: "Model dual-feed 345kV transmission ring bus expansion north of Red Oak substation",
+    epistemicLabel: SCENARIO_BRANCH_WATERMARK,
+    watermarkText: SCENARIO_BRANCH_WATERMARK,
+    createdAt: "2026-10-30T15:00:00.000Z",
+    expiresAt: "2027-01-28T15:00:00.000Z",
+  },
+  [],
+  [makeCitation(HASH_T2, "2026-10-28T09:00:00.000Z")]
+);
+
 function makeEdge(parent: LineageNode, child: LineageNode): LineageEdge {
   return {
     parentInteractionId: parent.plate.interactionId, childInteractionId: child.plate.interactionId,
@@ -141,4 +166,20 @@ export const BrokenAssetFallback: StoryObj<GridlockPlateWidgetProps> = {
 
 export const NocturnalTheme: StoryObj<GridlockPlateWidgetProps> = {
   args: { ...CanonicalAndBranchLineage.args, theme: "nocturnal" },
+};
+
+export const MultiHopBranchComparison: StoryObj<GridlockPlateWidgetProps> = {
+  args: {
+    lineage: makeLineage(
+      NODE_T2.plate.plateId,
+      [NODE_T1, NODE_T2, NODE_B3, NODE_B4],
+      [EDGE_T1_T2, makeEdge(NODE_T2, NODE_B3), makeEdge(NODE_B3, NODE_B4)]
+    ),
+    assetUrlOverrides: {
+      ...ALL_OVERRIDES,
+      plate_branch_t4: WEBP_B3,
+    },
+    initialPlateId: "plate_branch_t4",
+    theme: "diurnal",
+  },
 };
