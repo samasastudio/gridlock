@@ -4,20 +4,8 @@ import { act, createRef } from "react";
 import type { GridlockRepository } from "@samasastudio/gridlock-core";
 import { GridlockPlateWidget, GridlockRepairLogWidget } from "../src/index.ts";
 import { HealedWithAmortization } from "../stories/GridlockRepairLogWidget.stories.tsx";
-import { withWidgetDom } from "./helpers/dom-harness.ts";
+import { waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
 import { seedTestPlateLineage, withTestPlatesServer } from "./helpers/plate-fixtures.ts";
-
-async function waitForDom(predicate: () => boolean, timeoutMs = 1500): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() >= deadline) {
-      assert.fail(`Timed out after ${timeoutMs}ms waiting for live GridlockPlateWidget DOM condition`);
-    }
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    });
-  }
-}
 
 describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticket #34 Phase 2)", () => {
   test("Live apiBaseUrl useEffect attaches ref, defaults to inherit theme, recovers in-place on Retry click, and resets on lineageId change", async () => {
