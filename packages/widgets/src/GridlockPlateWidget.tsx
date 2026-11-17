@@ -3,12 +3,13 @@ import { MotionConfig } from "motion/react";
 import { PlateLineageResponseSchema, type PlateLineageResponse } from "@samasastudio/gridlock-core/schemas";
 import { DossierStatusBadge, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { fetchPlateLineageSnapshot, type PlateLineageQuery, type PlateLineageSnapshotResult } from "./plate-lineage-client.ts";
-import { orderLineageNodes, resolveActiveLineageNode } from "./plate-lineage-model.ts";
 import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
 import { PlateFrameStage } from "./PlateFrameStage.tsx";
 import { PlateProvenanceSection } from "./PlateProvenanceSection.tsx";
+import { PlateScenarioBranchSection } from "./PlateScenarioBranchSection.tsx";
 import { PlateHeadlineKpiStrip, PlateSummarySection, PlateWidgetLoadingPlaceholder } from "./PlateSummarySection.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairLogSections.tsx";
+import { usePlateBranching } from "./usePlateBranching.ts";
 
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
 const LOADING_PLACEHOLDER_NODE = <PlateWidgetLoadingPlaceholder />;
@@ -65,44 +66,57 @@ function LoadedPlateDossierContent(props: {
   viewOptions: PlateViewOptions;
 }) {
   const { baseId, lineage, viewOptions } = props;
-  const [internalPlateId, setInternalPlateId] = useState<string | null>(viewOptions.initialPlateId ?? null);
-  const orderedNodes = orderLineageNodes(lineage.nodes);
-  const activeNode = resolveActiveLineageNode({
-    orderedNodes,
-    activeCanonicalPlateId: lineage.activeCanonicalPlateId,
-    selectedPlateId: viewOptions.selectedPlateId ?? internalPlateId,
+  const branching = usePlateBranching({
+    baseLineage: lineage,
+    apiBaseUrl: viewOptions.apiBaseUrl,
+    selectedPlateId: viewOptions.selectedPlateId,
     initialPlateId: viewOptions.initialPlateId,
+    onSelectPlate: viewOptions.onSelectPlate,
   });
-
-  const handleSelectPlate = (plateId: string) => {
-    if (viewOptions.selectedPlateId === undefined) setInternalPlateId(plateId);
-    viewOptions.onSelectPlate?.(plateId);
-  };
-
+  const { effectiveLineage, orderedNodes, activeNode } = branching;
   const frameCountLabel = `${orderedNodes.length} ${orderedNodes.length === 1 ? "Visual Plate" : "Visual Plates"}`;
 
   return (
     <>
       <header className="gridlock-repair-header">
-        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={lineage.lineageId} />
+        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={effectiveLineage.lineageId} />
         <div className="gridlock-header-controls">
           <DossierStatusBadge tone="healthy" label={frameCountLabel} />
         </div>
       </header>
-      <PlateHeadlineKpiStrip lineage={lineage} />
+      <PlateHeadlineKpiStrip lineage={effectiveLineage} />
       <PlateFrameStage
         baseId={baseId}
         nodes={orderedNodes}
-        edges={lineage.edges}
-        activeCanonicalPlateId={lineage.activeCanonicalPlateId}
+        edges={effectiveLineage.edges}
+        activeCanonicalPlateId={effectiveLineage.activeCanonicalPlateId}
         activePlateId={activeNode?.plate.plateId ?? null}
-        onSelectPlate={handleSelectPlate}
+        isComparing={branching.isComparing}
+        onCompareChange={branching.setIsComparing}
+        onSelectPlate={branching.selectPlate}
         apiBaseUrl={viewOptions.apiBaseUrl}
         assetUrlOverrides={viewOptions.assetUrlOverrides}
       >
         {activeNode ? (
           <PlateSummarySection activeNode={activeNode} orderedNodes={orderedNodes}>
-            <PlateProvenanceSection lineage={lineage} activeNode={activeNode} onSelectPlate={handleSelectPlate} />
+            {viewOptions.apiBaseUrl !== undefined ? (
+              <PlateScenarioBranchSection
+                baseId={baseId}
+                activeNode={branching.branchTargetNode ?? activeNode}
+                scenarioPrompt={branching.scenarioPrompt}
+                isSubmitting={branching.isSubmitting}
+                error={branching.branchError}
+                onPromptChange={branching.updateScenarioPrompt}
+                onSubmitBranch={(parentInteractionId) => {
+                  void branching.submitScenarioBranch(parentInteractionId);
+                }}
+              />
+            ) : null}
+            <PlateProvenanceSection
+              lineage={effectiveLineage}
+              activeNode={activeNode}
+              onSelectPlate={branching.selectPlate}
+            />
           </PlateSummarySection>
         ) : null}
       </PlateFrameStage>
@@ -120,7 +134,7 @@ function PromisePlateBoundary(props: {
   if (!result.ok) {
     return <DossierErrorShell baseId={props.baseId} title={LINEAGE_TITLE} connectorId={props.viewOptions.lineageId} errorPrefix={LINEAGE_ERROR_PREFIX} message={result.message} onRetry={props.onRetry} />;
   }
-  return <LoadedPlateDossierContent key={`${result.lineage.lineageId}::${props.viewOptions.initialPlateId ?? ""}`} baseId={props.baseId} lineage={result.lineage} viewOptions={props.viewOptions} />;
+  return <LoadedPlateDossierContent key={`${result.lineage.lineageId}::${props.viewOptions.initialPlateId ?? ""}::${props.viewOptions.apiBaseUrl ?? "::static"}`} baseId={props.baseId} lineage={result.lineage} viewOptions={props.viewOptions} />;
 }
 
 export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
@@ -179,7 +193,7 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
           !parsedStatic.success ? (
             <DossierErrorShell baseId={baseId} title={LINEAGE_TITLE} connectorId={lineageId} errorPrefix={LINEAGE_ERROR_PREFIX} message="Malformed Plate Lineage props" />
           ) : (
-            <LoadedPlateDossierContent key={`${parsedStatic.data.lineageId}::${viewOptions.initialPlateId ?? ""}`} baseId={baseId} lineage={parsedStatic.data} viewOptions={viewOptions} />
+            <LoadedPlateDossierContent key={`${parsedStatic.data.lineageId}::${viewOptions.initialPlateId ?? ""}::${viewOptions.apiBaseUrl !== undefined ? "live" : "static"}`} baseId={baseId} lineage={parsedStatic.data} viewOptions={viewOptions} />
           )
         ) : activePromise ? (
           <Suspense fallback={loadingShell}>
