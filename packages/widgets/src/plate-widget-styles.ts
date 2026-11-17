@@ -43,11 +43,23 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   :where(.gridlock-branch-dot) { display: inline-block; flex-shrink: 0; inline-size: 0.45rem; block-size: 0.45rem; background-color: var(--gridlock-accent); }
   :where(.gridlock-plate-tab-indicator) { position: absolute; inset-inline: 0; inset-block-end: 0; block-size: 2px; background-color: var(--gridlock-accent); }
   :where(.gridlock-plate-panel) { display: flex; flex-direction: column; gap: 1.15rem; min-inline-size: 0; }
-  :where(.gridlock-plate-viewport) { margin: 0; border: 1px solid var(--gridlock-border-strong); border-radius: var(--gridlock-radius); background-color: var(--gridlock-card); box-shadow: none; min-inline-size: 0; }
+  :where(.gridlock-plate-viewport) {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--gridlock-border-strong);
+    border-radius: var(--gridlock-radius);
+    background-color: var(--gridlock-card);
+    box-shadow: none;
+    min-inline-size: 0;
+  }
   :where(.gridlock-plate-viewport[data-branch="true"]) { border-color: var(--gridlock-accent); }
   :where(.gridlock-plate-meta-bar) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.65rem 1rem; padding-block: 0.65rem; padding-inline: clamp(0.85rem, 2cqi, 1.25rem); border-block-end: 1px solid var(--gridlock-border); background-color: var(--gridlock-paper); }
   :where(.gridlock-plate-stage .gridlock-status-badge) { padding-block: 0.25rem; }
   :where(.gridlock-plate-turn-stamp) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; min-inline-size: 0; max-inline-size: 100%; font-family: var(--gridlock-font-mono); font-variant-numeric: tabular-nums; font-size: 0.75rem; color: var(--gridlock-muted); overflow-wrap: anywhere; }
+  :where(.gridlock-plate-img, .gridlock-plate-fallback) {
+    margin-block-start: auto;
+  }
   :where(.gridlock-plate-img) { display: block; inline-size: 100%; block-size: auto; aspect-ratio: 16 / 9; object-fit: cover; }
   :where(.gridlock-plate-fallback) { display: flex; flex-direction: column; justify-content: center; gap: 0.55rem; min-block-size: 13rem; padding: clamp(1rem, 3cqi, 1.75rem); background-color: var(--gridlock-card); color: var(--gridlock-ink); }
   :where(.gridlock-plate-fallback-head) { display: inline-flex; align-items: center; gap: 0.55rem; font-family: var(--gridlock-font-display); font-size: 0.9375rem; font-weight: 700; }
@@ -81,9 +93,64 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   :where(.gridlock-hop-btn:hover) { border-color: var(--gridlock-accent); background-color: var(--gridlock-card); }
   :where(.gridlock-hop-note) { display: inline-block; margin-inline-start: 0.45rem; color: var(--gridlock-muted); overflow-wrap: anywhere; }
   :where(.gridlock-painter-prompt) { padding-block: 0.6rem; padding-inline: 0.9rem; border: 1px solid var(--gridlock-border); background-color: var(--gridlock-card); font-size: 0.8125rem; color: var(--gridlock-ink); overflow-wrap: anywhere; }
+
+  :where(.gridlock-plate-compare-bar) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem 1rem;
+    padding-block: 0.55rem;
+    padding-inline: clamp(0.85rem, 2cqi, 1.25rem);
+    border: 1px solid var(--gridlock-border);
+    background-color: var(--gridlock-card);
+  }
+
+  :where(.gridlock-plate-compare-context) {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    font-family: var(--gridlock-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--gridlock-muted);
+    overflow-wrap: anywhere;
+  }
+
+  :where(.gridlock-plate-compare-toggle[aria-pressed="true"]) {
+    color: var(--atlas-ink, #18181b);
+    border-color: var(--gridlock-accent);
+  }
+
+  :where(.gridlock-plate-compare-toggle[aria-pressed="true"])::before {
+    transform: scaleX(1);
+  }
+
+  :where(.gridlock-plate-comparison-grid) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    min-inline-size: 0;
+  }
+
+  @container (width >= 42em) {
+    :where(.gridlock-plate-comparison-grid) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     :where(.gridlock-plate-disclosure[open] > .gridlock-plate-disclosure-body) { animation: none; }
     :where(.gridlock-plate-tab, .gridlock-plate-disclosure-summary, .gridlock-citation-link, .gridlock-hop-btn) { transition: none; }
   }
-}`;
 
+  @media (forced-colors: active) {
+    :where(.gridlock-plate-compare-toggle[aria-pressed="true"]) {
+      outline: 2px solid Highlight;
+      outline-offset: 2px;
+    }
+  }
+}`;

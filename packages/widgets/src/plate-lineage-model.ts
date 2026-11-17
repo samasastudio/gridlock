@@ -1,4 +1,5 @@
 import type {
+  LineageEdge,
   LineageNode,
   LineageSourceCitation,
   PlateLineageResponse,
@@ -164,3 +165,64 @@ export function buildAncestorProvenanceChain(
   return reversedHops.reverse();
 }
 
+export function resolveCanonicalBaselineNode(options: {
+  nodes: readonly LineageNode[];
+  activeNode: LineageNode | undefined;
+  edges?: readonly LineageEdge[];
+  activeCanonicalPlateId?: string | null;
+}): LineageNode | undefined {
+  const { nodes, activeNode, edges, activeCanonicalPlateId } = options;
+  if (!activeNode || !activeNode.plate.isBranch || nodes.length === 0) {
+    return undefined;
+  }
+
+  const byInteraction = new Map(nodes.map((node) => [node.plate.interactionId, node]));
+  const byPlateId = new Map(nodes.map((node) => [node.plate.plateId, node]));
+  const edgeByChild = new Map((edges ?? []).map((edge) => [edge.childInteractionId, edge]));
+
+  const findCanonicalAncestor = (
+    current: LineageNode,
+    visited: ReadonlySet<string>
+  ): LineageNode | undefined => {
+    const parentInteractionId =
+      edgeByChild.get(current.plate.interactionId)?.parentInteractionId ??
+      current.plate.parentInteractionId;
+    const parentNode =
+      (parentInteractionId ? byInteraction.get(parentInteractionId) : undefined) ??
+      (current.plate.parentPlateId ? byPlateId.get(current.plate.parentPlateId) : undefined);
+
+    if (!parentNode || visited.has(parentNode.plate.interactionId)) {
+      return undefined;
+    }
+
+    if (!parentNode.plate.isBranch) {
+      return parentNode;
+    }
+
+    return findCanonicalAncestor(
+      parentNode,
+      new Set([...visited, parentNode.plate.interactionId])
+    );
+  };
+
+  const directAncestor = findCanonicalAncestor(
+    activeNode,
+    new Set([activeNode.plate.interactionId])
+  );
+  if (directAncestor) {
+    return directAncestor;
+  }
+
+  if (activeCanonicalPlateId) {
+    const headCandidate = byPlateId.get(activeCanonicalPlateId);
+    return headCandidate && !headCandidate.plate.isBranch ? headCandidate : undefined;
+  }
+
+  if (activeCanonicalPlateId === null) {
+    return undefined;
+  }
+
+  return orderLineageNodes(nodes)
+    .filter((node) => !node.plate.isBranch)
+    .at(-1);
+}
