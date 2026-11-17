@@ -11,6 +11,7 @@ const {
   BrokenAssetFallback,
   CanonicalAndBranchLineage,
   EmptyLineage,
+  MultiHopBranchComparison,
   NocturnalTheme,
   ScenarioBranchSelected,
   SingleFrameBootstrap,
@@ -38,7 +39,7 @@ describe("<GridlockPlateWidget /> CSF3 Stories & Browser Boundary (Ticket #34)",
     });
   });
 
-  test("CSF3 story suite exports exact 6 stories with valid lossless WebP overrides and closed-by-default provenance", () => {
+  test("CSF3 story suite exports exact 7 stories with valid lossless WebP overrides and closed-by-default provenance", () => {
     const StoryComponent = plateWidgetMeta.component;
     assert.equal(StoryComponent, GridlockPlateWidget);
 
@@ -49,6 +50,7 @@ describe("<GridlockPlateWidget /> CSF3 Stories & Browser Boundary (Ticket #34)",
       "BrokenAssetFallback",
       "CanonicalAndBranchLineage",
       "EmptyLineage",
+      "MultiHopBranchComparison",
       "NocturnalTheme",
       "ScenarioBranchSelected",
       "SingleFrameBootstrap",
@@ -87,5 +89,12 @@ describe("<GridlockPlateWidget /> CSF3 Stories & Browser Boundary (Ticket #34)",
 
     const nocturnalHtml = renderToStaticMarkup(<StoryComponent {...NocturnalTheme.args} />);
     assert.match(nocturnalHtml, /data-gridlock-theme="nocturnal"/);
+
+    const multiHopHtml = renderToStaticMarkup(
+      <StoryComponent {...MultiHopBranchComparison.args} />
+    );
+    assert.match(multiHopHtml, /Compare with Canonical/);
+    assert.match(multiHopHtml, /Inspect Stateful Painter provenance \(4 turns\)/);
+    assert.doesNotMatch(multiHopHtml, /<textarea/);
   });
 });
