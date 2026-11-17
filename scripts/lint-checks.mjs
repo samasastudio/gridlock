@@ -403,18 +403,24 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
           );
         }
       }
+      for (const [index, line] of lines.entries()) {
+        const stripped = stripCommentsAndStrings(line);
+        if (/\bprocess\.env\b/.test(stripped) || /\bBuffer\s*(?:\.|\()/.test(stripped)) {
+          violations.push(
+            `${relPath}:${index + 1}: Browser schema boundary violation — avoid runtime Node globals (\`Buffer\`, \`process.env\`) in packages/core/src/interfaces/ ("@samasastudio/gridlock-core/schemas")`
+          );
+        }
+      }
     }
+  }
 
+  const isNonMutativeSourceTarget =
+    (relPath.startsWith("packages/core/src/") && relPath.endsWith(".ts")) ||
+    /^packages\/widgets\/src\/.+\.(?:ts|tsx)$/.test(relPath);
+
+  if (isNonMutativeSourceTarget) {
     for (const [index, line] of lines.entries()) {
       const stripped = stripCommentsAndStrings(line);
-      if (
-        relPath.startsWith("packages/core/src/interfaces/") &&
-        (/\bprocess\.env\b/.test(stripped) || /\bBuffer\s*(?:\.|\()/.test(stripped))
-      ) {
-        violations.push(
-          `${relPath}:${index + 1}: Browser schema boundary violation — avoid runtime Node globals (\`Buffer\`, \`process.env\`) in packages/core/src/interfaces/ ("@samasastudio/gridlock-core/schemas")`
-        );
-      }
       if (/^\s*let\s+/.test(stripped)) {
         violations.push(
           `${relPath}:${index + 1}: Avoid mutable \`let\` bindings in favor of \`const\` and pure helpers/reduce (CODING_STANDARDS.md)`
@@ -423,6 +429,11 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
       if (/^\s*for\s*\(/.test(stripped)) {
         violations.push(
           `${relPath}:${index + 1}: Avoid imperative \`for (...)\` loops in favor of declarative array methods (.map, .filter, .reduce, .find) (CODING_STANDARDS.md)`
+        );
+      }
+      if (/^\s*while\s*\(/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Avoid imperative \`while (...)\` loops in favor of pure recursion or declarative array methods (CODING_STANDARDS.md)`
         );
       }
       if (/\.forEach\s*\(/.test(stripped)) {
