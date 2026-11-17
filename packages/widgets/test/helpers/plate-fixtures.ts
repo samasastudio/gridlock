@@ -3,8 +3,9 @@ import { Buffer } from "node:buffer";
 import type { AddressInfo } from "node:net";
 import {
   ARTIFACT_BUCKET_URI, bootstrapCanvas, branchLineage, createCorridorBaseCanvasWebp, createGridlockHttpServer,
-  createInMemoryGridlockRepository, getPlateLineage, ObservationSchema, paintMilestoneDelta, SourceArtifactSchema,
-  type GeminiInteractionsClient, type GridlockHttpDeps,
+  createInMemoryGridlockRepository, getPlateLineage, ObservationSchema, paintMilestoneDelta,
+  PlateLineageResponseSchema, SourceArtifactSchema,
+  type GeminiInteractionsClient, type GridlockHttpDeps, type PlateLineageResponse,
 } from "@samasastudio/gridlock-core";
 
 const PLATE_FIXTURE_NOW = new Date("2026-11-15T12:00:00.000Z");
@@ -104,4 +105,48 @@ export async function seedTestPlateLineage() {
   if (!hydrated.ok) throw new Error(hydrated.message);
 
   return { repository, geminiClient, lineage: hydrated.lineage, t1: t1.plate, t2: t2.plate, b1: b1.plate, b2: b2.plate, h1, h2, hAged };
+}
+
+export function buildBranchOnlyLineage(
+  lineage: PlateLineageResponse,
+  b1PlateId: string,
+  b2PlateId: string
+): PlateLineageResponse {
+  const b1Node = lineage.nodes.find((node) => node.plate.plateId === b1PlateId)!;
+  const b2Node = lineage.nodes.find((node) => node.plate.plateId === b2PlateId)!;
+
+  return PlateLineageResponseSchema.parse({
+    lineageId: lineage.lineageId,
+    activeCanonicalPlateId: null,
+    nodes: [b1Node, b2Node],
+    edges: lineage.edges.filter(
+      (edge) => edge.parentPlateId === b1PlateId && edge.childPlateId === b2PlateId
+    ),
+  });
+}
+
+export async function seedTurn1ForkLineage(
+  seeded: Awaited<ReturnType<typeof seedTestPlateLineage>>
+) {
+  const bFromT1 = await branchLineage(
+    {
+      parentInteractionId: seeded.t1.interactionId,
+      scenarioPrompt: "Model direct Turn 1 substation fork",
+      now: new Date("2026-10-31T10:00:00.000Z"),
+    },
+    { repository: seeded.repository, geminiClient: seeded.geminiClient }
+  );
+  const refreshed = await getPlateLineage(
+    { now: PLATE_FIXTURE_NOW },
+    { repository: seeded.repository }
+  );
+
+  if (bFromT1.status !== "plate_painted" || !refreshed.ok) {
+    assert.fail("Expected Turn 1 scenario branch and lineage hydration to succeed");
+  }
+
+  return {
+    lineage: refreshed.lineage,
+    branchPlate: bFromT1.plate,
+  };
 }

@@ -43,10 +43,17 @@ export const GRIDLOCK_DOSSIER_BASE_CSS = `
   :where(.gridlock-action-btn, .gridlock-md-link)::before { content: ""; position: absolute; inset: 0; z-index: -1; background-color: var(--gridlock-accent); transform: scaleX(0); transform-origin: left center; transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1); }
   :where(.gridlock-action-btn:hover:not(:disabled), .gridlock-md-link:hover, .gridlock-action-btn:focus-visible, .gridlock-md-link:focus-visible) { color: var(--atlas-ink, #18181b); border-color: var(--gridlock-accent); }
   :where(.gridlock-action-btn:hover:not(:disabled), .gridlock-md-link:hover, .gridlock-action-btn:focus-visible, .gridlock-md-link:focus-visible)::before { transform: scaleX(1); }
+  :where(.gridlock-action-btn:disabled) {
+    opacity: 0.48;
+    cursor: not-allowed;
+  }
   :where(.gridlock-copy-chip) { display: inline-flex; align-items: center; gap: 0.4rem; min-block-size: 1.875rem; padding-block: 0.2rem; padding-inline: 0.55rem; border: 1px solid var(--gridlock-border-strong); border-radius: var(--gridlock-radius); background-color: var(--gridlock-paper); color: var(--gridlock-ink); font-family: var(--gridlock-font-mono); font-size: 0.75rem; line-height: 1.2; cursor: pointer; transition: border-color 320ms cubic-bezier(0.16, 1, 0.3, 1), background-color 320ms cubic-bezier(0.16, 1, 0.3, 1); }
   :where(.gridlock-copy-chip:hover, .gridlock-copy-chip[data-copied="true"]) { border-color: var(--gridlock-accent); background-color: var(--gridlock-card); }
   :where(.gridlock-copy-chip[data-copied="true"] .gridlock-copy-icon) { color: var(--gridlock-accent); }
-  :where(.gridlock-dossier-surface :is(button, a, [role="button"], [tabindex="0"], summary)):focus-visible { outline: 2px solid var(--gridlock-ink); outline-offset: 2px; }
+  :where(.gridlock-dossier-surface :is(button, a, input, textarea, select, [role="button"], [tabindex="0"], summary)):focus-visible {
+    outline: 2px solid var(--gridlock-ink);
+    outline-offset: 2px;
+  }
   @keyframes gridlock-opacity-pulse { 0%, 100% { opacity: 0.84; } 50% { opacity: 0.44; } }
   :where(.gridlock-loading-placeholder) { display: grid; gap: 1.75rem; min-block-size: 36rem; align-content: start; animation: gridlock-opacity-pulse 2.6s cubic-bezier(0.16, 1, 0.3, 1) infinite; }
   :where(.gridlock-loading-stats) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 1.25rem 2rem; }

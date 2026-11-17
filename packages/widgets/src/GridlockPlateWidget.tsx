@@ -93,6 +93,8 @@ function LoadedPlateDossierContent(props: {
       <PlateFrameStage
         baseId={baseId}
         nodes={orderedNodes}
+        edges={lineage.edges}
+        activeCanonicalPlateId={lineage.activeCanonicalPlateId}
         activePlateId={activeNode?.plate.plateId ?? null}
         onSelectPlate={handleSelectPlate}
         apiBaseUrl={viewOptions.apiBaseUrl}
