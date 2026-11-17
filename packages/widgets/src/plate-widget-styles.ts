@@ -142,6 +142,94 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
     }
   }
 
+  :where(.gridlock-plate-stage :is(input, textarea, select)):focus-visible {
+    outline: 2px solid var(--gridlock-ink);
+    outline-offset: 2px;
+  }
+
+  :where(.gridlock-plate-branch-section) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding-block-start: 0.9rem;
+    border-block-start: 1px solid var(--gridlock-border);
+    min-inline-size: 0;
+  }
+
+  :where(.gridlock-plate-branch-head) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem 1rem;
+  }
+
+  :where(.gridlock-plate-branch-target) {
+    font-family: var(--gridlock-font-mono);
+    font-size: 0.75rem;
+    color: var(--gridlock-muted);
+    overflow-wrap: anywhere;
+  }
+
+  :where(.gridlock-plate-branch-label) {
+    font-family: var(--gridlock-font-sans);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gridlock-muted);
+  }
+
+  :where(.gridlock-plate-branch-input) {
+    display: block;
+    box-sizing: border-box;
+    inline-size: 100%;
+    min-block-size: 4.75rem;
+    padding-block: 0.65rem;
+    padding-inline: 0.8rem;
+    border: 1px solid var(--gridlock-border-strong);
+    border-radius: var(--gridlock-radius);
+    background-color: var(--gridlock-card);
+    color: var(--gridlock-ink);
+    font-family: var(--gridlock-font-sans);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    resize: vertical;
+  }
+
+  :where(.gridlock-plate-branch-input:disabled) {
+    opacity: 0.56;
+    cursor: not-allowed;
+  }
+
+  :where(.gridlock-plate-branch-input[aria-invalid="true"]) {
+    border-color: var(--gridlock-accent);
+  }
+
+  :where(.gridlock-plate-branch-footer) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem 1rem;
+  }
+
+  :where(.gridlock-plate-branch-counter) {
+    font-family: var(--gridlock-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--gridlock-muted);
+  }
+
+  :where(.gridlock-plate-branch-counter[data-over-limit="true"]) {
+    color: var(--gridlock-accent);
+    font-weight: 700;
+  }
+
+  :where(.gridlock-plate-branch-section .gridlock-banner) {
+    margin-block-end: 0;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     :where(.gridlock-plate-disclosure[open] > .gridlock-plate-disclosure-body) { animation: none; }
     :where(.gridlock-plate-tab, .gridlock-plate-disclosure-summary, .gridlock-citation-link, .gridlock-hop-btn) { transition: none; }
@@ -154,3 +242,4 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
     }
   }
 }`;
+

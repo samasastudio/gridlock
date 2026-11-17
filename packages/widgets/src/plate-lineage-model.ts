@@ -1,4 +1,5 @@
 import type {
+  BranchPlateResponse,
   LineageEdge,
   LineageNode,
   LineageSourceCitation,
@@ -226,3 +227,58 @@ export function resolveCanonicalBaselineNode(options: {
     .filter((node) => !node.plate.isBranch)
     .at(-1);
 }
+
+export function mergeBranchedNodeIntoLineage(
+  lineage: PlateLineageResponse,
+  branch: BranchPlateResponse
+): PlateLineageResponse {
+  if (
+    branch.lineageId !== lineage.lineageId ||
+    branch.node.plate.lineageId !== lineage.lineageId
+  ) {
+    return lineage;
+  }
+
+  const incomingPlate = branch.node.plate;
+  const remainingNodes = lineage.nodes.filter(
+    (existing) =>
+      existing.plate.plateId !== incomingPlate.plateId &&
+      existing.plate.interactionId !== incomingPlate.interactionId
+  );
+  const nextNodes = orderLineageNodes([...remainingNodes, branch.node]);
+
+  const parentInteractionId = incomingPlate.parentInteractionId;
+  const parentNode = parentInteractionId
+    ? nextNodes.find((node) => node.plate.interactionId === parentInteractionId)
+    : undefined;
+  const hasExistingEdge =
+    parentInteractionId !== null &&
+    lineage.edges.some(
+      (edge) =>
+        edge.parentInteractionId === parentInteractionId &&
+        edge.childInteractionId === incomingPlate.interactionId
+    );
+
+  const nextEdges =
+    parentNode &&
+    parentNode.plate.interactionId !== incomingPlate.interactionId &&
+    !hasExistingEdge
+      ? [
+          ...lineage.edges,
+          {
+            parentInteractionId: parentNode.plate.interactionId,
+            childInteractionId: incomingPlate.interactionId,
+            parentPlateId: parentNode.plate.plateId,
+            childPlateId: incomingPlate.plateId,
+            isBranch: incomingPlate.isBranch,
+          },
+        ]
+      : lineage.edges;
+
+  return {
+    ...lineage,
+    nodes: nextNodes,
+    edges: nextEdges,
+  };
+}
+
