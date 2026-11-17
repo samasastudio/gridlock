@@ -150,3 +150,35 @@ export async function seedTurn1ForkLineage(
     branchPlate: bFromT1.plate,
   };
 }
+
+export function createGatedGeminiClient() {
+  const gate = {
+    calls: 0,
+    release: null as (() => void) | null,
+  };
+
+  const geminiClient: GeminiInteractionsClient = {
+    interactions: {
+      create: async () => {
+        gate.calls += 1;
+        if (gate.release === null) {
+          await new Promise<void>((resolve) => {
+            gate.release = resolve;
+          });
+        }
+
+        return {
+          id: `inter_ui_branch_${gate.calls}`,
+          status: "completed",
+          output_image: {
+            mime_type: "image/webp",
+            data: createCorridorBaseCanvasWebp(`ui-branch-${gate.calls}`).toString("base64"),
+          },
+          usage: { total_tokens: 140 },
+        };
+      },
+    },
+  };
+
+  return { gate, geminiClient };
+}

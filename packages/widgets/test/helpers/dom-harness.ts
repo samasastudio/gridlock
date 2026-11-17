@@ -1,5 +1,6 @@
+import assert from "node:assert/strict";
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import type { Root } from "react-dom/client";
 import { Window } from "happy-dom";
 
 export interface WidgetDomContext {
@@ -25,6 +26,45 @@ const TRACKED_GLOBAL_KEYS = [
   "navigator",
 ] as const;
 
+export async function waitForDom(
+  predicate: () => boolean,
+  timeoutMs = 1500
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  const poll = async (): Promise<void> => {
+    if (predicate()) {
+      return;
+    }
+
+    if (Date.now() >= deadline) {
+      assert.fail(`Timed out after ${timeoutMs}ms waiting for widget DOM condition`);
+    }
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+
+    return poll();
+  };
+
+  await poll();
+}
+
+export function setTextareaValue(
+  win: Window,
+  el: InstanceType<Window["HTMLTextAreaElement"]>,
+  value: string
+): void {
+  const setter = Object.getOwnPropertyDescriptor(
+    win.HTMLTextAreaElement.prototype,
+    "value"
+  )?.set;
+
+  setter?.call(el, value);
+  el.dispatchEvent(new win.Event("input", { bubbles: true }));
+}
+
 /**
  * Mounts a `react-dom/client` root inside a headless `happy-dom` window with
  * the global constructors (`SVGElement`, `NodeList`, `getComputedStyle`) and
@@ -41,54 +81,68 @@ export async function withWidgetDom(
   const win = new Window({ url: "http://localhost:6006" });
   const g = globalThis as Record<string, unknown>;
   const savedDescriptors = new Map<string, PropertyDescriptor | undefined>(
-    TRACKED_GLOBAL_KEYS.map((k) => [k, Object.getOwnPropertyDescriptor(globalThis, k)])
+    TRACKED_GLOBAL_KEYS.map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key),
+    ])
   );
 
-  for (const k of DOM_GLOBAL_KEYS) {
-    g[k] = k === "window" ? win : (win as unknown as Record<string, unknown>)[k];
-  }
+  Object.assign(
+    g,
+    Object.fromEntries(
+      DOM_GLOBAL_KEYS.map((key) => [
+        key,
+        key === "window" ? win : (win as unknown as Record<string, unknown>)[key],
+      ])
+    )
+  );
   g.getComputedStyle = win.getComputedStyle.bind(win);
   g.IS_REACT_ACT_ENVIRONMENT = true;
-  let lastCopiedText = "";
+
+  const clipboardState = { lastCopiedText: "" };
   Object.defineProperty(globalThis, "navigator", {
     value: {
+      userAgent: win.navigator.userAgent,
       clipboard: {
         writeText: async (text: string) => {
-          lastCopiedText = text;
+          clipboardState.lastCopiedText = text;
         },
       },
     },
     configurable: true,
   });
 
-  const container = win.document.createElement("div");
-  win.document.body.appendChild(container);
-  const root = createRoot(container as unknown as Element);
+  const restoreGlobals = () => {
+    Array.from(savedDescriptors.entries()).map(([key, desc]) =>
+      desc !== undefined
+        ? Object.defineProperty(globalThis, key, desc)
+        : Reflect.deleteProperty(globalThis, key)
+    );
+  };
 
   try {
-    await run({
-      window: win,
-      container,
-      root,
-      getLastCopiedText: () => lastCopiedText,
-    });
-  } finally {
+    const { createRoot } = await import("react-dom/client");
+    const container = win.document.createElement("div");
+    win.document.body.appendChild(container);
+    const root = createRoot(container as unknown as Element);
+
     try {
+      await run({
+        window: win,
+        container,
+        root,
+        getLastCopiedText: () => clipboardState.lastCopiedText,
+      });
+    } finally {
       await act(async () => {
         root.unmount();
       });
+    }
+  } finally {
+    try {
+      await win.happyDOM.close();
     } finally {
-      try {
-        await win.happyDOM.close();
-      } finally {
-        for (const [k, desc] of savedDescriptors) {
-          if (desc !== undefined) {
-            Object.defineProperty(globalThis, k, desc);
-          } else {
-            Reflect.deleteProperty(globalThis, k);
-          }
-        }
-      }
+      restoreGlobals();
     }
   }
 }
