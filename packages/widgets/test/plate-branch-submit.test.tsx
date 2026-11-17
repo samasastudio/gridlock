@@ -131,7 +131,74 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
             new RegExp(SCENARIO_BRANCH_WATERMARK)
           );
           assert.equal(container.querySelectorAll(".gridlock-provenance-hops li").length, 3);
+
+          await act(async () => {
+            root.render(
+              <GridlockPlateWidget lineage={seeded.lineage} apiBaseUrl="http://127.0.0.1:1" />
+            );
+          });
+          assert.equal(readPlateTabs(container).length, 4);
+          assert.deepEqual(readPlateKpis(container), [2, 2, 2]);
+          assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
+
+          await act(async () => {
+            root.render(<GridlockPlateWidget lineage={seeded.lineage} />);
+          });
+          assert.equal(readPlateTabs(container).length, 4);
+          assert.deepEqual(readPlateKpis(container), [2, 2, 2]);
+          assert.equal(container.querySelector("form"), null);
         });
+      }
+    );
+  });
+
+  test("Submits 201 branch in pure live-fetch mode and resets local branches when apiBaseUrl changes", async () => {
+    const primarySeeded = await seedTestPlateLineage();
+    const secondarySeeded = await seedTestPlateLineage();
+
+    await withTestPlatesServer(
+      { repository: primarySeeded.repository, geminiClient: primarySeeded.geminiClient },
+      async (primaryUrl) => {
+        await withTestPlatesServer(
+          { repository: secondarySeeded.repository, geminiClient: secondarySeeded.geminiClient },
+          async (secondaryUrl) => {
+            await withWidgetDom(async ({ window: win, container, root }) => {
+              await act(async () => {
+                root.render(<GridlockPlateWidget apiBaseUrl={primaryUrl} />);
+              });
+
+              await waitForDom(() => container.querySelector("form") !== null);
+
+              await act(async () => {
+                setTextareaValue(
+                  win,
+                  container.querySelector("textarea")!,
+                  "Simulate pure live-fetch 345kV interconnect"
+                );
+              });
+
+              await act(async () => {
+                container
+                  .querySelector("form")!
+                  .dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }));
+              });
+
+              await waitForDom(
+                () => container.querySelector('[data-plate-comparison="split"]') !== null
+              );
+              assert.equal(readPlateTabs(container).length, 5);
+              assert.deepEqual(readPlateKpis(container), [2, 3, 2]);
+
+              await act(async () => {
+                root.render(<GridlockPlateWidget apiBaseUrl={secondaryUrl} />);
+              });
+
+              await waitForDom(() => readPlateTabs(container).length === 4);
+              assert.deepEqual(readPlateKpis(container), [2, 2, 2]);
+              assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
+            });
+          }
+        );
       }
     );
   });
