@@ -4,8 +4,74 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-# In standard CI or non-virtiofs environments where node_modules is already populated, exit fast.
+extract_env_token() {
+  local file="$1"
+  [ -f "$file" ] || return 0
+  sed -nE 's/^[[:space:]]*(export[[:space:]]+)?(MOTION_PLUS_TOKEN|MOTION_TOKEN)=[[:space:]]*["\x27]?([^"\x27#[:space:]]+)["\x27]?[[:space:]]*$/\3/p' "$file" | head -n 1
+}
+
+# In standard CI or non-virtiofs environments, exit fast when dependencies and @esbuild binary are populated,
+# or bootstrap cold cloud VMs in a subshell without modifying $HOME/.npmrc.
 if ! df -T "$REPO_ROOT" 2>/dev/null | grep -q "virtiofs"; then
+  if [ -d "$REPO_ROOT/node_modules/typescript" ] && [ -d "$REPO_ROOT/node_modules/@esbuild" ]; then
+    exit 0
+  fi
+
+  (
+    TMP_NPMRC=""
+    cleanup_tmp_npmrc() {
+      if [ -n "$TMP_NPMRC" ] && [ -f "$TMP_NPMRC" ]; then
+        rm -f "$TMP_NPMRC"
+      fi
+    }
+    trap cleanup_tmp_npmrc EXIT
+
+    if [ -z "${NODE_EXTRA_CA_CERTS:-}" ] && [ -f /usr/local/share/ca-certificates/agent-gateway-ca.crt ] && [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+      CA_BUNDLE="$HOME/.config/atlas-dossier/ca-bundle.crt"
+      mkdir -p "$HOME/.config/atlas-dossier"
+      cat /etc/ssl/certs/ca-certificates.crt /usr/local/share/ca-certificates/agent-gateway-ca.crt > "$CA_BUNDLE"
+      chmod 600 "$CA_BUNDLE"
+      export NODE_EXTRA_CA_CERTS="$CA_BUNDLE"
+      export npm_config_cafile="$CA_BUNDLE"
+    fi
+
+    if [ ! -d "$REPO_ROOT/node_modules/motion-plus" ]; then
+      RAW_TOKEN="${MOTION_PLUS_TOKEN:-${MOTION_TOKEN:-}}"
+      if [ -z "$RAW_TOKEN" ]; then
+        RAW_TOKEN="$(extract_env_token "$REPO_ROOT/.env.local")"
+      fi
+      if [ -z "$RAW_TOKEN" ]; then
+        RAW_TOKEN="$(extract_env_token "$HOME/.config/atlas-dossier/credentials.env")"
+      fi
+      CLEAN_TOKEN="$(printf '%s' "$RAW_TOKEN" | tr -d '\r\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/^["\x27]//; s/["\x27]$//')"
+      if printf '%s' "$CLEAN_TOKEN" | grep -qE '^https?://.*[?&]token='; then
+        CLEAN_TOKEN="$(printf '%s' "$CLEAN_TOKEN" | sed -E 's/^.*[?&]token=([^&]+).*$/\1/')"
+      fi
+
+      TMP_NPMRC="$(mktemp "${TMPDIR:-/tmp}/gridlock-npmrc.XXXXXX")"
+      chmod 600 "$TMP_NPMRC"
+      {
+        if [ -r "$HOME/.npmrc" ]; then
+          grep -v "api.motion.dev" "$HOME/.npmrc" | grep -v '\${' || true
+        fi
+        echo "@motionplus:registry=https://api.motion.dev/npm/"
+        if [ -n "$CLEAN_TOKEN" ]; then
+          printf "//api.motion.dev/npm/:_authToken=%s\n" "$CLEAN_TOKEN"
+        elif [ -r "$HOME/.npmrc" ]; then
+          grep "api.motion.dev" "$HOME/.npmrc" | grep -v '\${' || true
+        fi
+      } > "$TMP_NPMRC"
+      export npm_config_userconfig="$TMP_NPMRC"
+    fi
+
+    if [ ! -d "$REPO_ROOT/node_modules/typescript" ]; then
+      npm install --prefer-offline --no-package-lock --no-audit --no-fund
+    fi
+
+    if [ ! -d "$REPO_ROOT/node_modules/@esbuild" ] && [ -f "$REPO_ROOT/node_modules/esbuild/install.js" ]; then
+      node "$REPO_ROOT/node_modules/esbuild/install.js"
+    fi
+  )
   exit 0
 fi
 
@@ -31,12 +97,6 @@ elif [ -n "$(ls -A "$REPO_ROOT/node_modules" 2>/dev/null)" ]; then
 fi
 
 mkdir -p "$CACHE_DEPS"
-
-extract_env_token() {
-  local file="$1"
-  [ -f "$file" ] || return 0
-  sed -nE 's/^[[:space:]]*(export[[:space:]]+)?(MOTION_PLUS_TOKEN|MOTION_TOKEN)=[[:space:]]*["\x27]?([^"\x27#[:space:]]+)["\x27]?[[:space:]]*$/\3/p' "$file" | head -n 1
-}
 
 if [ ! -f "$STAMP_FILE" ] || [ "$(cat "$STAMP_FILE")" != "$PKG_SHA" ] || [ ! -d "$CACHE_DEPS/node_modules/motion-plus" ]; then
   RAW_TOKEN="${MOTION_PLUS_TOKEN:-${MOTION_TOKEN:-}}"

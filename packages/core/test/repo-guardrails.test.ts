@@ -5,9 +5,12 @@ import {
   TelemetrySpanSchema,
   TelemetryStageSchema,
 } from "../src/index.ts";
-import { evaluateUnusedModuleExports } from "../../../scripts/lint-checks.mjs";
+import {
+  evaluateSourceFileLintRules,
+  evaluateUnusedModuleExports,
+} from "../../../scripts/lint-checks.mjs";
 
-describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Issue #27 Retro)", () => {
+describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Issue #27 & #35 Retros)", () => {
   test("TelemetryStageSchema, TelemetryRunSchema, and TelemetrySpanSchema reject non-canonical stage strings", () => {
     for (const stage of [
       "tdlr_ingest",
@@ -95,5 +98,58 @@ describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Is
     assert.ok(violations.some((v) => v.includes('"CALM_FADE_TRANSITION"')));
     assert.ok(violations.some((v) => v.includes('"TypeMasked"')));
     assert.ok(violations.some((v) => v.includes('RepairLogTimeline.tsx: Unused module export "ReExportedOrphan"')));
+  });
+
+  test("evaluateSourceFileLintRules enforces non-mutative control flow (let, for, while, .forEach) in widgets and core while permitting const, .map, and recursion", () => {
+    const widgetViolations = evaluateSourceFileLintRules(
+      "packages/widgets/src/Example.tsx",
+      [
+        "export function Example(items: readonly string[]) {",
+        "  let current = items[0];",
+        "  for (const item of items) { void item; }",
+        "  while (current) { break; }",
+        "  items.forEach((item) => { void item; });",
+        "  return null;",
+        "}",
+      ].join("\n")
+    );
+
+    assert.equal(widgetViolations.length, 4);
+    assert.ok(widgetViolations.some((v) => v.includes("Avoid mutable `let`")));
+    assert.ok(widgetViolations.some((v) => v.includes("Avoid imperative `for (...)`")));
+    assert.ok(widgetViolations.some((v) => v.includes("Avoid imperative `while (...)`")));
+    assert.ok(widgetViolations.some((v) => v.includes("Avoid side-effecting `.forEach(...)`")));
+
+    const coreWhileViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/example.ts",
+      [
+        "export function walk(depth: number): number {",
+        "  while (depth > 0) { return depth - 1; }",
+        "  return 0;",
+        "}",
+      ].join("\n")
+    );
+
+    assert.equal(coreWhileViolations.length, 1);
+    assert.ok(coreWhileViolations[0]?.includes("Avoid imperative `while (...)`"));
+
+    const cleanWidgetSource = [
+      "// let / for (x) / while (y) / items.forEach() in comments or strings are ignored",
+      'const label = "while (active) { let count = 0; items.forEach(fn); }";',
+      "export function walkSteps(steps: readonly string[], index = 0): string[] {",
+      "  if (index >= steps.length) return [];",
+      "  const head = steps.slice(index, index + 1).map((step) => `${label}:${step}`);",
+      "  return [...head, ...walkSteps(steps, index + 1)];",
+      "}",
+    ].join("\n");
+
+    assert.deepEqual(
+      evaluateSourceFileLintRules("packages/widgets/src/Example.tsx", cleanWidgetSource),
+      []
+    );
+    assert.deepEqual(
+      evaluateSourceFileLintRules("packages/core/src/use-cases/example.ts", cleanWidgetSource),
+      []
+    );
   });
 });

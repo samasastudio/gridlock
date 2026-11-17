@@ -5,28 +5,38 @@ import type { ConnectorStatus } from "@samasastudio/gridlock-core/schemas";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const reducedMotionListeners = new Set<() => void>();
-let sharedReducedMotionMql: MediaQueryList | null = null;
+const reducedMotionState: { mql: MediaQueryList | null } = { mql: null };
+
+function getReducedMotionMql(): MediaQueryList | null {
+  if (!reducedMotionState.mql) {
+    reducedMotionState.mql = globalThis.matchMedia?.(REDUCED_MOTION_QUERY) ?? null;
+  }
+  return reducedMotionState.mql;
+}
 
 function notifyReducedMotionListeners(): void {
-  for (const listener of reducedMotionListeners) listener();
+  Array.from(reducedMotionListeners, (listener) => listener());
 }
 
 function subscribeReducedMotion(onStoreChange: () => void): () => void {
-  if (!sharedReducedMotionMql) sharedReducedMotionMql = globalThis.matchMedia?.(REDUCED_MOTION_QUERY) ?? null;
-  if (!sharedReducedMotionMql) return () => {};
-  if (reducedMotionListeners.size === 0) sharedReducedMotionMql.addEventListener("change", notifyReducedMotionListeners);
+  const mql = getReducedMotionMql();
+  if (!mql) return () => {};
+
+  if (reducedMotionListeners.size === 0) {
+    mql.addEventListener("change", notifyReducedMotionListeners);
+  }
   reducedMotionListeners.add(onStoreChange);
+
   return () => {
     reducedMotionListeners.delete(onStoreChange);
-    if (reducedMotionListeners.size === 0 && sharedReducedMotionMql) {
-      sharedReducedMotionMql.removeEventListener("change", notifyReducedMotionListeners);
+    if (reducedMotionListeners.size === 0) {
+      mql.removeEventListener("change", notifyReducedMotionListeners);
     }
   };
 }
 
 function getReducedMotionSnapshot(): boolean {
-  if (!sharedReducedMotionMql) sharedReducedMotionMql = globalThis.matchMedia?.(REDUCED_MOTION_QUERY) ?? null;
-  return Boolean(sharedReducedMotionMql?.matches);
+  return Boolean(getReducedMotionMql()?.matches);
 }
 
 export function useIsReducedMotion(): boolean {
