@@ -47,7 +47,7 @@ function escapeProseOutsidePlaceholders(value: string): string {
     .join("");
 }
 
-function sanitizeAstProse(raw: string): string {
+export function sanitizeAstProse(raw: string): string {
   const singleLine = raw.replace(/\s*\r?\n\s*/g, " ").trim();
   return escapeProseOutsidePlaceholders(sanitizeTextPii(singleLine));
 }
@@ -74,7 +74,7 @@ function sanitizeProjectRecord(project: Project): Project {
   };
 }
 
-function sanitizeObservationRecord(obs: Observation): Observation {
+export function sanitizeObservationRecord(obs: Observation): Observation {
   return {
     ...obs,
     status: sanitizeAstProse(obs.status),
