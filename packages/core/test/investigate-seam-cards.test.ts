@@ -588,4 +588,118 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
     assert.equal(zeroCitationPlateRes.ok, false);
     assert.equal(zeroCitationPlateRes.error, "unresolvable_provenance");
   });
+
+  test("defensively slices unsliced ledger recentRuns and fails closed on unknown Connector IDs or corrupted records", async () => {
+    const { repository } = await seedFullFiveCardRepository();
+
+    const unslicedLedgerRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "unsliced-ledger-card",
+            component: "ConnectorHealthCard",
+            connectorId: "tdlr-tabs",
+          },
+        ],
+      },
+      {
+        repository: {
+          ...repository,
+          getEfficiencyLedger: async () => repository.getEfficiencyLedger(),
+        },
+      },
+      { now: NOW }
+    );
+    assert.equal(unslicedLedgerRes.ok, true);
+    const slicedHealthNode = unslicedLedgerRes.workspace.nodes[0];
+    assert.ok(
+      slicedHealthNode && slicedHealthNode.component === "ConnectorHealthCard"
+    );
+    assert.equal(
+      slicedHealthNode.ledger.recentRuns.length,
+      CONNECTOR_HEALTH_RECENT_RUNS_LIMIT
+    );
+
+    const unknownConnectorRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "unknown-connector-card",
+            component: "ConnectorHealthCard",
+            connectorId: "unknown-connector",
+          },
+        ],
+      },
+      { repository },
+      { now: NOW }
+    );
+    assert.equal(unknownConnectorRes.ok, false);
+    assert.equal(unknownConnectorRes.error, "entity_not_found");
+
+    const corruptPlateRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "corrupt-scrubber",
+            component: "VisualPlateScrubber",
+            lineageId: DEFAULT_LINEAGE_ID,
+          },
+        ],
+      },
+      {
+        repository: {
+          ...repository,
+          listVisualPlatesByLineage: async () =>
+            [{ plateId: "corrupt", lineageId: DEFAULT_LINEAGE_ID }] as never,
+        },
+      },
+      { now: NOW }
+    );
+    assert.equal(corruptPlateRes.ok, false);
+    assert.equal(corruptPlateRes.error, "repository_integrity_error");
+
+    const corruptConfigRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "corrupt-config-card",
+            component: "ConnectorHealthCard",
+            connectorId: "tdlr-tabs",
+          },
+        ],
+      },
+      {
+        repository: {
+          ...repository,
+          getActiveConnectorConfig: async () =>
+            ({ connectorId: "wrong-id", version: -1 }) as never,
+        },
+      },
+      { now: NOW }
+    );
+    assert.equal(corruptConfigRes.ok, false);
+    assert.equal(corruptConfigRes.error, "repository_integrity_error");
+
+    const corruptLedgerRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "corrupt-ledger-card",
+            component: "ConnectorHealthCard",
+            connectorId: "tdlr-tabs",
+          },
+        ],
+      },
+      {
+        repository: {
+          ...repository,
+          getEfficiencyLedger: async () =>
+            ({ ledgerId: "broken_ledger", totalRunsCount: -5 }) as never,
+        },
+      },
+      { now: NOW }
+    );
+    assert.equal(corruptLedgerRes.ok, false);
+    assert.equal(corruptLedgerRes.error, "repository_integrity_error");
+  });
 });
