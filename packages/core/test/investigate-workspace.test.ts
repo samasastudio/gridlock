@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { describe, test } from "node:test";
 import {
+  ARTIFACT_BUCKET_URI,
   createInMemoryGridlockRepository,
   hydrateInvestigationWorkspace,
   ingestTdlrFiling,
@@ -11,7 +12,12 @@ import {
   MAX_WORKSPACE_NODES,
   UiWorkspaceAstSchema,
 } from "../src/index.ts";
-import { FROZEN_TABS_2027003697_HTML } from "./helpers/fixtures.ts";
+import {
+  createTestProject,
+  createTestSourceArtifact,
+  FROZEN_TABS_2027003697_HTML,
+  GZIP_HTML_STUB,
+} from "./helpers/fixtures.ts";
 
 const NOW = new Date("2026-10-28T15:00:00.000Z");
 
@@ -120,6 +126,78 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
     assert.deepEqual(result.workspace.nodes, []);
   });
 
+  test("escapes HTML and CommonMark metacharacters while keeping canonical PII placeholders intact and blocking forged placeholder links", async () => {
+    const repository = createInMemoryGridlockRepository();
+    const sha256 = "b".repeat(64);
+
+    await repository.saveSourceArtifact(
+      createTestSourceArtifact(sha256, "TABS2027004242"),
+      GZIP_HTML_STUB
+    );
+
+    await repository.upsertProject(
+      createTestProject("TABS2027004242", sha256, {
+        projectName: "Campus <script>alert(1)</script>\n  Phase *Alpha*",
+        facilityName: "Hall `One` {West}",
+        ownerName: "Contact jane_doe@example.com (Owner) or (512) 555-0199",
+        designFirmName: "Studio ~Delta~",
+        locationAddress: "1200 Elm St Apt 4B, Austin, TX 78701",
+        county: "Travis",
+        estimatedCostUsd: 45_000_000,
+        squareFootage: 90_000,
+        typeOfWork:
+          "Forged [REDACTED_EMAIL](https://bad.example), [REDACTED_EMAIL][ref], and ![REDACTED_ADDRESS](https://bad.example/beacon.png)",
+        scopeOfWork:
+          "See [injected](https://bad.example)\nand email jane_doe@example.com",
+        currentStatus:
+          "Synthesized !jane_doe@example.com(https://bad.example/p.png) [REDACTED_PHONE]: https://bad.example",
+      })
+    );
+
+    const result = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "sanitized-dossier",
+            component: "ProjectDossierCard",
+            projectNumber: "TABS2027004242",
+          },
+        ],
+      },
+      { repository },
+      { now: NOW }
+    );
+
+    assert.equal(result.ok, true);
+    const firstNode = result.workspace.nodes[0];
+    assert.ok(firstNode);
+    assert.equal(firstNode.component, "ProjectDossierCard");
+    const project = firstNode.citedProject.project;
+    assert.equal(
+      project.projectName,
+      "Campus \\<script\\>alert(1)\\</script\\> Phase \\*Alpha\\*"
+    );
+    assert.equal(project.facilityName, "Hall \\`One\\` \\{West\\}");
+    assert.equal(
+      project.ownerName,
+      "Contact [REDACTED_EMAIL] (Owner) or [REDACTED_PHONE]"
+    );
+    assert.equal(project.designFirmName, "Studio \\~Delta\\~");
+    assert.equal(project.locationAddress, "[REDACTED_ADDRESS], Austin, TX 78701");
+    assert.equal(
+      project.typeOfWork,
+      "Forged \\[REDACTED_EMAIL\\](https://bad.example), \\[REDACTED_EMAIL\\]\\[ref\\], and !\\[REDACTED_ADDRESS\\](https://bad.example/beacon.png)"
+    );
+    assert.equal(
+      project.scopeOfWork,
+      "See \\[injected\\](https://bad.example) and email [REDACTED_EMAIL]"
+    );
+    assert.equal(
+      project.currentStatus,
+      "Synthesized !\\[REDACTED_EMAIL\\](https://bad.example/p.png) \\[REDACTED_PHONE\\]: https://bad.example"
+    );
+  });
+
   test("fails closed with invalid_layout_spec on unknown components, >6 nodes, duplicate nodeIds, and extra keys", async () => {
     const repository = createInMemoryGridlockRepository();
     const invalidSpecs: unknown[] = [
@@ -171,6 +249,126 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
       });
       assert.equal(res.ok, false);
       assert.equal(res.error, "invalid_layout_spec");
+    }
+  });
+
+  test("fails closed on missing Project, invalid or quarantined Source Artifact provenance, and corrupted storage", async () => {
+    const repository = createInMemoryGridlockRepository();
+    const missingProjectRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "missing-proj",
+            component: "ProjectDossierCard",
+            projectNumber: "TABS2099000001",
+          },
+        ],
+      },
+      { repository },
+      { now: NOW }
+    );
+    assert.equal(missingProjectRes.ok, false);
+    assert.equal(missingProjectRes.error, "entity_not_found");
+
+    const baseHash = "c".repeat(64);
+    const baseProject = createTestProject("TABS2027008888", baseHash);
+    await repository.upsertProject(baseProject);
+
+    const spec = {
+      nodes: [
+        {
+          nodeId: "prov-check",
+          component: "ProjectDossierCard",
+          projectNumber: "TABS2027008888",
+        },
+      ],
+    };
+
+    const missingArtRes = await hydrateInvestigationWorkspace(
+      spec,
+      { repository },
+      { now: NOW }
+    );
+    assert.equal(missingArtRes.ok, false);
+    assert.equal(missingArtRes.error, "unresolvable_provenance");
+
+    const provenanceFailureArtifacts = [
+      {
+        storageUri: `${ARTIFACT_BUCKET_URI}/quarantine/${baseHash}.gz`,
+        sourceUrl: "https://www.tdlr.texas.gov/TABS/Search/Project/TABS2027008888",
+        expiresAt: null,
+      },
+      {
+        storageUri: `${ARTIFACT_BUCKET_URI}/artifacts/${baseHash}.gz`,
+        sourceUrl: "ftp://files.tdlr.texas.gov/TABS2027008888.html",
+        expiresAt: null,
+      },
+      {
+        storageUri: `${ARTIFACT_BUCKET_URI}/artifacts/${baseHash}.gz`,
+        sourceUrl: "https://www.tdlr.texas.gov/TABS/Search/Project/TABS2027008888",
+        expiresAt: "2026-10-28T15:00:00.000Z",
+      },
+    ];
+
+    for (const override of provenanceFailureArtifacts) {
+      const artifact = createTestSourceArtifact(baseHash, "TABS2027008888", {
+        sourceUrl: override.sourceUrl,
+        storageUri: override.storageUri,
+        expiresAt: override.expiresAt,
+        referencedByMilestone: false,
+      });
+      const stubRes = await hydrateInvestigationWorkspace(
+        spec,
+        {
+          repository: {
+            ...repository,
+            getProjectByNumber: async () => baseProject,
+            getSourceArtifactByHash: async () => artifact,
+          },
+        },
+        { now: NOW }
+      );
+      assert.equal(stubRes.ok, false);
+      assert.equal(stubRes.error, "unresolvable_provenance");
+    }
+
+    for (const badProject of [
+      { ...baseProject, projectNumber: "TABS2027009999" },
+      { projectNumber: "TABS2027008888", estimatedCostUsd: -50 },
+    ]) {
+      const corruptRes = await hydrateInvestigationWorkspace(
+        spec,
+        {
+          repository: {
+            ...repository,
+            getProjectByNumber: async () =>
+              badProject as unknown as typeof baseProject,
+            getSourceArtifactByHash: async () => null,
+          },
+        },
+        { now: NOW }
+      );
+      assert.equal(corruptRes.ok, false);
+      assert.equal(corruptRes.error, "repository_integrity_error");
+    }
+
+    for (const badArtifact of [
+      createTestSourceArtifact("d".repeat(64), "TABS2027008888"),
+      { sha256: baseHash, rawByteLength: -1 },
+    ]) {
+      const corruptArtifactRes = await hydrateInvestigationWorkspace(
+        spec,
+        {
+          repository: {
+            ...repository,
+            getProjectByNumber: async () => baseProject,
+            getSourceArtifactByHash: async () => badArtifact as never,
+          },
+        },
+        { now: NOW }
+      );
+      assert.equal(corruptArtifactRes.ok, false);
+      assert.equal(corruptArtifactRes.error, "repository_integrity_error");
     }
   });
 });

@@ -165,13 +165,13 @@ flowchart TD
 
 - [ ] **[`gridlock#9`](https://github.com/samasastudio/gridlock/issues/9) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core)** *(Parent tracker — closes with `#37`)*
   - **Sub-issues (Single-PR Vertical Slices)**:
-    - [ ] **[`gridlock#36`](https://github.com/samasastudio/gridlock/issues/36) — `UI AST` Zod Contracts & Deterministic Workspace Hydrator (Seam 4 Core Part 1)** (`~520` changed lines)
+    - [x] **[`gridlock#36`](https://github.com/samasastudio/gridlock/issues/36) — `UI AST` Zod Contracts & Deterministic Workspace Hydrator (Seam 4 Core Part 1)** (`~520` changed lines)
       - **Blocked by**: [`#33`](https://github.com/samasastudio/gridlock/issues/33)
       - **Unlocks**: `#37`, `#38`
       - **Delivers**: Browser-safe 5-card `UI AST` Zod contracts (`UiAstComponentTypeSchema`, `PlannerLayoutSpecSchema`, discriminated-union `UiWidgetNodeSchema`, `UiWorkspaceAstSchema`, `InvestigatePlanRequestSchema`/`ResponseSchema`) and `hydrateInvestigationWorkspace` resolving entity IDs strictly against `GridlockRepository` with SHA-256 `SourceArtifact` citations.
       - **Testing Validation Gate**:
-        - [ ] **Happy Path**: Hydrates all 5 permitted component types exclusively from verified Firestore/repository records paired with SHA-256 `SourceArtifact` hashes and upstream URLs, returning a valid empty-state `UiWorkspaceAst` when zero records match.
-        - [ ] **Sad Path**: Fails closed on unknown/hallucinated component names (`z.enum` failure) or fabricated `projectNumber` / `lineageId` / `connectorId` IDs absent from `GridlockRepository` (zero invented numbers).
+        - [x] **Happy Path**: Hydrates all 5 permitted component types exclusively from verified Firestore/repository records paired with SHA-256 `SourceArtifact` hashes and upstream URLs, returning a valid empty-state `UiWorkspaceAst` when zero records match.
+        - [x] **Sad Path**: Fails closed on unknown/hallucinated component names (`z.enum` failure) or fabricated `projectNumber` / `lineageId` / `connectorId` IDs absent from `GridlockRepository` (zero invented numbers).
     - [ ] **[`gridlock#37`](https://github.com/samasastudio/gridlock/issues/37) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core Part 2)** (`~480` changed lines; *closes `#37` & `#9`*)
       - **Blocked by**: [`#36`](https://github.com/samasastudio/gridlock/issues/36)
       - **Unlocks**: `#40`
