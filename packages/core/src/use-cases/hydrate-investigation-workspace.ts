@@ -3,16 +3,22 @@ import {
   UiWorkspaceAstSchema,
   type GridlockRepository,
   type HydrateWorkspaceErrorCode,
+  type UiWidgetNode,
   type UiWorkspaceAst,
 } from "../interfaces/index.ts";
 import {
   buildCitedProjectsByNumber,
+  buildMetricComparisonTableNode,
+  buildObservationTimelineNode,
   buildProjectDossierCardNode,
+  collectReferencedArtifactHashes,
 } from "./helpers/investigate-hydrator.ts";
 import {
   stepFailure,
   validateStoredArtifacts,
+  validateStoredObservationsByProject,
   validateStoredProjects,
+  type HydratorStepFailure,
 } from "./helpers/investigate-provenance.ts";
 
 export interface HydrateInvestigationWorkspaceOptions {
@@ -68,7 +74,9 @@ export async function hydrateInvestigationWorkspace(
   }
 
   const unsupported = parsedSpec.data.nodes.find(
-    (node) => node.component !== "ProjectDossierCard"
+    (node) =>
+      node.component === "VisualPlateScrubber" ||
+      node.component === "ConnectorHealthCard"
   );
   if (unsupported) {
     return stepFailure(
@@ -78,32 +86,61 @@ export async function hydrateInvestigationWorkspace(
   }
 
   try {
-    const dossierNodes = parsedSpec.data.nodes.flatMap((node) =>
-      node.component === "ProjectDossierCard" ? [node] : []
+    const uniqueCitedProjectNumbers = Array.from(
+      new Set(
+        parsedSpec.data.nodes.flatMap((node) => {
+          if (node.component === "ProjectDossierCard") {
+            return [node.projectNumber];
+          }
+          if (node.component === "MetricComparisonTable") {
+            return node.projectNumbers;
+          }
+          return [];
+        })
+      )
+    );
+    const uniqueTimelineProjectNumbers = Array.from(
+      new Set(
+        parsedSpec.data.nodes.flatMap((node) =>
+          node.component === "ObservationTimeline" ? node.projectNumbers : []
+        )
+      )
     );
     const uniqueProjectNumbers = Array.from(
-      new Set(dossierNodes.map((node) => node.projectNumber))
+      new Set([...uniqueCitedProjectNumbers, ...uniqueTimelineProjectNumbers])
     );
 
-    const rawProjects = await Promise.all(
-      uniqueProjectNumbers.map(async (projectNumber) => ({
-        projectNumber,
-        raw: await deps.repository.getProjectByNumber(projectNumber),
-      }))
-    );
+    const [rawProjects, rawObservationsByProject] = await Promise.all([
+      Promise.all(
+        uniqueProjectNumbers.map(async (projectNumber) => ({
+          projectNumber,
+          raw: await deps.repository.getProjectByNumber(projectNumber),
+        }))
+      ),
+      Promise.all(
+        uniqueTimelineProjectNumbers.map(async (projectNumber) => ({
+          projectNumber,
+          raw: await deps.repository.listObservationsByProject(projectNumber),
+        }))
+      ),
+    ]);
 
     const projectsResult = validateStoredProjects(rawProjects);
     if (!projectsResult.ok) {
       return projectsResult;
     }
 
-    const uniqueArtifactHashes = Array.from(
-      new Set(
-        uniqueProjectNumbers.flatMap((projectNumber) => {
-          const project = projectsResult.projectsByNumber.get(projectNumber);
-          return project ? [project.latestSourceArtifactHash] : [];
-        })
-      )
+    const observationsResult = validateStoredObservationsByProject(
+      rawObservationsByProject
+    );
+    if (!observationsResult.ok) {
+      return observationsResult;
+    }
+
+    const uniqueArtifactHashes = collectReferencedArtifactHashes(
+      uniqueCitedProjectNumbers,
+      projectsResult.projectsByNumber,
+      observationsResult.observationsByProject
     );
 
     const rawArtifacts = await Promise.all(
@@ -118,23 +155,48 @@ export async function hydrateInvestigationWorkspace(
       return artifactsResult;
     }
 
+    const nowMs = now.getTime();
     const citedResult = buildCitedProjectsByNumber(
-      uniqueProjectNumbers,
+      uniqueCitedProjectNumbers,
       projectsResult.projectsByNumber,
       artifactsResult.artifactsByHash,
-      now.getTime()
+      nowMs
     );
     if (!citedResult.ok) {
       return citedResult;
     }
 
-    const nodeOutcomes = dossierNodes.map((specNode) =>
-      buildProjectDossierCardNode(
-        specNode.nodeId,
-        specNode.projectNumber,
-        citedResult.citedByNumber
-      )
-    );
+    const nodeOutcomes: Array<{ ok: true; node: UiWidgetNode } | HydratorStepFailure> =
+      parsedSpec.data.nodes.map((specNode) => {
+        if (specNode.component === "ProjectDossierCard") {
+          return buildProjectDossierCardNode(
+            specNode.nodeId,
+            specNode.projectNumber,
+            citedResult.citedByNumber
+          );
+        }
+        if (specNode.component === "ObservationTimeline") {
+          return buildObservationTimelineNode(
+            specNode.nodeId,
+            specNode.projectNumbers,
+            observationsResult.observationsByProject,
+            artifactsResult.artifactsByHash,
+            nowMs
+          );
+        }
+        if (specNode.component === "MetricComparisonTable") {
+          return buildMetricComparisonTableNode(
+            specNode.nodeId,
+            specNode.projectNumbers,
+            citedResult.citedByNumber
+          );
+        }
+        return stepFailure(
+          "invalid_layout_spec",
+          `Unsupported card component "${specNode.component}"`
+        );
+      });
+
     const failedNode = nodeOutcomes.find((outcome) => !outcome.ok);
     if (failedNode && !failedNode.ok) {
       return failedNode;

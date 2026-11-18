@@ -1,8 +1,20 @@
 import { Buffer } from "node:buffer";
-import { crc32, deflateSync } from "node:zlib";
-import { createCorridorBaseCanvasWebp, isWebpBuffer, ObservationSchema, type Observation } from "../../src/index.ts";
+import { crc32, deflateSync, gzipSync } from "node:zlib";
+import {
+  ARTIFACT_BUCKET_URI,
+  createCorridorBaseCanvasWebp,
+  isWebpBuffer,
+  ObservationSchema,
+  ProjectSchema,
+  SourceArtifactSchema,
+  type Observation,
+  type Project,
+  type SourceArtifact,
+} from "../../src/index.ts";
 
 export { isWebpBuffer };
+
+export const GZIP_HTML_STUB = gzipSync(Buffer.from("<html></html>", "utf-8"));
 
 export const FROZEN_TABS_2027003697_HTML = `<!DOCTYPE html>
 <html lang="en">
@@ -98,4 +110,49 @@ export function createPainterTestObservations(): { routineObs: Observation; mile
     routineObs: ObservationSchema.parse({ id: "obs_TABS2027001111_routine", projectNumber: "TABS2027001111", sourceArtifactHash: "1".repeat(64), observedAt: "2026-10-27T14:00:00.000Z", status: "Project Registered", estimatedCostUsd: 2_500_000, squareFootage: 12_000, scopeOfWork: "Minor interior office remodel", isMilestone: false }),
     milestoneObs: ObservationSchema.parse({ id: "obs_TABS2027003697_m1", projectNumber: "TABS2027003697", sourceArtifactHash: "a".repeat(64), observedAt: "2026-10-27T14:05:00.000Z", status: "Project Registered", estimatedCostUsd: 125_000_000, squareFootage: 250_000, scopeOfWork: "New 250,000 sq ft hyperscale data center shell", isMilestone: true }),
   };
+}
+
+export function createTestSourceArtifact(
+  sha256: string,
+  projectNumber: string,
+  overrides: Partial<SourceArtifact> = {}
+): SourceArtifact {
+  return SourceArtifactSchema.parse({
+    sha256,
+    connectorId: "tdlr-tabs",
+    sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${projectNumber}`,
+    contentType: "text/html",
+    rawByteLength: 256,
+    compressedByteLength: 128,
+    storageUri: `${ARTIFACT_BUCKET_URI}/artifacts/${sha256}.gz`,
+    capturedAt: "2026-10-20T10:00:00.000Z",
+    expiresAt: null,
+    referencedByMilestone: true,
+    ...overrides,
+  });
+}
+
+export function createTestProject(
+  projectNumber: string,
+  latestSourceArtifactHash: string,
+  overrides: Partial<Project> = {}
+): Project {
+  return ProjectSchema.parse({
+    projectNumber,
+    projectName: `Compute Facility ${projectNumber}`,
+    facilityName: `Hall ${projectNumber}`,
+    ownerName: "Corridor Infrastructure Holdings LLC",
+    locationAddress: "800 Industrial Blvd, Red Oak, TX 75154",
+    county: "Ellis",
+    estimatedCostUsd: 80_000_000,
+    squareFootage: 180_000,
+    typeOfWork: "New Construction",
+    scopeOfWork: "Construct hyperscale data hall shell",
+    currentStatus: "Project Registered",
+    startDate: "2026-11-01",
+    completionDate: "2028-06-01",
+    latestSourceArtifactHash,
+    updatedAt: "2026-10-27T14:05:00.000Z",
+    ...overrides,
+  });
 }

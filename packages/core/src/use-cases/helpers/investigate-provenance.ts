@@ -1,8 +1,10 @@
 import {
+  ObservationSchema,
   ProjectSchema,
   SourceArtifactSchema,
   type HydrateWorkspaceErrorCode,
   type LineageSourceCitation,
+  type Observation,
   type Project,
   type SourceArtifact,
 } from "../../interfaces/index.ts";
@@ -72,6 +74,14 @@ function sanitizeProjectRecord(project: Project): Project {
   };
 }
 
+function sanitizeObservationRecord(obs: Observation): Observation {
+  return {
+    ...obs,
+    status: sanitizeAstProse(obs.status),
+    scopeOfWork: sanitizeAstProse(obs.scopeOfWork),
+  };
+}
+
 export function validateStoredProjects(
   entries: ReadonlyArray<{ projectNumber: string; raw: unknown }>
 ): { ok: true; projectsByNumber: Map<string, Project> } | HydratorStepFailure {
@@ -129,6 +139,65 @@ export function validateStoredProjects(
     projectsByNumber: new Map(
       sanitized.flatMap(({ projectNumber, reParsed }) =>
         reParsed.success ? [[projectNumber, reParsed.data] as const] : []
+      )
+    ),
+  };
+}
+
+export function validateStoredObservationsByProject(
+  entries: ReadonlyArray<{ projectNumber: string; raw: unknown }>
+):
+  | { ok: true; observationsByProject: Map<string, Observation[]> }
+  | HydratorStepFailure {
+  const outcomes = entries.map(({ projectNumber, raw }) => {
+    if (!Array.isArray(raw)) {
+      return stepFailure(
+        "repository_integrity_error",
+        `Stored Observations for "${projectNumber}" failed runtime schema validation`
+      );
+    }
+    const parsedItems = raw.map((item) => ObservationSchema.safeParse(item));
+    const hasInvalidItem = parsedItems.some(
+      (parsed) => !parsed.success || parsed.data.projectNumber !== projectNumber
+    );
+    if (hasInvalidItem) {
+      return stepFailure(
+        "repository_integrity_error",
+        `Stored Observation for "${projectNumber}" failed runtime schema validation`
+      );
+    }
+    const sanitizedItems = parsedItems.flatMap((parsed) =>
+      parsed.success
+        ? [ObservationSchema.safeParse(sanitizeObservationRecord(parsed.data))]
+        : []
+    );
+    if (sanitizedItems.some((reParsed) => !reParsed.success)) {
+      return stepFailure(
+        "repository_integrity_error",
+        `Sanitized Observation for "${projectNumber}" failed runtime schema validation`
+      );
+    }
+    return {
+      ok: true as const,
+      projectNumber,
+      observations: sanitizedItems.flatMap((reParsed) =>
+        reParsed.success ? [reParsed.data] : []
+      ),
+    };
+  });
+
+  const failure = outcomes.find((outcome) => !outcome.ok);
+  if (failure && !failure.ok) {
+    return failure;
+  }
+
+  return {
+    ok: true,
+    observationsByProject: new Map(
+      outcomes.flatMap((outcome) =>
+        outcome.ok
+          ? [[outcome.projectNumber, outcome.observations] as const]
+          : []
       )
     ),
   };
