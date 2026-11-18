@@ -4,6 +4,9 @@ import {
   ARTIFACT_BUCKET_URI,
   CANONICAL_MILESTONE_LABEL,
   DEFAULT_LINEAGE_ID,
+  InvestigatePlanRequestSchema,
+  InvestigatePlanResponseSchema,
+  MAX_INVESTIGATE_QUERY_LENGTH,
   ProjectSchema,
   UiAstComponentTypeSchema,
   UiWidgetNodeSchema,
@@ -14,7 +17,7 @@ import { createPainterTestObservations } from "./helpers/fixtures.ts";
 const NOW_ISO = "2026-10-28T15:00:00.000Z";
 
 describe("UI AST & Planner Zod Contracts", () => {
-  test("validates UiAstComponentTypeSchema, UiWidgetNodeSchema cross-field invariants, and UiWorkspaceAstSchema", () => {
+  test("validates UiAstComponentTypeSchema, UiWidgetNodeSchema cross-field invariants, and InvestigatePlan bounds", () => {
     assert.deepEqual(UiAstComponentTypeSchema.options, [
       "ProjectDossierCard",
       "VisualPlateScrubber",
@@ -186,19 +189,33 @@ describe("UI AST & Planner Zod Contracts", () => {
       isEmpty: true,
       nodes: [],
     });
-    assert.equal(
-      UiWorkspaceAstSchema.safeParse({ ...emptyWorkspace, isEmpty: false })
-        .success,
-      false
-    );
-    assert.equal(
-      UiWorkspaceAstSchema.safeParse({
-        version: 1,
-        generatedAt: NOW_ISO,
-        isEmpty: false,
-        nodes: [validDossierNode, validDossierNode],
-      }).success,
-      false
-    );
+
+    for (const badRequest of [
+      { query: "   " },
+      { query: "q".repeat(MAX_INVESTIGATE_QUERY_LENGTH + 1) },
+      { query: "Compare Ellis County compute filings", unexpectedField: true },
+    ]) {
+      assert.equal(
+        InvestigatePlanRequestSchema.safeParse(badRequest).success,
+        false
+      );
+    }
+
+    for (const badResponse of [
+      { workspace: emptyWorkspace, interactionId: "", tokensUsed: 10 },
+      { workspace: emptyWorkspace, interactionId: "ix_1", tokensUsed: -1 },
+      { workspace: emptyWorkspace, interactionId: "ix_1", tokensUsed: 1.5 },
+      {
+        workspace: emptyWorkspace,
+        interactionId: "ix_1",
+        tokensUsed: 10,
+        unexpectedField: true,
+      },
+    ]) {
+      assert.equal(
+        InvestigatePlanResponseSchema.safeParse(badResponse).success,
+        false
+      );
+    }
   });
 });

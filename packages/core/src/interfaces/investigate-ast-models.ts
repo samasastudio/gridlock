@@ -13,7 +13,7 @@ import { TdlrProjectNumberSchema } from "./primitives.ts";
 import { RepairChangelogResponseSchema } from "./repair-models.ts";
 import { EfficiencyLedgerSchema } from "./telemetry-models.ts";
 
-const SafeAstIdSchema = z
+export const SafeAstIdSchema = z
   .string()
   .min(1)
   .max(128)

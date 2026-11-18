@@ -125,6 +125,17 @@ export {
 } from "./investigate-ast-models.ts";
 
 export {
+  InvestigatePlanRequestSchema,
+  InvestigatePlanResponseSchema,
+  PlannerLayoutSpecSchema,
+  PlannerNodeSpecSchema,
+  type InvestigatePlanRequest,
+  type InvestigatePlanResponse,
+  type PlannerLayoutSpec,
+  type PlannerNodeSpec,
+} from "./investigate-planner-models.ts";
+
+export {
   ARTIFACT_BUCKET_URI,
   CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
   CANONICAL_MILESTONE_LABEL,
@@ -139,6 +150,7 @@ export {
   DEFAULT_TDLR_SEARCH_FILTERS,
   GRIDLOCK_USER_AGENT,
   MAX_CONCURRENCY,
+  MAX_INVESTIGATE_QUERY_LENGTH,
   MAX_PROJECTS_PER_CARD,
   MAX_RECORDS_PER_RUN,
   MAX_SCENARIO_PROMPT_LENGTH,
