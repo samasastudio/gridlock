@@ -1,0 +1,292 @@
+import { z } from "zod";
+import {
+  CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
+  MAX_PROJECTS_PER_CARD,
+  MAX_WORKSPACE_NODES,
+} from "./constants.ts";
+import { ObservationSchema, ProjectSchema } from "./filing-models.ts";
+import {
+  LineageSourceCitationSchema,
+  PlateLineageResponseSchema,
+} from "./painter-models.ts";
+import { TdlrProjectNumberSchema } from "./primitives.ts";
+import { RepairChangelogResponseSchema } from "./repair-models.ts";
+import { EfficiencyLedgerSchema } from "./telemetry-models.ts";
+
+const SafeAstIdSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^(?!\.\.?$)[^\s/]+$/, "Expected safe non-empty AST identifier");
+
+const HttpSourceCitationSchema = LineageSourceCitationSchema.refine(
+  (citation) => /^https?:\/\//i.test(citation.sourceUrl),
+  {
+    path: ["sourceUrl"],
+    message: "Citation sourceUrl must use http:// or https://",
+  }
+);
+
+export const UiAstComponentTypeSchema = z.enum([
+  "ProjectDossierCard",
+  "VisualPlateScrubber",
+  "ObservationTimeline",
+  "MetricComparisonTable",
+  "ConnectorHealthCard",
+]);
+
+export type UiAstComponentType = z.infer<typeof UiAstComponentTypeSchema>;
+
+export const CitedProjectSchema = z
+  .object({
+    project: ProjectSchema,
+    citation: HttpSourceCitationSchema,
+  })
+  .strict()
+  .superRefine((entry, ctx) => {
+    if (entry.citation.sha256 !== entry.project.latestSourceArtifactHash) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["citation", "sha256"],
+        message: "Citation sha256 must match project.latestSourceArtifactHash",
+      });
+    }
+  });
+
+export type CitedProject = z.infer<typeof CitedProjectSchema>;
+
+export const CitedObservationSchema = z
+  .object({
+    observation: ObservationSchema,
+    citation: HttpSourceCitationSchema,
+  })
+  .strict()
+  .superRefine((entry, ctx) => {
+    if (entry.citation.sha256 !== entry.observation.sourceArtifactHash) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["citation", "sha256"],
+        message: "Citation sha256 must match observation.sourceArtifactHash",
+      });
+    }
+  });
+
+export type CitedObservation = z.infer<typeof CitedObservationSchema>;
+
+export const ProjectDossierCardNodeSchema = z
+  .object({
+    nodeId: SafeAstIdSchema,
+    component: z.literal("ProjectDossierCard"),
+    citedProject: CitedProjectSchema,
+  })
+  .strict();
+
+export type ProjectDossierCardNode = z.infer<
+  typeof ProjectDossierCardNodeSchema
+>;
+
+const HydratedProjectNumberListSchema = z
+  .array(TdlrProjectNumberSchema)
+  .max(MAX_PROJECTS_PER_CARD)
+  .refine(
+    (items) => new Set(items).size === items.length,
+    "Duplicate projectNumber in ObservationTimelineNode"
+  );
+
+const ObservationTimelineNodeBaseSchema = z
+  .object({
+    nodeId: SafeAstIdSchema,
+    component: z.literal("ObservationTimeline"),
+    projectNumbers: HydratedProjectNumberListSchema,
+    observations: z.array(CitedObservationSchema),
+  })
+  .strict();
+
+function refineObservationTimelineNode(
+  node: z.infer<typeof ObservationTimelineNodeBaseSchema>,
+  ctx: z.RefinementCtx
+): void {
+  const allowedProjects = new Set(node.projectNumbers);
+  if (
+    node.observations.some(
+      (entry) => !allowedProjects.has(entry.observation.projectNumber)
+    )
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["observations"],
+      message:
+        "Every timeline observation must belong to node.projectNumbers",
+    });
+  }
+  const uniqueObsIds = new Set(
+    node.observations.map((entry) => entry.observation.id)
+  );
+  if (uniqueObsIds.size !== node.observations.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["observations"],
+      message: "Duplicate observation.id in ObservationTimelineNode",
+    });
+  }
+}
+
+export const ObservationTimelineNodeSchema =
+  ObservationTimelineNodeBaseSchema.superRefine(refineObservationTimelineNode);
+
+export type ObservationTimelineNode = z.infer<
+  typeof ObservationTimelineNodeSchema
+>;
+
+export const MetricComparisonTableNodeSchema = z
+  .object({
+    nodeId: SafeAstIdSchema,
+    component: z.literal("MetricComparisonTable"),
+    rows: z
+      .array(CitedProjectSchema)
+      .max(MAX_PROJECTS_PER_CARD)
+      .refine(
+        (rows) =>
+          new Set(rows.map((row) => row.project.projectNumber)).size ===
+          rows.length,
+        "Duplicate projectNumber in MetricComparisonTableNode rows"
+      ),
+  })
+  .strict();
+
+export type MetricComparisonTableNode = z.infer<
+  typeof MetricComparisonTableNodeSchema
+>;
+
+const NonEmptyPlateLineageSchema = PlateLineageResponseSchema.refine(
+  (lineage) => lineage.nodes.length > 0,
+  {
+    path: ["nodes"],
+    message: "VisualPlateScrubber requires at least one active LineageNode",
+  }
+)
+  .refine(
+    (lineage) => lineage.nodes.every((node) => node.sourceArtifacts.length > 0),
+    {
+      path: ["nodes"],
+      message:
+        "Every LineageNode in VisualPlateScrubber requires at least one SourceArtifact citation",
+    }
+  )
+  .refine(
+    (lineage) =>
+      lineage.nodes.every((node) =>
+        node.sourceArtifacts.every((art) => /^https?:\/\//i.test(art.sourceUrl))
+      ),
+    {
+      path: ["nodes"],
+      message: "Lineage sourceArtifacts must use http:// or https:// sourceUrl",
+    }
+  );
+
+const VisualPlateScrubberNodeBaseSchema = z
+  .object({
+    nodeId: SafeAstIdSchema,
+    component: z.literal("VisualPlateScrubber"),
+    lineage: NonEmptyPlateLineageSchema,
+    initialPlateId: SafeAstIdSchema.optional(),
+  })
+  .strict();
+
+function refineVisualPlateScrubberNode(
+  node: z.infer<typeof VisualPlateScrubberNodeBaseSchema>,
+  ctx: z.RefinementCtx
+): void {
+  if (
+    node.initialPlateId !== undefined &&
+    !node.lineage.nodes.some((n) => n.plate.plateId === node.initialPlateId)
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["initialPlateId"],
+      message: "initialPlateId must reference an active node in lineage.nodes",
+    });
+  }
+}
+
+export const VisualPlateScrubberNodeSchema =
+  VisualPlateScrubberNodeBaseSchema.superRefine(refineVisualPlateScrubberNode);
+
+export type VisualPlateScrubberNode = z.infer<
+  typeof VisualPlateScrubberNodeSchema
+>;
+
+const CompactEfficiencyLedgerSchema = EfficiencyLedgerSchema.refine(
+  (ledger) => ledger.recentRuns.length <= CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
+  {
+    path: ["recentRuns"],
+    message: `ConnectorHealthCard ledger.recentRuns must have <= ${CONNECTOR_HEALTH_RECENT_RUNS_LIMIT} entries`,
+  }
+);
+
+export const ConnectorHealthCardNodeSchema = z
+  .object({
+    nodeId: SafeAstIdSchema,
+    component: z.literal("ConnectorHealthCard"),
+    changelog: RepairChangelogResponseSchema,
+    ledger: CompactEfficiencyLedgerSchema,
+  })
+  .strict();
+
+export type ConnectorHealthCardNode = z.infer<
+  typeof ConnectorHealthCardNodeSchema
+>;
+
+export const UiWidgetNodeSchema = z
+  .discriminatedUnion("component", [
+    ProjectDossierCardNodeSchema,
+    VisualPlateScrubberNodeBaseSchema,
+    ObservationTimelineNodeBaseSchema,
+    MetricComparisonTableNodeSchema,
+    ConnectorHealthCardNodeSchema,
+  ])
+  .superRefine((node, ctx) => {
+    if (node.component === "ObservationTimeline") {
+      refineObservationTimelineNode(node, ctx);
+    }
+    if (node.component === "VisualPlateScrubber") {
+      refineVisualPlateScrubberNode(node, ctx);
+    }
+  });
+
+export type UiWidgetNode = z.infer<typeof UiWidgetNodeSchema>;
+
+export const UiWorkspaceAstSchema = z
+  .object({
+    version: z.literal(1),
+    generatedAt: z.string().datetime(),
+    isEmpty: z.boolean(),
+    nodes: z.array(UiWidgetNodeSchema).max(MAX_WORKSPACE_NODES),
+  })
+  .strict()
+  .superRefine((ast, ctx) => {
+    const expectedEmpty = ast.nodes.length === 0;
+    if (ast.isEmpty !== expectedEmpty) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["isEmpty"],
+        message: "isEmpty must be true iff nodes is empty",
+      });
+    }
+    const uniqueNodeIds = new Set(ast.nodes.map((node) => node.nodeId));
+    if (uniqueNodeIds.size !== ast.nodes.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["nodes"],
+        message: "Duplicate nodeId in UiWorkspaceAst nodes",
+      });
+    }
+  });
+
+export type UiWorkspaceAst = z.infer<typeof UiWorkspaceAstSchema>;
+
+export type HydrateWorkspaceErrorCode =
+  | "invalid_layout_spec"
+  | "entity_not_found"
+  | "unresolvable_provenance"
+  | "repository_integrity_error";
