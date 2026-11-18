@@ -3,14 +3,11 @@ import {
   UiWorkspaceAstSchema,
   type GridlockRepository,
   type HydrateWorkspaceErrorCode,
-  type UiWidgetNode,
   type UiWorkspaceAst,
 } from "../interfaces/index.ts";
+import { getPlateLineage } from "./get-plate-lineage.ts";
 import {
   buildCitedProjectsByNumber,
-  buildMetricComparisonTableNode,
-  buildObservationTimelineNode,
-  buildProjectDossierCardNode,
   collectReferencedArtifactHashes,
 } from "./helpers/investigate-hydrator.ts";
 import {
@@ -18,8 +15,11 @@ import {
   validateStoredArtifacts,
   validateStoredObservationsByProject,
   validateStoredProjects,
-  type HydratorStepFailure,
 } from "./helpers/investigate-provenance.ts";
+import {
+  extractWorkspaceLookupKeys,
+  hydrateWorkspaceNodes,
+} from "./helpers/investigate-seam-hydrator.ts";
 
 export interface HydrateInvestigationWorkspaceOptions {
   now?: Date;
@@ -73,57 +73,38 @@ export async function hydrateInvestigationWorkspace(
         );
   }
 
-  const unsupported = parsedSpec.data.nodes.find(
-    (node) =>
-      node.component === "VisualPlateScrubber" ||
-      node.component === "ConnectorHealthCard"
-  );
-  if (unsupported) {
-    return stepFailure(
-      "invalid_layout_spec",
-      `Unsupported card component "${unsupported.component}"`
-    );
-  }
-
   try {
-    const uniqueCitedProjectNumbers = Array.from(
-      new Set(
-        parsedSpec.data.nodes.flatMap((node) => {
-          if (node.component === "ProjectDossierCard") {
-            return [node.projectNumber];
-          }
-          if (node.component === "MetricComparisonTable") {
-            return node.projectNumbers;
-          }
-          return [];
-        })
-      )
-    );
-    const uniqueTimelineProjectNumbers = Array.from(
-      new Set(
-        parsedSpec.data.nodes.flatMap((node) =>
-          node.component === "ObservationTimeline" ? node.projectNumbers : []
-        )
-      )
-    );
-    const uniqueProjectNumbers = Array.from(
-      new Set([...uniqueCitedProjectNumbers, ...uniqueTimelineProjectNumbers])
-    );
+    const {
+      uniqueProjectNumbers,
+      uniqueCitedProjectNumbers,
+      uniqueTimelineProjectNumbers,
+      uniqueLineageIds,
+    } = extractWorkspaceLookupKeys(parsedSpec.data.nodes);
 
-    const [rawProjects, rawObservationsByProject] = await Promise.all([
-      Promise.all(
-        uniqueProjectNumbers.map(async (projectNumber) => ({
-          projectNumber,
-          raw: await deps.repository.getProjectByNumber(projectNumber),
-        }))
-      ),
-      Promise.all(
-        uniqueTimelineProjectNumbers.map(async (projectNumber) => ({
-          projectNumber,
-          raw: await deps.repository.listObservationsByProject(projectNumber),
-        }))
-      ),
-    ]);
+    const [rawProjects, rawObservationsByProject, lineageEntries] =
+      await Promise.all([
+        Promise.all(
+          uniqueProjectNumbers.map(async (projectNumber) => ({
+            projectNumber,
+            raw: await deps.repository.getProjectByNumber(projectNumber),
+          }))
+        ),
+        Promise.all(
+          uniqueTimelineProjectNumbers.map(async (projectNumber) => ({
+            projectNumber,
+            raw: await deps.repository.listObservationsByProject(projectNumber),
+          }))
+        ),
+        Promise.all(
+          uniqueLineageIds.map(async (lineageId) => ({
+            lineageId,
+            result: await getPlateLineage(
+              { lineageId, now },
+              { repository: deps.repository }
+            ),
+          }))
+        ),
+      ]);
 
     const projectsResult = validateStoredProjects(rawProjects);
     if (!projectsResult.ok) {
@@ -135,6 +116,14 @@ export async function hydrateInvestigationWorkspace(
     );
     if (!observationsResult.ok) {
       return observationsResult;
+    }
+
+    const failedLineage = lineageEntries.find((entry) => !entry.result.ok);
+    if (failedLineage && !failedLineage.result.ok) {
+      return stepFailure(
+        "repository_integrity_error",
+        failedLineage.result.message
+      );
     }
 
     const uniqueArtifactHashes = collectReferencedArtifactHashes(
@@ -166,49 +155,28 @@ export async function hydrateInvestigationWorkspace(
       return citedResult;
     }
 
-    const nodeOutcomes: Array<{ ok: true; node: UiWidgetNode } | HydratorStepFailure> =
-      parsedSpec.data.nodes.map((specNode) => {
-        if (specNode.component === "ProjectDossierCard") {
-          return buildProjectDossierCardNode(
-            specNode.nodeId,
-            specNode.projectNumber,
-            citedResult.citedByNumber
-          );
-        }
-        if (specNode.component === "ObservationTimeline") {
-          return buildObservationTimelineNode(
-            specNode.nodeId,
-            specNode.projectNumbers,
-            observationsResult.observationsByProject,
-            artifactsResult.artifactsByHash,
-            nowMs
-          );
-        }
-        if (specNode.component === "MetricComparisonTable") {
-          return buildMetricComparisonTableNode(
-            specNode.nodeId,
-            specNode.projectNumbers,
-            citedResult.citedByNumber
-          );
-        }
-        return stepFailure(
-          "invalid_layout_spec",
-          `Unsupported card component "${specNode.component}"`
-        );
-      });
+    const lineageById = new Map(
+      lineageEntries.flatMap(({ lineageId, result }) =>
+        result.ok ? [[lineageId, result.lineage] as const] : []
+      )
+    );
 
-    const failedNode = nodeOutcomes.find((outcome) => !outcome.ok);
-    if (failedNode && !failedNode.ok) {
-      return failedNode;
+    const hydratedNodes = hydrateWorkspaceNodes(parsedSpec.data.nodes, {
+      citedByNumber: citedResult.citedByNumber,
+      observationsByProject: observationsResult.observationsByProject,
+      artifactsByHash: artifactsResult.artifactsByHash,
+      lineageById,
+      nowMs,
+    });
+    if (!hydratedNodes.ok) {
+      return hydratedNodes;
     }
 
     const parsedWorkspace = UiWorkspaceAstSchema.safeParse({
       version: 1,
       generatedAt: now.toISOString(),
       isEmpty: false,
-      nodes: nodeOutcomes.flatMap((outcome) =>
-        outcome.ok ? [outcome.node] : []
-      ),
+      nodes: hydratedNodes.nodes,
     });
     return parsedWorkspace.success
       ? { ok: true, workspace: parsedWorkspace.data }
