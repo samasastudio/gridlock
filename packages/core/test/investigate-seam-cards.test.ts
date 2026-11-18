@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { describe, test } from "node:test";
 import {
+  ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
   branchLineage,
+  CandidateSelectorPatchSchema,
+  CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
+  ConnectorHealthCardNodeSchema,
   createInMemoryGridlockRepository,
   DEFAULT_LINEAGE_ID,
+  getPlateLineage,
   hydrateInvestigationWorkspace,
   ingestTdlrFiling,
   MAX_SCENARIO_PROMPT_LENGTH,
+  MAX_WORKSPACE_NODES,
+  NINETY_DAYS_MS,
+  recordStageTelemetry,
+  runOutOfBandRepairAgent,
   UiWorkspaceAstSchema,
   VisualPlateScrubberNodeSchema,
   type GeminiInteractionsClient,
@@ -15,7 +25,10 @@ import {
 } from "../src/index.ts";
 import {
   createFixtureWebpBuffer,
+  createTestSourceArtifact,
   FROZEN_TABS_2027003697_HTML,
+  HISTORICAL_FIXTURE_V1_HTML,
+  MUTATED_PORTAL_V2_HTML,
 } from "./helpers/fixtures.ts";
 
 const NOW = new Date("2026-10-28T15:00:00.000Z");
@@ -43,7 +56,7 @@ function createPainterClientStub(): GeminiInteractionsClient {
   };
 }
 
-async function seedLineageRepository(): Promise<{
+async function seedFullFiveCardRepository(): Promise<{
   repository: GridlockRepository;
   canonicalPlateId: string;
   branchPlateId: string;
@@ -67,6 +80,80 @@ async function seedLineageRepository(): Promise<{
     }
   );
   assert.equal(firstIngest.status, "ingested");
+
+  const anomaly = await ingestTdlrFiling(
+    {
+      projectNumber: "TABS2027009888",
+      baseUrl: "https://www.tdlr.texas.gov",
+      now: new Date("2026-10-27T14:00:00.000Z"),
+      robotsTxt: ROBOTS_ALLOW_ALL,
+    },
+    {
+      repository,
+      pageLoader: async () => ({
+        status: 200,
+        contentType: "text/html",
+        body: MUTATED_PORTAL_V2_HTML,
+      }),
+    }
+  );
+  assert.equal(anomaly.status, "selector_anomaly");
+
+  const repairResult = await runOutOfBandRepairAgent(
+    {
+      connectorId: "tdlr-tabs",
+      quarantinedArtifact: anomaly.sourceArtifact,
+      brokenInvariants: [
+        ...anomaly.invariantErrors,
+        "Selector <div class=\"project-details\"> missing; ping sre_oncall@example.com",
+      ],
+      historicalFixtures: [HISTORICAL_FIXTURE_V1_HTML],
+      anomalyDetectedAt: new Date("2026-10-27T14:00:00.000Z"),
+      now: new Date("2026-10-27T14:00:02.000Z"),
+    },
+    {
+      repository,
+      geminiClient: {
+        interactions: {
+          create: async () => ({
+            id: "ix_repair_tdlr_v2",
+            status: "completed",
+            output_text: JSON.stringify(
+              CandidateSelectorPatchSchema.parse({
+                detailContainerSelector:
+                  ".project-details, .tabs-project-details-v2",
+                fieldLabels: {
+                  estimatedCost: "Estimated Cost: | Total Estimated Cost:",
+                },
+                rootCauseSummary:
+                  "Wrapper <div class=\"v2\">\nshifted; notify ops_lead@example.com for *audit*",
+              })
+            ),
+            usage: { total_tokens: 340 },
+          }),
+        },
+      },
+    }
+  );
+  assert.equal(repairResult.status, "repair_promoted");
+
+  const healedIngest = await ingestTdlrFiling(
+    {
+      projectNumber: "TABS2027009888",
+      baseUrl: "https://www.tdlr.texas.gov",
+      now: new Date("2026-10-27T14:05:00.000Z"),
+      robotsTxt: ROBOTS_ALLOW_ALL,
+    },
+    {
+      repository,
+      pageLoader: async () => ({
+        status: 200,
+        contentType: "text/html",
+        body: MUTATED_PORTAL_V2_HTML,
+      }),
+    }
+  );
+  assert.equal(healedIngest.status, "ingested");
 
   const dfwObservations =
     await repository.listObservationsByProject("TABS2027003697");
@@ -96,6 +183,25 @@ async function seedLineageRepository(): Promise<{
   );
   assert.equal(branchRes.status, "plate_painted");
 
+  for (let idx = 0; idx < 15; idx += 1) {
+    const start = new Date(NOW.getTime() - (20 - idx) * 1_000);
+    await recordStageTelemetry(
+      {
+        stage: "tdlr_ingest",
+        connectorId: "tdlr-tabs",
+        projectNumber: "TABS2027003697",
+        execution_mode: "deterministic",
+        status: "ingested",
+        rawByteLength: 2_048,
+        tokensUsed: 0,
+        naiveTokensAvoided: 512,
+        startedAt: start,
+        endedAt: new Date(start.getTime() + 45),
+      },
+      { repository }
+    );
+  }
+
   return {
     repository,
     canonicalPlateId: bootstrapRes.plate.plateId,
@@ -104,18 +210,43 @@ async function seedLineageRepository(): Promise<{
 }
 
 describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () => {
-  test("hydrates VisualPlateScrubber with escaped prompts and safely bounds 1,000-character scenarioPrompt", async () => {
+  test("hydrates a full 6-node workspace across all 5 canonical card types with bounded telemetry and escaped prose", async () => {
     const { repository, canonicalPlateId, branchPlateId } =
-      await seedLineageRepository();
+      await seedFullFiveCardRepository();
 
     const result = await hydrateInvestigationWorkspace(
       {
         nodes: [
           {
+            nodeId: "dossier-dfw",
+            component: "ProjectDossierCard",
+            projectNumber: "TABS2027003697",
+          },
+          {
             nodeId: "corridor-scrubber",
             component: "VisualPlateScrubber",
             lineageId: DEFAULT_LINEAGE_ID,
             initialPlateId: branchPlateId,
+          },
+          {
+            nodeId: "corridor-timeline",
+            component: "ObservationTimeline",
+            projectNumbers: ["TABS2027003697", "TABS2027009888"],
+          },
+          {
+            nodeId: "corridor-table",
+            component: "MetricComparisonTable",
+            projectNumbers: ["TABS2027003697", "TABS2027009888"],
+          },
+          {
+            nodeId: "tdlr-health",
+            component: "ConnectorHealthCard",
+            connectorId: "tdlr-tabs",
+          },
+          {
+            nodeId: "dossier-v2",
+            component: "ProjectDossierCard",
+            projectNumber: "TABS2027009888",
           },
         ],
       },
@@ -124,12 +255,22 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
     );
 
     assert.equal(result.ok, true);
+    assert.equal(result.workspace.nodes.length, MAX_WORKSPACE_NODES);
     assert.deepEqual(
       UiWorkspaceAstSchema.parse(result.workspace),
       result.workspace
     );
 
-    const scrubberNode = result.workspace.nodes[0];
+    const serializedBytes = Buffer.byteLength(
+      JSON.stringify(result.workspace),
+      "utf-8"
+    );
+    assert.ok(
+      serializedBytes < 16_384,
+      `Expected compact UiWorkspaceAst (< 16384 bytes), got ${serializedBytes}`
+    );
+
+    const scrubberNode = result.workspace.nodes[1];
     assert.ok(scrubberNode && scrubberNode.component === "VisualPlateScrubber");
     assert.deepEqual(
       VisualPlateScrubberNodeSchema.parse(scrubberNode),
@@ -229,5 +370,222 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
       ) % 2,
       0
     );
+
+    const healthNode = result.workspace.nodes[4];
+    assert.ok(healthNode && healthNode.component === "ConnectorHealthCard");
+    assert.deepEqual(
+      ConnectorHealthCardNodeSchema.parse(healthNode),
+      healthNode
+    );
+    assert.equal(
+      healthNode.ledger.recentRuns.length,
+      CONNECTOR_HEALTH_RECENT_RUNS_LIMIT
+    );
+    assert.equal(healthNode.changelog.activeVersion, 2);
+    assert.equal(healthNode.changelog.entries.length, 1);
+
+    const [healEntry] = healthNode.changelog.entries;
+    assert.ok(healEntry);
+    assert.equal(
+      healEntry.rootCauseSummary,
+      'Wrapper \\<div class="v2"\\> shifted; notify [REDACTED_EMAIL] for \\*audit\\*'
+    );
+    assert.ok(
+      healEntry.brokenInvariants.some(
+        (inv) =>
+          inv.includes('\\<div class="project-details"\\>') &&
+          inv.includes("[REDACTED_EMAIL]")
+      )
+    );
+  });
+
+  test("fails closed on empty or expired Visual Plate lineages, invalid initialPlateId, and unresolvable canonical plate provenance", async () => {
+    const { repository, canonicalPlateId, branchPlateId } =
+      await seedFullFiveCardRepository();
+
+    const unknownLineageCheck = await getPlateLineage(
+      { lineageId: "unknown-corridor-lineage", now: NOW },
+      { repository }
+    );
+    assert.equal(unknownLineageCheck.ok, true);
+    assert.deepEqual(unknownLineageCheck.lineage.nodes, []);
+
+    const unknownLineageRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "missing-lineage",
+            component: "VisualPlateScrubber",
+            lineageId: "unknown-corridor-lineage",
+          },
+        ],
+      },
+      { repository },
+      { now: NOW }
+    );
+    assert.equal(unknownLineageRes.ok, false);
+    assert.equal(unknownLineageRes.error, "entity_not_found");
+
+    const allPlates = await repository.listVisualPlatesByLineage(
+      DEFAULT_LINEAGE_ID
+    );
+    const branchOnlyPlates = allPlates.filter((plate) => plate.isBranch);
+    const futureAfterBranchTtl = new Date(
+      NOW.getTime() + NINETY_DAYS_MS + 60_000
+    );
+
+    const expiredBranchOnlyRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "expired-lineage",
+            component: "VisualPlateScrubber",
+            lineageId: DEFAULT_LINEAGE_ID,
+          },
+        ],
+      },
+      {
+        repository: {
+          ...repository,
+          listVisualPlatesByLineage: async () => branchOnlyPlates,
+        },
+      },
+      { now: futureAfterBranchTtl }
+    );
+    assert.equal(expiredBranchOnlyRes.ok, false);
+    assert.equal(expiredBranchOnlyRes.error, "entity_not_found");
+
+    for (const [badInitialId, evalNow] of [
+      ["plate_nonexistent_id", NOW],
+      [branchPlateId, futureAfterBranchTtl],
+    ] as const) {
+      const badInitialRes = await hydrateInvestigationWorkspace(
+        {
+          nodes: [
+            {
+              nodeId: "bad-initial-plate",
+              component: "VisualPlateScrubber",
+              lineageId: DEFAULT_LINEAGE_ID,
+              initialPlateId: badInitialId,
+            },
+          ],
+        },
+        { repository },
+        { now: evalNow }
+      );
+      assert.equal(badInitialRes.ok, false);
+      assert.equal(badInitialRes.error, "entity_not_found");
+    }
+
+    const canonicalPlate = allPlates.find(
+      (plate) => plate.plateId === canonicalPlateId
+    );
+    assert.ok(canonicalPlate);
+    const canonicalArtifactHash = canonicalPlate.sourceArtifactHashes[0];
+    assert.ok(canonicalArtifactHash);
+
+    const quarantinedArtifact = createTestSourceArtifact(
+      canonicalArtifactHash,
+      "TABS2027003697",
+      {
+        storageUri: `${ARTIFACT_BUCKET_URI}/quarantine/${canonicalArtifactHash}.gz`,
+        referencedByMilestone: false,
+      }
+    );
+
+    for (const overrideArtifact of [null, quarantinedArtifact]) {
+      const provFailRes = await hydrateInvestigationWorkspace(
+        {
+          nodes: [
+            {
+              nodeId: "scrubber-bad-prov",
+              component: "VisualPlateScrubber",
+              lineageId: DEFAULT_LINEAGE_ID,
+            },
+          ],
+        },
+        {
+          repository: {
+            ...repository,
+            getSourceArtifactByHash: async (sha256) =>
+              sha256 === canonicalArtifactHash
+                ? overrideArtifact
+                : repository.getSourceArtifactByHash(sha256),
+          },
+        },
+        { now: NOW }
+      );
+      assert.equal(provFailRes.ok, false);
+      assert.equal(provFailRes.error, "unresolvable_provenance");
+
+      const branchProvFailRes = await hydrateInvestigationWorkspace(
+        {
+          nodes: [
+            {
+              nodeId: "branch-scrubber-bad-prov",
+              component: "VisualPlateScrubber",
+              lineageId: DEFAULT_LINEAGE_ID,
+            },
+          ],
+        },
+        {
+          repository: {
+            ...repository,
+            listVisualPlatesByLineage: async () => branchOnlyPlates,
+            getSourceArtifactByHash: async (sha256) =>
+              sha256 === canonicalArtifactHash
+                ? overrideArtifact
+                : repository.getSourceArtifactByHash(sha256),
+          },
+        },
+        { now: NOW }
+      );
+      assert.equal(branchProvFailRes.ok, false);
+      assert.equal(branchProvFailRes.error, "unresolvable_provenance");
+    }
+
+    const missingTriggeringObsRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "scrubber-missing-obs",
+            component: "VisualPlateScrubber",
+            lineageId: DEFAULT_LINEAGE_ID,
+          },
+        ],
+      },
+      {
+        repository: {
+          ...repository,
+          listObservationsByProject: async () => [],
+        },
+      },
+      { now: NOW }
+    );
+    assert.equal(missingTriggeringObsRes.ok, false);
+    assert.equal(missingTriggeringObsRes.error, "unresolvable_provenance");
+
+    const zeroCitationPlateRes = await hydrateInvestigationWorkspace(
+      {
+        nodes: [
+          {
+            nodeId: "scrubber-zero-citations",
+            component: "VisualPlateScrubber",
+            lineageId: DEFAULT_LINEAGE_ID,
+          },
+        ],
+      },
+      {
+        repository: {
+          ...repository,
+          listVisualPlatesByLineage: async () => [
+            { ...canonicalPlate, sourceArtifactHashes: [] },
+          ],
+        },
+      },
+      { now: NOW }
+    );
+    assert.equal(zeroCitationPlateRes.ok, false);
+    assert.equal(zeroCitationPlateRes.error, "unresolvable_provenance");
   });
 });

@@ -1,11 +1,16 @@
 import {
+  CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
+  ConnectorHealthCardNodeSchema,
   MAX_SCENARIO_PROMPT_LENGTH,
   VisualPlateScrubberNodeSchema,
   type CitedProject,
+  type ConnectorHealthCardNode,
+  type EfficiencyLedger,
   type LineageNode,
   type Observation,
   type PlannerNodeSpec,
   type PlateLineageResponse,
+  type RepairChangelogResponse,
   type SourceArtifact,
   type UiWidgetNode,
   type VisualPlateScrubberNode,
@@ -27,6 +32,7 @@ export interface WorkspaceLookupKeys {
   uniqueCitedProjectNumbers: string[];
   uniqueTimelineProjectNumbers: string[];
   uniqueLineageIds: string[];
+  uniqueConnectorIds: string[];
 }
 
 export interface WorkspaceNodeHydrationContext {
@@ -34,6 +40,8 @@ export interface WorkspaceNodeHydrationContext {
   observationsByProject: ReadonlyMap<string, Observation[]>;
   artifactsByHash: ReadonlyMap<string, SourceArtifact | null>;
   lineageById: ReadonlyMap<string, PlateLineageResponse>;
+  changelogByConnector: ReadonlyMap<string, RepairChangelogResponse>;
+  compactLedger: EfficiencyLedger | null;
   nowMs: number;
 }
 
@@ -77,11 +85,20 @@ export function extractWorkspaceLookupKeys(
     )
   );
 
+  const uniqueConnectorIds = Array.from(
+    new Set(
+      nodes.flatMap((node) =>
+        node.component === "ConnectorHealthCard" ? [node.connectorId] : []
+      )
+    )
+  );
+
   return {
     uniqueProjectNumbers,
     uniqueCitedProjectNumbers,
     uniqueTimelineProjectNumbers,
     uniqueLineageIds,
+    uniqueConnectorIds,
   };
 }
 
@@ -177,6 +194,39 @@ function buildVisualPlateScrubberNode(
   return { ok: true, node: parsedNode.data };
 }
 
+function buildConnectorHealthCardNode(
+  nodeId: string,
+  changelog: RepairChangelogResponse,
+  ledger: EfficiencyLedger
+): { ok: true; node: ConnectorHealthCardNode } | HydratorStepFailure {
+  const sanitizedChangelog: RepairChangelogResponse = {
+    ...changelog,
+    entries: changelog.entries.map((entry) => ({
+      ...entry,
+      rootCauseSummary: sanitizeAstProse(entry.rootCauseSummary),
+      brokenInvariants: entry.brokenInvariants.map(sanitizeAstProse),
+    })),
+  };
+
+  const parsedNode = ConnectorHealthCardNodeSchema.safeParse({
+    nodeId,
+    component: "ConnectorHealthCard",
+    changelog: sanitizedChangelog,
+    ledger: {
+      ...ledger,
+      recentRuns: ledger.recentRuns.slice(-CONNECTOR_HEALTH_RECENT_RUNS_LIMIT),
+    },
+  });
+  if (!parsedNode.success) {
+    return stepFailure(
+      "repository_integrity_error",
+      `ConnectorHealthCardNode "${nodeId}" failed runtime schema validation`
+    );
+  }
+
+  return { ok: true, node: parsedNode.data };
+}
+
 export function hydrateWorkspaceNodes(
   specNodes: readonly PlannerNodeSpec[],
   ctx: WorkspaceNodeHydrationContext
@@ -216,11 +266,19 @@ export function hydrateWorkspaceNodes(
           specNode.projectNumbers,
           ctx.citedByNumber
         );
-      case "ConnectorHealthCard":
-        return stepFailure(
-          "invalid_layout_spec",
-          `Unsupported card component "${specNode.component}"`
-        );
+      case "ConnectorHealthCard": {
+        const changelog = ctx.changelogByConnector.get(specNode.connectorId);
+        return changelog && ctx.compactLedger
+          ? buildConnectorHealthCardNode(
+              specNode.nodeId,
+              changelog,
+              ctx.compactLedger
+            )
+          : stepFailure(
+              "entity_not_found",
+              `Connector "${specNode.connectorId}" was not found`
+            );
+      }
     }
   });
 
