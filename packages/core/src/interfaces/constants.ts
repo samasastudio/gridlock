@@ -3,6 +3,7 @@ import {
   type ConnectorConfig,
   type TdlrSearchFilter,
 } from "./filing-models.ts";
+import type { UiAstComponentType } from "./investigate-ast-models.ts";
 import type { EfficiencyLedger } from "./telemetry-models.ts";
 
 export const GRIDLOCK_USER_AGENT =
@@ -21,6 +22,7 @@ export const NAIVE_COST_PER_TOKEN_USD = 0.0000025;
 export const DEFAULT_GCP_PROJECT_ID = "gridlock-civic-atlas";
 export const REPAIR_AGENT_MODEL = "gemini-3.8-flash" as const;
 export const PAINTER_AGENT_MODEL = "gemini-3-pro-image" as const;
+export const INVESTIGATION_PLANNER_MODEL = "gemini-3.8-flash" as const;
 export const DEFAULT_LINEAGE_ID = "texas-corridor-main" as const;
 export const SCENARIO_BRANCH_WATERMARK =
   "Scenario Branch / Unverified Projection" as const;
@@ -114,4 +116,72 @@ export const CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA: Record<string, unknown> = {
     rootCauseSummary: { type: "string" },
   },
   required: ["rootCauseSummary"],
+};
+
+const PLANNED_PROJECT_NUMBERS_JSON_SCHEMA: Record<string, unknown> = {
+  type: "array",
+  minItems: 1,
+  maxItems: MAX_PROJECTS_PER_CARD,
+  items: { type: "string" },
+};
+
+function buildPlannerCardJsonSchema(
+  component: UiAstComponentType,
+  extraProperties: Record<string, unknown>,
+  requiredExtraKeys: readonly string[]
+): Record<string, unknown> {
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      nodeId: { type: "string" },
+      component: { type: "string", enum: [component] },
+      ...extraProperties,
+    },
+    required: ["nodeId", "component", ...requiredExtraKeys],
+  };
+}
+
+export const PLANNER_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    nodes: {
+      type: "array",
+      maxItems: MAX_WORKSPACE_NODES,
+      items: {
+        anyOf: [
+          buildPlannerCardJsonSchema(
+            "ProjectDossierCard",
+            { projectNumber: { type: "string" } },
+            ["projectNumber"]
+          ),
+          buildPlannerCardJsonSchema(
+            "VisualPlateScrubber",
+            {
+              lineageId: { type: "string" },
+              initialPlateId: { type: "string" },
+            },
+            ["lineageId"]
+          ),
+          buildPlannerCardJsonSchema(
+            "ObservationTimeline",
+            { projectNumbers: PLANNED_PROJECT_NUMBERS_JSON_SCHEMA },
+            ["projectNumbers"]
+          ),
+          buildPlannerCardJsonSchema(
+            "MetricComparisonTable",
+            { projectNumbers: PLANNED_PROJECT_NUMBERS_JSON_SCHEMA },
+            ["projectNumbers"]
+          ),
+          buildPlannerCardJsonSchema(
+            "ConnectorHealthCard",
+            { connectorId: { type: "string" } },
+            ["connectorId"]
+          ),
+        ],
+      },
+    },
+  },
+  required: ["nodes"],
 };

@@ -25,6 +25,7 @@ export const TelemetryStageSchema = z.enum([
   "painter_milestone_gate",
   "painter_milestone_delta",
   "painter_branch_lineage",
+  "investigation_planner",
 ]);
 
 export type TelemetryStage = z.infer<typeof TelemetryStageSchema>;

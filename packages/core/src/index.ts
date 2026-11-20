@@ -40,6 +40,7 @@ export {
   EpistemicPlateLabelSchema,
   ExecutionModeSchema,
   GRIDLOCK_USER_AGENT,
+  INVESTIGATION_PLANNER_MODEL,
   InvestigatePlanRequestSchema,
   InvestigatePlanResponseSchema,
   IsoCalendarDateSchema,
@@ -60,6 +61,7 @@ export {
   ObservationSchema,
   ObservationTimelineNodeSchema,
   PAINTER_AGENT_MODEL,
+  PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
   PlannerLayoutSpecSchema,
   PlannerNodeSpecSchema,
   PlateLineageResponseSchema,
@@ -220,6 +222,13 @@ export {
   type PainterDeps,
   type PaintMilestoneDeltaInput,
 } from "./use-cases/run-painter-agent.ts";
+export {
+  runInvestigationPlanner,
+  type InvestigationPlannerDeps,
+  type InvestigationPlannerErrorCode,
+  type InvestigationPlannerInput,
+  type InvestigationPlannerResult,
+} from "./use-cases/run-investigation-planner.ts";
 export { runOutOfBandRepairAgent } from "./use-cases/run-repair-agent.ts";
 
 export async function ingestTdlrFiling(
