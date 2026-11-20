@@ -12,11 +12,10 @@ import {
   buildInvestigationPlannerPrompt,
   validatePlannerInteractionOutput,
   validatePlannerRequestInput,
-  type InitialPlannerProjectCatalog,
   type PlannerInteractionValidationResult,
 } from "./helpers/investigate-planner-prompt.ts";
-import { sanitizeAstProse } from "./helpers/investigate-provenance.ts";
 import { hydrateInvestigationWorkspace } from "./hydrate-investigation-workspace.ts";
+import { loadPlannerGroundingCatalog } from "./load-investigation-catalog.ts";
 import { recordAgenticStageTelemetry } from "./record-telemetry.ts";
 
 export type InvestigationPlannerErrorCode =
@@ -53,25 +52,6 @@ const plannerErr = (
   message: string
 ): InvestigationPlannerResult => ({ ok: false, status, error, message });
 
-async function loadInitialProjectCatalog(
-  repository: GridlockRepository
-): Promise<InitialPlannerProjectCatalog> {
-  const projects = await repository.listProjects();
-  return {
-    projects: projects.map((project) => ({
-      projectNumber: project.projectNumber,
-      projectName: sanitizeAstProse(project.projectName),
-      facilityName: sanitizeAstProse(project.facilityName),
-      ownerName: sanitizeAstProse(project.ownerName),
-      county: sanitizeAstProse(project.county),
-      currentStatus: sanitizeAstProse(project.currentStatus),
-      estimatedCostUsd: project.estimatedCostUsd,
-      squareFootage: project.squareFootage,
-      updatedAt: project.updatedAt,
-    })),
-  };
-}
-
 async function executePlannerGeminiTurn(
   geminiClient: GeminiInteractionsClient,
   prompt: string
@@ -106,6 +86,13 @@ export async function runInvestigationPlanner(
     return plannerErr(400, "invalid_request_body", parsedRequest.message);
   }
 
+  const startedWallMs = Date.now();
+  const startedAt = parsedRequest.now ?? new Date();
+  const catalogResult = await loadPlannerGroundingCatalog(deps.repository, startedAt);
+  if (!catalogResult.ok) {
+    return plannerErr(500, "investigate_plan_error", catalogResult.message);
+  }
+
   if (!deps.geminiClient) {
     return plannerErr(
       503,
@@ -114,12 +101,9 @@ export async function runInvestigationPlanner(
     );
   }
 
-  const startedWallMs = Date.now();
-  const startedAt = parsedRequest.now ?? new Date();
-  const catalog = await loadInitialProjectCatalog(deps.repository);
   const prompt = buildInvestigationPlannerPrompt({
     query: parsedRequest.request.query,
-    catalog,
+    catalog: catalogResult.catalog,
   });
 
   const validated = await executePlannerGeminiTurn(deps.geminiClient, prompt);

@@ -33,6 +33,7 @@ export const DEFAULT_MAX_BRANCHES_PER_LINEAGE = 25;
 export const MAX_WORKSPACE_NODES = 6;
 export const MAX_PROJECTS_PER_CARD = 10;
 export const MAX_INVESTIGATE_QUERY_LENGTH = 1_000;
+export const MAX_PLANNER_CATALOG_PROJECTS = 50;
 export const CONNECTOR_HEALTH_RECENT_RUNS_LIMIT = 10;
 
 export const DEFAULT_TDLR_SEARCH_FILTERS: readonly TdlrSearchFilter[] = [
