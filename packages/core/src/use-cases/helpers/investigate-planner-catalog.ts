@@ -13,7 +13,10 @@ import {
   validateStoredProjects,
   type HydratorStepFailure,
 } from "./investigate-provenance.ts";
-import type { PlannerCatalogLineageEntry } from "./investigate-planner-seam-catalog.ts";
+import type {
+  PlannerCatalogConnectorEntry,
+  PlannerCatalogLineageEntry,
+} from "./investigate-planner-seam-catalog.ts";
 
 export interface PlannerCatalogProjectEntry {
   projectNumber: string;
@@ -33,6 +36,7 @@ export interface PlannerCatalogProjectEntry {
 export interface PlannerGroundingCatalog {
   projects: readonly PlannerCatalogProjectEntry[];
   lineages: readonly PlannerCatalogLineageEntry[];
+  connectors: readonly PlannerCatalogConnectorEntry[];
 }
 
 function compareCatalogProjects(left: Project, right: Project): number {

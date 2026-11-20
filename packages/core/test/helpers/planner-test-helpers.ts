@@ -5,11 +5,14 @@ import {
   bootstrapCanvas,
   branchLineage,
   CANONICAL_MILESTONE_LABEL,
+  CandidateSelectorPatchSchema,
   createGridlockHttpServer,
   createInMemoryGridlockRepository,
   DEFAULT_LINEAGE_ID,
+  ingestTdlrFiling,
   ObservationSchema,
   PAINTER_AGENT_MODEL,
+  runOutOfBandRepairAgent,
   SCENARIO_BRANCH_WATERMARK,
   VisualPlateSchema,
   type GeminiInteractionCreateRequest,
@@ -18,6 +21,7 @@ import {
   type GridlockHttpDeps,
   type GridlockRepository,
   type Observation,
+  type PlannerLayoutSpec,
   type VisualPlate,
 } from "../../src/index.ts";
 import {
@@ -25,6 +29,8 @@ import {
   createTestProject,
   createTestSourceArtifact,
   GZIP_HTML_STUB,
+  HISTORICAL_FIXTURE_V1_HTML,
+  MUTATED_PORTAL_V2_HTML,
 } from "./fixtures.ts";
 
 export const PLANNER_TEST_NOW = new Date("2026-10-28T15:00:00.000Z");
@@ -32,6 +38,8 @@ export const HASH_ACTIVE_A = "a".repeat(64);
 export const HASH_ACTIVE_B = "b".repeat(64);
 export const HASH_QUARANTINED = "c".repeat(64);
 export const HASH_EXPIRED = "d".repeat(64);
+
+const ROBOTS_ALLOW_ALL = "User-agent: *\nAllow: /\n";
 
 export function singleNodeLayout(
   node: Record<string, unknown>
@@ -225,6 +233,61 @@ export async function seedFiveCardPlannerRepository(): Promise<{
 }> {
   const repository = await seedFilingPlannerRepository();
 
+  const anomaly = await ingestTdlrFiling(
+    {
+      projectNumber: "TABS2027009888",
+      baseUrl: "https://www.tdlr.texas.gov",
+      now: new Date("2026-10-27T14:00:00.000Z"),
+      robotsTxt: ROBOTS_ALLOW_ALL,
+    },
+    {
+      repository,
+      pageLoader: async () => ({
+        status: 200,
+        contentType: "text/html",
+        body: MUTATED_PORTAL_V2_HTML,
+      }),
+    }
+  );
+  assert.equal(anomaly.status, "selector_anomaly");
+  if (anomaly.status !== "selector_anomaly") {
+    throw new Error("Expected selector_anomaly for TABS2027009888");
+  }
+
+  const repairResult = await runOutOfBandRepairAgent(
+    {
+      connectorId: "tdlr-tabs",
+      quarantinedArtifact: anomaly.sourceArtifact,
+      brokenInvariants: anomaly.invariantErrors,
+      historicalFixtures: [HISTORICAL_FIXTURE_V1_HTML],
+      anomalyDetectedAt: new Date("2026-10-27T14:00:00.000Z"),
+      now: new Date("2026-10-27T14:00:02.000Z"),
+    },
+    {
+      repository,
+      geminiClient: {
+        interactions: {
+          create: async () => ({
+            id: "ix_repair_seam3",
+            status: "completed",
+            output_text: JSON.stringify(
+              CandidateSelectorPatchSchema.parse({
+                detailContainerSelector:
+                  ".project-details, .tabs-project-details-v2",
+                fieldLabels: {
+                  estimatedCost: "Estimated Cost: | Total Estimated Cost:",
+                },
+                rootCauseSummary: "Portal wrapper updated to v2 container",
+              })
+            ),
+            usage: { total_tokens: 210 },
+          }),
+        },
+      },
+    }
+  );
+  assert.equal(repairResult.status, "repair_promoted");
+
   let painterSeq = 0;
   const painterClient: GeminiInteractionsClient = {
     interactions: {
@@ -328,6 +391,41 @@ export async function seedFiveCardPlannerRepository(): Promise<{
     repository,
     canonicalArtifactHash: HASH_ACTIVE_A,
     branchPlateId: branchRes.plate.plateId,
+  };
+}
+
+export function createFiveCardLayoutSpec(
+  branchPlateId: string
+): PlannerLayoutSpec {
+  return {
+    nodes: [
+      {
+        nodeId: "dossier-1001",
+        component: "ProjectDossierCard",
+        projectNumber: "TABS2027001001",
+      },
+      {
+        nodeId: "timeline-corridor",
+        component: "ObservationTimeline",
+        projectNumbers: ["TABS2027001001", "TABS2027001002"],
+      },
+      {
+        nodeId: "metrics-corridor",
+        component: "MetricComparisonTable",
+        projectNumbers: ["TABS2027001001", "TABS2027001002"],
+      },
+      {
+        nodeId: "scrubber-corridor",
+        component: "VisualPlateScrubber",
+        lineageId: DEFAULT_LINEAGE_ID,
+        initialPlateId: branchPlateId,
+      },
+      {
+        nodeId: "health-tdlr",
+        component: "ConnectorHealthCard",
+        connectorId: "tdlr-tabs",
+      },
+    ],
   };
 }
 

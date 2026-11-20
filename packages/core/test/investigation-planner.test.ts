@@ -7,6 +7,7 @@ import {
   MAX_INVESTIGATE_QUERY_LENGTH,
   MAX_PLANNER_CATALOG_PROJECTS,
   PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
+  RepairChangelogEntrySchema,
   runInvestigationPlanner,
   TelemetryStageSchema,
   type GeminiInteractionResponse,
@@ -15,6 +16,7 @@ import {
 } from "../src/index.ts";
 import { createTestProject } from "./helpers/fixtures.ts";
 import {
+  createFiveCardLayoutSpec,
   createPlannerClientStub,
   createPlannerObservation,
   createQueuedLayoutClientStub,
@@ -447,32 +449,18 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
 });
 
 describe("runInvestigationPlanner (Cross-seam grounding)", () => {
-  test("grounds healthy plate lineages, omits quarantined/expired lineages, and hydrates VisualPlateScrubber", async () => {
+  test("grounds healthy lineages and connectors, omits quarantined/expired lineages, and hydrates all 5 card types", async () => {
     const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
     const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
-      id: "ix_planner_scrubber",
+      id: "ix_planner_five_card",
       status: "completed",
-      output_text: JSON.stringify({
-        nodes: [
-          {
-            nodeId: "dossier-1001",
-            component: "ProjectDossierCard",
-            projectNumber: "TABS2027001001",
-          },
-          {
-            nodeId: "scrubber-corridor",
-            component: "VisualPlateScrubber",
-            lineageId: DEFAULT_LINEAGE_ID,
-            initialPlateId: branchPlateId,
-          },
-        ],
-      }),
-      usage: { total_tokens: 390 },
+      output_text: JSON.stringify(createFiveCardLayoutSpec(branchPlateId)),
+      usage: { total_tokens: 410 },
     }));
 
     const outcome = await runInvestigationPlanner(
       {
-        query: "Show Ellis corridor dossier and visual plate scrubber",
+        query: "Assemble full Ellis corridor dossier, plates, and connector health",
         now: PLANNER_TEST_NOW,
       },
       { repository, geminiClient }
@@ -481,6 +469,16 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
     assert.equal(outcome.ok, true);
     if (!outcome.ok) return;
     assert.equal(outcome.status, 200);
+    assert.deepEqual(
+      outcome.response.workspace.nodes.map((node) => node.component),
+      [
+        "ProjectDossierCard",
+        "ObservationTimeline",
+        "MetricComparisonTable",
+        "VisualPlateScrubber",
+        "ConnectorHealthCard",
+      ]
+    );
     const scrubberNode = outcome.response.workspace.nodes.find(
       (node) => node.component === "VisualPlateScrubber"
     );
@@ -497,18 +495,26 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
       catalog: {
         projects: Array<{ projectNumber: string }>;
         lineages: Array<{ lineageId: string; plates: Array<{ plateId: string }> }>;
+        connectors: Array<{ connectorId: string; activeVersion: number; repairCount: number }>;
       };
     };
+    assert.deepEqual(
+      parsedPrompt.catalog.projects.map((p) => p.projectNumber),
+      ["TABS2027001001", "TABS2027001002"]
+    );
     assert.deepEqual(
       parsedPrompt.catalog.lineages.map((l) => l.lineageId),
       [DEFAULT_LINEAGE_ID]
     );
     assert.equal(parsedPrompt.catalog.lineages[0]?.plates.length, 2);
+    assert.deepEqual(parsedPrompt.catalog.connectors, [
+      { connectorId: "tdlr-tabs", status: "healthy", activeVersion: 2, repairCount: 1 },
+    ]);
     assert.equal(promptText.includes("planner_lead@example.com"), false);
     assert.equal(promptText.includes("[REDACTED_EMAIL]"), true);
   });
 
-  test("aborts with 500 at 0 Gemini calls on corrupt VisualPlate storage", async () => {
+  test("aborts with 500 at 0 Gemini calls and 0 TelemetryRun writes on corrupt VisualPlate, RepairChangelogEntry, or ConnectorConfig", async () => {
     const repository = await seedFilingPlannerRepository();
     const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
       id: "ix_unreachable",
@@ -516,20 +522,79 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
       output_text: JSON.stringify({ nodes: [] }),
     }));
 
-    const res = await runInvestigationPlanner(
+    const blankSummaryEntry = RepairChangelogEntrySchema.parse({
+      id: "chg_blank_summary",
+      connectorId: "tdlr-tabs",
+      previousVersion: 1,
+      promotedVersion: 2,
+      quarantinedArtifactHash: HASH_QUARANTINED,
+      brokenInvariants: ["Missing selector"],
+      selectorDiffs: [
+        {
+          field: "detailContainerSelector",
+          before: ".old",
+          after: ".new",
+        },
+      ],
+      rootCauseSummary: "   ",
+      historicalFixturesTested: 1,
+      historicalFixturesPassed: 1,
+      totalFixturesVerified: 2,
+      anomalyDetectedAt: "2026-10-28T11:59:00.000Z",
+      patchPromotedAt: "2026-10-28T12:00:00.000Z",
+      mttrMs: 500,
+      interactionId: "ix_blank_summary",
+      repairTokensUsed: 100,
+      estimatedRepairCostUsd: 0.00025,
+      subsequentDeterministicRunsServed: 0,
+      expiresAt: null,
+    });
+
+    const blankProseRes = await runInvestigationPlanner(
       { query: "Check corridor status", now: PLANNER_TEST_NOW },
       {
         repository: {
           ...repository,
-          listVisualPlatesByLineage: async () => [{ plateId: "bad" }] as never,
+          listRepairChangelog: async () => [blankSummaryEntry],
         },
         geminiClient,
       }
     );
-    assert.equal(res.ok, false);
-    if (!res.ok) {
-      assert.equal(res.status, 500);
-      assert.equal(res.error, "investigate_plan_error");
+    assert.equal(blankProseRes.ok, false);
+    if (!blankProseRes.ok) {
+      assert.equal(blankProseRes.status, 500);
+      assert.equal(blankProseRes.error, "investigate_plan_error");
+      assert.equal(
+        blankProseRes.message,
+        "Sanitized RepairChangelogEntry prose failed runtime schema validation"
+      );
+    }
+
+    const corruptVariants: GridlockRepository[] = [
+      {
+        ...repository,
+        listVisualPlatesByLineage: async () => [{ plateId: "bad" }] as never,
+      },
+      {
+        ...repository,
+        listRepairChangelog: async () => [{ connectorId: "tdlr-tabs" }] as never,
+      },
+      {
+        ...repository,
+        getActiveConnectorConfig: async () => ({ connectorId: "wrong-id" }) as never,
+      },
+    ];
+
+    for (const corruptRepo of corruptVariants) {
+      const res = await runInvestigationPlanner(
+        { query: "Check corridor status", now: PLANNER_TEST_NOW },
+        { repository: corruptRepo, geminiClient }
+      );
+      assert.equal(res.ok, false);
+      if (!res.ok) {
+        assert.equal(res.status, 500);
+        assert.equal(res.error, "investigate_plan_error");
+      }
     }
 
     assert.equal(recordedRequests.length, 0);
