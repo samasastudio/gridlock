@@ -2,17 +2,26 @@ import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import {
   ARTIFACT_BUCKET_URI,
+  bootstrapCanvas,
+  branchLineage,
+  CANONICAL_MILESTONE_LABEL,
   createGridlockHttpServer,
   createInMemoryGridlockRepository,
+  DEFAULT_LINEAGE_ID,
   ObservationSchema,
+  PAINTER_AGENT_MODEL,
+  SCENARIO_BRANCH_WATERMARK,
+  VisualPlateSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
   type GridlockHttpDeps,
   type GridlockRepository,
   type Observation,
+  type VisualPlate,
 } from "../../src/index.ts";
 import {
+  createFixtureWebpBuffer,
   createTestProject,
   createTestSourceArtifact,
   GZIP_HTML_STUB,
@@ -168,6 +177,158 @@ export async function seedFilingPlannerRepository(): Promise<GridlockRepository>
   );
 
   return repository;
+}
+
+async function saveTestVisualPlate(
+  repository: GridlockRepository,
+  overrides: Partial<VisualPlate> &
+    Pick<
+      VisualPlate,
+      | "plateId"
+      | "lineageId"
+      | "projectNumbers"
+      | "triggeringObservationIds"
+      | "sourceArtifactHashes"
+      | "sha256"
+    >
+): Promise<void> {
+  const webpBuf = createFixtureWebpBuffer(overrides.plateId);
+  const isBranch = overrides.isBranch ?? false;
+  await repository.saveVisualPlate(
+    VisualPlateSchema.parse({
+      turnNumber: 1,
+      model: PAINTER_AGENT_MODEL,
+      interactionId: `ix_${overrides.plateId}`,
+      parentInteractionId: null,
+      parentPlateId: null,
+      prompt: `Fixture prompt ${overrides.plateId}`,
+      storageUri: `${ARTIFACT_BUCKET_URI}/plates/${overrides.plateId}.webp`,
+      mimeType: "image/webp",
+      byteLength: webpBuf.byteLength,
+      isBranch,
+      epistemicLabel: isBranch
+        ? SCENARIO_BRANCH_WATERMARK
+        : CANONICAL_MILESTONE_LABEL,
+      watermarkText: isBranch ? SCENARIO_BRANCH_WATERMARK : null,
+      createdAt: "2026-10-20T15:00:00.000Z",
+      expiresAt: null,
+      ...overrides,
+    }),
+    webpBuf
+  );
+}
+
+export async function seedFiveCardPlannerRepository(): Promise<{
+  repository: GridlockRepository;
+  canonicalArtifactHash: string;
+  branchPlateId: string;
+}> {
+  const repository = await seedFilingPlannerRepository();
+
+  let painterSeq = 0;
+  const painterClient: GeminiInteractionsClient = {
+    interactions: {
+      create: async () => {
+        painterSeq += 1;
+        return {
+          id: `ix_painter_seam_${painterSeq}`,
+          status: "completed",
+          output_image: {
+            mime_type: "image/webp",
+            data: createFixtureWebpBuffer(
+              `planner-plate-${painterSeq}`
+            ).toString("base64"),
+          },
+          usage: { total_tokens: 160 },
+        };
+      },
+    },
+  };
+
+  const ellisObservations =
+    await repository.listObservationsByProject("TABS2027001001");
+  const bootstrapRes = await bootstrapCanvas(
+    {
+      lineageId: DEFAULT_LINEAGE_ID,
+      observations: ellisObservations,
+      prompt: "Bootstrap Ellis corridor plate",
+      now: new Date("2026-10-27T15:00:00.000Z"),
+    },
+    { repository, geminiClient: painterClient }
+  );
+  assert.equal(bootstrapRes.status, "plate_painted");
+  if (bootstrapRes.status !== "plate_painted") {
+    throw new Error("Expected plate_painted for bootstrapCanvas");
+  }
+
+  const branchRes = await branchLineage(
+    {
+      lineageId: DEFAULT_LINEAGE_ID,
+      parentInteractionId: bootstrapRes.plate.interactionId,
+      scenarioPrompt: "Add 300MW switchyard for planner_lead@example.com",
+      now: new Date("2026-10-27T15:10:00.000Z"),
+    },
+    { repository, geminiClient: painterClient }
+  );
+  assert.equal(branchRes.status, "plate_painted");
+  if (branchRes.status !== "plate_painted") {
+    throw new Error("Expected plate_painted for branchLineage");
+  }
+
+  await saveTestVisualPlate(repository, {
+    plateId: "plate_expired_branch",
+    lineageId: DEFAULT_LINEAGE_ID,
+    turnNumber: 2,
+    parentInteractionId: bootstrapRes.plate.interactionId,
+    parentPlateId: bootstrapRes.plate.plateId,
+    projectNumbers: ["TABS2027001001"],
+    triggeringObservationIds: ["obs_1001_m1"],
+    sourceArtifactHashes: [HASH_ACTIVE_A],
+    storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/plate_expired_branch.webp`,
+    sha256: "9".repeat(64),
+    isBranch: true,
+    scenarioPrompt: "Expired scenario prompt",
+    createdAt: "2026-07-01T10:00:00.000Z",
+    expiresAt: "2026-09-29T10:00:00.000Z",
+  });
+
+  await repository.appendObservation(
+    createPlannerObservation(
+      "obs_quarantined_lineage",
+      "TABS2027001003",
+      HASH_QUARANTINED
+    )
+  );
+  await saveTestVisualPlate(repository, {
+    plateId: "plate_quarantined_1",
+    lineageId: "quarantined-lineage",
+    projectNumbers: ["TABS2027001003"],
+    triggeringObservationIds: ["obs_quarantined_lineage"],
+    sourceArtifactHashes: [HASH_QUARANTINED],
+    sha256: "e".repeat(64),
+  });
+
+  await repository.appendObservation(
+    createPlannerObservation(
+      "obs_expired_lineage",
+      "TABS2027001004",
+      HASH_EXPIRED
+    )
+  );
+  await saveTestVisualPlate(repository, {
+    plateId: "plate_expired_1",
+    lineageId: "expired-lineage",
+    projectNumbers: ["TABS2027001004"],
+    triggeringObservationIds: ["obs_expired_lineage"],
+    sourceArtifactHashes: [HASH_EXPIRED],
+    sha256: "f".repeat(64),
+  });
+
+  return {
+    repository,
+    canonicalArtifactHash: HASH_ACTIVE_A,
+    branchPlateId: branchRes.plate.plateId,
+  };
 }
 
 export async function withGridlockTestServer(

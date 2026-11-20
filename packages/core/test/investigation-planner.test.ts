@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  DEFAULT_LINEAGE_ID,
   INVESTIGATION_PLANNER_MODEL,
   InvestigatePlanResponseSchema,
   MAX_INVESTIGATE_QUERY_LENGTH,
@@ -21,6 +22,7 @@ import {
   HASH_QUARANTINED,
   PLANNER_TEST_NOW,
   seedFilingPlannerRepository,
+  seedFiveCardPlannerRepository,
   singleNodeLayout,
 } from "./helpers/planner-test-helpers.ts";
 
@@ -441,5 +443,96 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(runs[0]?.tokensUsed, 90);
     assert.equal(runs[1]?.status, "agentic_failed");
     assert.equal(runs[1]?.tokensUsed, 95);
+  });
+});
+
+describe("runInvestigationPlanner (Cross-seam grounding)", () => {
+  test("grounds healthy plate lineages, omits quarantined/expired lineages, and hydrates VisualPlateScrubber", async () => {
+    const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
+    const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
+      id: "ix_planner_scrubber",
+      status: "completed",
+      output_text: JSON.stringify({
+        nodes: [
+          {
+            nodeId: "dossier-1001",
+            component: "ProjectDossierCard",
+            projectNumber: "TABS2027001001",
+          },
+          {
+            nodeId: "scrubber-corridor",
+            component: "VisualPlateScrubber",
+            lineageId: DEFAULT_LINEAGE_ID,
+            initialPlateId: branchPlateId,
+          },
+        ],
+      }),
+      usage: { total_tokens: 390 },
+    }));
+
+    const outcome = await runInvestigationPlanner(
+      {
+        query: "Show Ellis corridor dossier and visual plate scrubber",
+        now: PLANNER_TEST_NOW,
+      },
+      { repository, geminiClient }
+    );
+
+    assert.equal(outcome.ok, true);
+    if (!outcome.ok) return;
+    assert.equal(outcome.status, 200);
+    const scrubberNode = outcome.response.workspace.nodes.find(
+      (node) => node.component === "VisualPlateScrubber"
+    );
+    assert.equal(scrubberNode?.component, "VisualPlateScrubber");
+    if (scrubberNode?.component === "VisualPlateScrubber") {
+      const frameIds = scrubberNode.lineage.nodes.map((n) => n.plate.plateId);
+      assert.equal(frameIds.length, 2);
+      assert.equal(frameIds.includes(branchPlateId), true);
+      assert.equal(frameIds.includes("plate_expired_branch"), false);
+    }
+
+    const promptText = String(recordedRequests[0]?.input);
+    const parsedPrompt = JSON.parse(promptText) as {
+      catalog: {
+        projects: Array<{ projectNumber: string }>;
+        lineages: Array<{ lineageId: string; plates: Array<{ plateId: string }> }>;
+      };
+    };
+    assert.deepEqual(
+      parsedPrompt.catalog.lineages.map((l) => l.lineageId),
+      [DEFAULT_LINEAGE_ID]
+    );
+    assert.equal(parsedPrompt.catalog.lineages[0]?.plates.length, 2);
+    assert.equal(promptText.includes("planner_lead@example.com"), false);
+    assert.equal(promptText.includes("[REDACTED_EMAIL]"), true);
+  });
+
+  test("aborts with 500 at 0 Gemini calls on corrupt VisualPlate storage", async () => {
+    const repository = await seedFilingPlannerRepository();
+    const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
+      id: "ix_unreachable",
+      status: "completed",
+      output_text: JSON.stringify({ nodes: [] }),
+    }));
+
+    const res = await runInvestigationPlanner(
+      { query: "Check corridor status", now: PLANNER_TEST_NOW },
+      {
+        repository: {
+          ...repository,
+          listVisualPlatesByLineage: async () => [{ plateId: "bad" }] as never,
+        },
+        geminiClient,
+      }
+    );
+    assert.equal(res.ok, false);
+    if (!res.ok) {
+      assert.equal(res.status, 500);
+      assert.equal(res.error, "investigate_plan_error");
+    }
+
+    assert.equal(recordedRequests.length, 0);
+    assert.equal((await repository.listTelemetryRuns()).length, 0);
   });
 });
