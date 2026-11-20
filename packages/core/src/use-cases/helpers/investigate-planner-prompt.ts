@@ -7,8 +7,43 @@ import {
   type HydrateWorkspaceErrorCode,
   type InvestigatePlanRequest,
   type PlannerLayoutSpec,
+  type UiWidgetNode,
+  type UiWorkspaceAst,
 } from "../../interfaces/index.ts";
 import type { PlannerGroundingCatalog } from "./investigate-planner-catalog.ts";
+
+type CompactWorkspaceNodeSummary =
+  | {
+      nodeId: string;
+      component: "ProjectDossierCard";
+      projectNumber: string;
+    }
+  | {
+      nodeId: string;
+      component: "ObservationTimeline";
+      projectNumbers: readonly string[];
+    }
+  | {
+      nodeId: string;
+      component: "MetricComparisonTable";
+      projectNumbers: readonly string[];
+    }
+  | {
+      nodeId: string;
+      component: "VisualPlateScrubber";
+      lineageId: string;
+      initialPlateId?: string;
+    }
+  | {
+      nodeId: string;
+      component: "ConnectorHealthCard";
+      connectorId: string;
+    };
+
+interface CompactWorkspaceSummary {
+  isEmpty: boolean;
+  nodes: readonly CompactWorkspaceNodeSummary[];
+}
 
 export type PlannerInteractionValidationResult =
   | { ok: true; spec: PlannerLayoutSpec; interactionId: string; tokensUsed: number }
@@ -71,10 +106,64 @@ export function mapHydrationErrorToPlannerStatus(error: HydrateWorkspaceErrorCod
   return { status: 500, error: "investigate_plan_error" };
 }
 
+function summarizeWorkspaceNode(node: UiWidgetNode): CompactWorkspaceNodeSummary {
+  switch (node.component) {
+    case "ProjectDossierCard":
+      return {
+        nodeId: node.nodeId,
+        component: node.component,
+        projectNumber: node.citedProject.project.projectNumber,
+      };
+    case "ObservationTimeline":
+      return {
+        nodeId: node.nodeId,
+        component: node.component,
+        projectNumbers: node.projectNumbers,
+      };
+    case "MetricComparisonTable":
+      return {
+        nodeId: node.nodeId,
+        component: node.component,
+        projectNumbers: node.rows.map((row) => row.project.projectNumber),
+      };
+    case "VisualPlateScrubber":
+      return {
+        nodeId: node.nodeId,
+        component: node.component,
+        lineageId: node.lineage.lineageId,
+        ...(node.initialPlateId !== undefined
+          ? { initialPlateId: node.initialPlateId }
+          : {}),
+      };
+    case "ConnectorHealthCard":
+      return {
+        nodeId: node.nodeId,
+        component: node.component,
+        connectorId: node.changelog.connectorId,
+      };
+  }
+}
+
+function summarizeCurrentWorkspaceAst(
+  currentAst: UiWorkspaceAst
+): CompactWorkspaceSummary {
+  return {
+    isEmpty: currentAst.isEmpty,
+    nodes: currentAst.nodes.map(summarizeWorkspaceNode),
+  };
+}
+
 export function buildInvestigationPlannerPrompt(input: {
   query: string;
   catalog: PlannerGroundingCatalog;
+  currentAst?: UiWorkspaceAst;
 }): string {
+  const refinementRules =
+    input.currentAst !== undefined
+      ? [
+          "Refine currentWorkspace in place: preserve existing nodeId values for retained or updated cards, add, remove, reorder, or filter nodes as requested by query, and drop any entity no longer present in catalog.",
+        ]
+      : [];
   return JSON.stringify({
     task: "Plan a bounded Gridlock UI AST workspace layout matching the civic researcher query.",
     rules: [
@@ -82,8 +171,12 @@ export function buildInvestigationPlannerPrompt(input: {
       `Component keys: ProjectDossierCard requires projectNumber; ObservationTimeline and MetricComparisonTable require 1 to ${MAX_PROJECTS_PER_CARD} unique projectNumbers; VisualPlateScrubber requires lineageId and optional initialPlateId; ConnectorHealthCard requires connectorId.`,
       "Reference only verified identifiers present in catalog; select ObservationTimeline only for projects with timelineHydratable === true.",
       'Return { "nodes": [] } when no catalog records match query.',
+      ...refinementRules,
     ],
     query: input.query,
+    ...(input.currentAst !== undefined
+      ? { currentWorkspace: summarizeCurrentWorkspaceAst(input.currentAst) }
+      : {}),
     catalog: input.catalog,
   });
 }

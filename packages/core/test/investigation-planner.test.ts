@@ -13,6 +13,7 @@ import {
   type GeminiInteractionResponse,
   type GridlockRepository,
   type TelemetrySpan,
+  type UiWorkspaceAst,
 } from "../src/index.ts";
 import { createTestProject } from "./helpers/fixtures.ts";
 import {
@@ -599,5 +600,160 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
 
     assert.equal(recordedRequests.length, 0);
     assert.equal((await repository.listTelemetryRuns()).length, 0);
+  });
+});
+
+describe("runInvestigationPlanner (In-place workspace refinement)", () => {
+  test("passes compact currentWorkspace manifest on refinement without hydrated prose and rejects tampered currentAst at 0 tokens", async () => {
+    const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
+    const spans: TelemetrySpan[] = [];
+    const { geminiClient, recordedRequests } = createQueuedLayoutClientStub(
+      [
+        createFiveCardLayoutSpec(branchPlateId),
+        {
+          nodes: [
+            {
+              nodeId: "scrubber-corridor",
+              component: "VisualPlateScrubber",
+              lineageId: DEFAULT_LINEAGE_ID,
+              initialPlateId: branchPlateId,
+            },
+            {
+              nodeId: "dossier-1002",
+              component: "ProjectDossierCard",
+              projectNumber: "TABS2027001002",
+            },
+            {
+              nodeId: "dossier-1001",
+              component: "ProjectDossierCard",
+              projectNumber: "TABS2027001001",
+            },
+            {
+              nodeId: "timeline-corridor",
+              component: "ObservationTimeline",
+              projectNumbers: ["TABS2027001001"],
+            },
+            {
+              nodeId: "metrics-corridor",
+              component: "MetricComparisonTable",
+              projectNumbers: ["TABS2027001001"],
+            },
+          ],
+        },
+      ],
+      { idPrefix: "ix_refine_turn", baseTokens: 260, tokenStep: 20 }
+    );
+
+    const freshOutcome = await runInvestigationPlanner(
+      { query: "Build initial five-card corridor workspace", now: PLANNER_TEST_NOW },
+      { repository, geminiClient, spanSink: (span) => spans.push(span) }
+    );
+    assert.equal(freshOutcome.ok, true);
+    if (!freshOutcome.ok) return;
+    assert.equal(spans[0]?.attributes?.hasCurrentAst, false);
+
+    const freshPromptObj = JSON.parse(String(recordedRequests[0]?.input)) as Record<
+      string,
+      unknown
+    >;
+    assert.equal("currentWorkspace" in freshPromptObj, false);
+
+    const initialWorkspace = freshOutcome.response.workspace;
+    const refineOutcome = await runInvestigationPlanner(
+      {
+        query:
+          "Move visual plate first, add TABS2027001002 dossier, remove connector health, and filter timeline and metrics to TABS2027001001",
+        currentAst: initialWorkspace,
+        now: PLANNER_TEST_NOW,
+      },
+      { repository, geminiClient, spanSink: (span) => spans.push(span) }
+    );
+    assert.equal(refineOutcome.ok, true);
+    if (!refineOutcome.ok) return;
+    assert.equal(spans[1]?.attributes?.hasCurrentAst, true);
+    assert.deepEqual(
+      refineOutcome.response.workspace.nodes.map((node) => node.nodeId),
+      [
+        "scrubber-corridor",
+        "dossier-1002",
+        "dossier-1001",
+        "timeline-corridor",
+        "metrics-corridor",
+      ]
+    );
+    const refinedTimeline = refineOutcome.response.workspace.nodes.find(
+      (node) => node.component === "ObservationTimeline"
+    );
+    assert.deepEqual(
+      refinedTimeline?.component === "ObservationTimeline"
+        ? refinedTimeline.projectNumbers
+        : [],
+      ["TABS2027001001"]
+    );
+
+    const refinePromptRaw = String(recordedRequests[1]?.input);
+    for (const omittedKey of [
+      "scopeOfWork",
+      "locationAddress",
+      "rootCauseSummary",
+      "sourceUrl",
+      "recentRuns",
+    ]) {
+      assert.equal(refinePromptRaw.includes(`"${omittedKey}"`), false);
+    }
+    const refinePromptObj = JSON.parse(refinePromptRaw) as {
+      currentWorkspace: unknown;
+    };
+    assert.deepEqual(refinePromptObj.currentWorkspace, {
+      isEmpty: false,
+      nodes: createFiveCardLayoutSpec(branchPlateId).nodes,
+    });
+
+    const runsBeforeTampered = (await repository.listTelemetryRuns()).length;
+    const firstDossier = initialWorkspace.nodes[0]!;
+    assert.equal(firstDossier.component, "ProjectDossierCard");
+    if (firstDossier.component !== "ProjectDossierCard") return;
+
+    const tamperedAsts: UiWorkspaceAst[] = [
+      { ...initialWorkspace, isEmpty: true },
+      {
+        ...initialWorkspace,
+        nodes: [
+          {
+            ...firstDossier,
+            citedProject: {
+              ...firstDossier.citedProject,
+              citation: {
+                ...firstDossier.citedProject.citation,
+                sha256: "f".repeat(64),
+              },
+            },
+          },
+          ...initialWorkspace.nodes.slice(1),
+        ],
+      },
+      {
+        ...initialWorkspace,
+        nodes: [
+          firstDossier,
+          { ...initialWorkspace.nodes[1]!, nodeId: firstDossier.nodeId },
+        ],
+      },
+    ];
+
+    for (const tamperedAst of tamperedAsts) {
+      const tamperedRes = await runInvestigationPlanner(
+        { query: "Refine tampered workspace", currentAst: tamperedAst, now: PLANNER_TEST_NOW },
+        { repository, geminiClient }
+      );
+      assert.equal(tamperedRes.ok, false);
+      if (!tamperedRes.ok) {
+        assert.equal(tamperedRes.status, 400);
+        assert.equal(tamperedRes.error, "invalid_request_body");
+      }
+    }
+
+    assert.equal(recordedRequests.length, 2);
+    assert.equal((await repository.listTelemetryRuns()).length, runsBeforeTampered);
   });
 });

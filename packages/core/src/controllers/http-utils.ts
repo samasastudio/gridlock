@@ -103,7 +103,8 @@ export type JsonObjectBodyResult =
 
 export function readJsonObjectBody(
   req: IncomingMessage,
-  res?: ServerResponse
+  res?: ServerResponse,
+  maxBytes: number = MAX_JSON_BODY_BYTES
 ): Promise<JsonObjectBodyResult> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
@@ -112,7 +113,7 @@ export function readJsonObjectBody(
     const tooLargeErr = (): JsonObjectBodyResult => ({
       ok: false,
       error: "request_body_too_large",
-      message: `Request body exceeds ${MAX_JSON_BODY_BYTES}-byte limit`,
+      message: `Request body exceeds ${maxBytes}-byte limit`,
     });
     const bodyErr = (message: string): JsonObjectBodyResult => ({
       ok: false,
@@ -132,7 +133,7 @@ export function readJsonObjectBody(
       }
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       state.totalBytes += buf.byteLength;
-      if (state.totalBytes > MAX_JSON_BODY_BYTES) {
+      if (state.totalBytes > maxBytes) {
         state.tooLarge = true;
         chunks.length = 0;
         req.pause();

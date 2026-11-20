@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
+import { request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import {
   ARTIFACT_BUCKET_URI,
@@ -471,4 +473,63 @@ export async function assertInvestigateErrorResponse(
   assert.equal(payload.error, expectedError);
   assert.equal(typeof payload.message, "string");
   return res;
+}
+
+export function streamOversizedJsonPost(
+  baseUrl: string,
+  pathname: string,
+  chunkBytes: number,
+  chunkCount: number
+): Promise<{
+  status: number | undefined;
+  connection: string | string[] | undefined;
+  error: unknown;
+  message: unknown;
+}> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("Timed out waiting for 400 response")),
+      2000
+    ).unref();
+
+    const req = httpRequest(
+      new URL(pathname, baseUrl),
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => {
+          chunks.push(chunk);
+        });
+        res.on("end", () => {
+          clearTimeout(timer);
+          const parsed = JSON.parse(
+            Buffer.concat(chunks).toString("utf-8")
+          ) as { error: unknown; message: unknown };
+          resolve({
+            status: res.statusCode,
+            connection: res.headers.connection,
+            error: parsed.error,
+            message: parsed.message,
+          });
+        });
+      }
+    );
+
+    req.on("error", () => {});
+
+    const chunk = Buffer.alloc(chunkBytes, 0x61);
+    const writeNext = (remaining: number): void => {
+      if (remaining === 0) {
+        req.end();
+        return;
+      }
+      if (!req.destroyed && !req.writableEnded) {
+        req.write(chunk, () => writeNext(remaining - 1));
+      }
+    };
+    writeNext(chunkCount);
+  });
 }

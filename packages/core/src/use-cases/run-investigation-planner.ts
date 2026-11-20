@@ -152,6 +152,9 @@ export async function runInvestigationPlanner(
   const prompt = buildInvestigationPlannerPrompt({
     query: parsedRequest.request.query,
     catalog: catalogResult.catalog,
+    ...(parsedRequest.request.currentAst !== undefined
+      ? { currentAst: parsedRequest.request.currentAst }
+      : {}),
   });
   const validated = await executePlannerGeminiTurn(deps.geminiClient, prompt);
   if (!validated.ok) {
