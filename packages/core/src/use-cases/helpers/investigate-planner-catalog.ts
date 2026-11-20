@@ -59,6 +59,14 @@ export function validateCatalogProjectList(
   }
 
   const parsedProjects = parsedItems.flatMap((parsed) => (parsed.success ? [parsed.data] : []));
+  const uniqueNumbers = new Set(parsedProjects.map((p) => p.projectNumber));
+  if (uniqueNumbers.size !== parsedProjects.length) {
+    return stepFailure(
+      "repository_integrity_error",
+      "Duplicate projectNumber found in stored project list"
+    );
+  }
+
   const sanitized = validateStoredProjects(
     parsedProjects.map((project) => ({ projectNumber: project.projectNumber, raw: project }))
   );
@@ -136,6 +144,17 @@ export function buildFilingCatalogEntries(
   const observationsResult = validateStoredObservationsByProject(rawObservationsByProject);
   if (!observationsResult.ok) {
     return observationsResult;
+  }
+
+  const allObservations = Array.from(
+    observationsResult.observationsByProject.values()
+  ).flat();
+  const uniqueObservationIds = new Set(allObservations.map((obs) => obs.id));
+  if (uniqueObservationIds.size !== allObservations.length) {
+    return stepFailure(
+      "repository_integrity_error",
+      "Duplicate observation.id found in stored observations"
+    );
   }
 
   const extraArtifactsResult = validateStoredArtifacts(extraRawArtifacts);

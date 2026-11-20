@@ -4,6 +4,7 @@ import {
   MAX_WORKSPACE_NODES,
   PlannerLayoutSpecSchema,
   type GeminiInteractionResponse,
+  type HydrateWorkspaceErrorCode,
   type InvestigatePlanRequest,
   type PlannerLayoutSpec,
 } from "../../interfaces/index.ts";
@@ -29,18 +30,45 @@ export function validatePlannerRequestInput(
   | { ok: true; request: InvestigatePlanRequest; now?: Date }
   | { ok: false; message: string } {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    return { ok: false, message: "Invalid investigation plan request" };
+    return {
+      ok: false,
+      message: "Invalid investigation plan request: expected an object",
+    };
   }
   const { now: rawNow, ...requestFields } = input as Record<string, unknown>;
+  if (
+    rawNow !== undefined &&
+    (!(rawNow instanceof Date) || Number.isNaN(rawNow.getTime()))
+  ) {
+    return {
+      ok: false,
+      message: "Invalid investigation plan request: now must be a valid Date",
+    };
+  }
   const parsed = InvestigatePlanRequestSchema.safeParse(requestFields);
   if (!parsed.success) {
-    return { ok: false, message: "Invalid investigation plan request" };
+    const firstIssue = parsed.error.issues[0];
+    const detail = firstIssue ? `: ${firstIssue.message}` : "";
+    return { ok: false, message: `Invalid investigation plan request${detail}` };
   }
   return {
     ok: true,
     request: parsed.data,
     ...(rawNow instanceof Date ? { now: rawNow } : {}),
   };
+}
+
+export function mapHydrationErrorToPlannerStatus(error: HydrateWorkspaceErrorCode): {
+  status: 422 | 500 | 502;
+  error: "planner_upstream_error" | "planner_unresolvable_plan" | "investigate_plan_error";
+} {
+  if (error === "invalid_layout_spec") {
+    return { status: 502, error: "planner_upstream_error" };
+  }
+  if (error === "entity_not_found" || error === "unresolvable_provenance") {
+    return { status: 422, error: "planner_unresolvable_plan" };
+  }
+  return { status: 500, error: "investigate_plan_error" };
 }
 
 export function buildInvestigationPlannerPrompt(input: {
@@ -69,18 +97,35 @@ export function validatePlannerInteractionOutput(
       ? Math.max(0, Math.trunc(rawTokens))
       : 0;
   const trimmedId = interaction.id?.trim();
+  const idPatch = trimmedId ? { interactionId: trimmedId } : {};
 
-  if (
-    (interaction.status !== undefined && interaction.status !== "completed") ||
-    !trimmedId ||
-    !interaction.output_text ||
-    interaction.output_text.trim().length === 0
-  ) {
+  if (interaction.status !== undefined && interaction.status !== "completed") {
+    const diagnostic = (interaction.errors ?? [])
+      .flatMap((err) => (err.message ? [err.message] : []))
+      .join("; ");
+    const suffix = diagnostic.length > 0 ? `: ${diagnostic}` : "";
     return {
       ok: false,
-      message: "Gemini planner interaction did not return a completed JSON payload",
+      message: `Gemini planner interaction returned non-completed status "${interaction.status}"${suffix}`,
       tokensUsed,
-      ...(trimmedId ? { interactionId: trimmedId } : {}),
+      ...idPatch,
+    };
+  }
+
+  if (!trimmedId) {
+    return {
+      ok: false,
+      message: "Gemini planner interaction returned missing or empty interaction id",
+      tokensUsed,
+    };
+  }
+
+  if (!interaction.output_text || interaction.output_text.trim().length === 0) {
+    return {
+      ok: false,
+      message: "Gemini planner interaction returned empty output_text",
+      tokensUsed,
+      interactionId: trimmedId,
     };
   }
 
@@ -91,9 +136,11 @@ export function validatePlannerInteractionOutput(
 
   const parsedSpec = PlannerLayoutSpecSchema.safeParse(parsedJson.value);
   if (!parsedSpec.success) {
+    const firstIssue = parsedSpec.error.issues[0];
+    const detail = firstIssue ? `: ${firstIssue.message}` : "";
     return {
       ok: false,
-      message: "PlannerLayoutSpec failed schema validation",
+      message: `PlannerLayoutSpec failed schema validation${detail}`,
       tokensUsed,
       interactionId: trimmedId,
     };
