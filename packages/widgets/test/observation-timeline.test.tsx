@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { act, createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CANONICAL_MILESTONE_LABEL } from "@samasastudio/gridlock-core";
 import { ObservationTimeline } from "../src/index.ts";
 import { makeCitedObservation, makeInterleavedObservations } from "./helpers/ast-card-fixtures.ts";
+import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 const TWO_TRACKED_PROJECTS = ["TABS2027003697", "TABS2027004112"] as const;
 
@@ -116,5 +118,77 @@ describe("<ObservationTimeline /> Seam 4 UI AST Card (Ticket #38 Phase 2)", () =
       styleBlock,
       /\.gridlock-ast-card :where\(\.gridlock-timeline-item\[data-milestone="true"\] \.gridlock-timeline-marker\)\s*\{[^}]*background-color:\s*var\(--gridlock-accent\);/
     );
+  });
+
+  test("Forwards ref, copies entry sha256 to clipboard, and resets data-copied synchronously on nodeId or observations update", async () => {
+    const initialList = makeInterleavedObservations();
+    const sameHashUpdatedId = [makeCitedObservation({ observation: { id: "obs-3697-reindexed" } })];
+
+    await withWidgetDom(async ({ container, root, getLastCopiedText }) => {
+      const sectionRef = createRef<HTMLElement>();
+
+      await act(async () => {
+        root.render(
+          <ObservationTimeline ref={sectionRef} nodeId="timeline-a" projectNumbers={TWO_TRACKED_PROJECTS} observations={initialList} />
+        );
+      });
+
+      assert.equal(sectionRef.current?.tagName, "SECTION");
+      const getFirstCopyBtn = () =>
+        Array.from(container.querySelectorAll("button")).find((btn) =>
+          btn.classList.contains("gridlock-copy-chip")
+        );
+
+      const firstBtn = getFirstCopyBtn();
+      assert.ok(firstBtn);
+
+      await act(async () => {
+        firstBtn.click();
+      });
+
+      assert.equal(getLastCopiedText(), initialList[0]!.citation.sha256);
+      assert.equal(firstBtn.getAttribute("data-copied"), "true");
+
+      await act(async () => {
+        root.render(
+          <ObservationTimeline ref={sectionRef} nodeId="timeline-b" projectNumbers={TWO_TRACKED_PROJECTS} observations={initialList} />
+        );
+      });
+
+      assert.equal(getFirstCopyBtn()?.getAttribute("data-copied"), "false");
+
+      await act(async () => {
+        getFirstCopyBtn()?.click();
+      });
+      assert.equal(getFirstCopyBtn()?.getAttribute("data-copied"), "true");
+
+      await act(async () => {
+        root.render(
+          <ObservationTimeline ref={sectionRef} nodeId="timeline-b" projectNumbers={["TABS2027003697"]} observations={sameHashUpdatedId} />
+        );
+      });
+
+      assert.equal(getFirstCopyBtn()?.getAttribute("data-copied"), "false");
+    });
+  });
+
+  test("Sad Path: orphan observation projectNumber, duplicate observation.id, or > 10 projectNumbers renders DossierErrorShell without Retry", () => {
+    const orphanObs = [makeCitedObservation({ observation: { projectNumber: "TABS2027009999" } })];
+    const duplicateIdObs = [makeCitedObservation(), makeCitedObservation()];
+    const elevenProjects = Array.from(
+      { length: 11 },
+      (_, idx) => `TABS20270050${String(idx).padStart(2, "0")}`
+    );
+
+    for (const invalidNode of [
+      <ObservationTimeline key="orphan" projectNumbers={["TABS2027003697"]} observations={orphanObs} />,
+      <ObservationTimeline key="dup-id" projectNumbers={["TABS2027003697"]} observations={duplicateIdObs} />,
+      <ObservationTimeline key="over-max" projectNumbers={elevenProjects} observations={[]} />,
+    ]) {
+      const html = renderToStaticMarkup(invalidNode);
+      assert.match(html, /role="alert"/);
+      assert.match(html, /Malformed ObservationTimeline props:/);
+      assert.doesNotMatch(html, /Retry/);
+    }
   });
 });

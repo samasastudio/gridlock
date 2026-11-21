@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { act, createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CANONICAL_MILESTONE_LABEL } from "@samasastudio/gridlock-core";
 import { ProjectDossierCard } from "../src/index.ts";
-import { makeCitedProject, makeEscapedShellCitedProject } from "./helpers/ast-card-fixtures.ts";
+import {
+  makeArtifactHash,
+  makeCitedProject,
+  makeEscapedShellCitedProject,
+} from "./helpers/ast-card-fixtures.ts";
+import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 describe("<ProjectDossierCard /> Seam 4 UI AST Card (Ticket #38 Phase 1)", () => {
   test("SSR renders inherit, diurnal, and nocturnal themes, enforces >= 0.75rem CSS floor, and defines standalone + nested hairline rules", () => {
@@ -70,5 +76,82 @@ describe("<ProjectDossierCard /> Seam 4 UI AST Card (Ticket #38 Phase 1)", () =>
     assert.doesNotMatch(shellHtml, /\\\*Core/);
     assert.doesNotMatch(shellHtml, /Corgan Associates/);
     assert.match(shellHtml, /90-day non-milestone window/);
+  });
+
+  test("Forwards ref, copies 64-char sha256, and synchronously resets copy chip + <details> on citedProject or same-sha256 nodeId swap", async () => {
+    const primary = makeCitedProject();
+    const secondary = makeEscapedShellCitedProject();
+
+    await withWidgetDom(async ({ container, root, getLastCopiedText }) => {
+      const sectionRef = createRef<HTMLElement>();
+
+      await act(async () => {
+        root.render(<ProjectDossierCard ref={sectionRef} nodeId="node-a" citedProject={primary} />);
+      });
+
+      assert.equal(sectionRef.current?.tagName, "SECTION");
+      assert.equal(sectionRef.current?.getAttribute("data-gridlock-theme"), "inherit");
+
+      const getCopyBtn = () =>
+        Array.from(container.querySelectorAll("button")).find((btn) =>
+          btn.classList.contains("gridlock-copy-chip")
+        );
+
+      const copyBtn = getCopyBtn();
+      const detailsEl = container.querySelector("details");
+      assert.ok(copyBtn && detailsEl);
+      assert.equal(detailsEl.open, false);
+
+      await act(async () => {
+        copyBtn.click();
+        detailsEl.open = true;
+      });
+
+      assert.equal(getLastCopiedText(), primary.citation.sha256);
+      assert.equal(copyBtn.getAttribute("data-copied"), "true");
+      assert.equal(detailsEl.open, true);
+
+      await act(async () => {
+        root.render(<ProjectDossierCard ref={sectionRef} nodeId="node-b" citedProject={primary} />);
+      });
+
+      assert.equal(getCopyBtn()?.getAttribute("data-copied"), "false");
+      assert.equal(container.querySelector("details")?.open, false);
+
+      const nextDetails = container.querySelector("details");
+      assert.ok(nextDetails);
+
+      await act(async () => {
+        getCopyBtn()?.click();
+        nextDetails.open = true;
+      });
+      assert.equal(getCopyBtn()?.getAttribute("data-copied"), "true");
+      assert.equal(nextDetails.open, true);
+
+      await act(async () => {
+        root.render(<ProjectDossierCard ref={sectionRef} nodeId="node-b" citedProject={secondary} />);
+      });
+
+      assert.equal(getCopyBtn()?.getAttribute("data-copied"), "false");
+      assert.equal(container.querySelector("details")?.open, false);
+    });
+  });
+
+  test("Sad Path: mismatched citation sha256, non-HTTP sourceUrl, or unsafe nodeId renders DossierErrorShell without Retry", () => {
+    const mismatched = makeCitedProject({ citation: { sha256: makeArtifactHash("f") } });
+    const ftpCitation = makeCitedProject({
+      citation: { sourceUrl: "ftp://files.tdlr.texas.gov/project.html" },
+    });
+
+    for (const invalidNode of [
+      <ProjectDossierCard key="mismatch" citedProject={mismatched} />,
+      <ProjectDossierCard key="ftp" citedProject={ftpCitation} />,
+      <ProjectDossierCard key="bad-id" citedProject={makeCitedProject()} nodeId="../unsafe/id" />,
+    ]) {
+      const html = renderToStaticMarkup(invalidNode);
+      assert.match(html, /role="alert"/);
+      assert.match(html, /Malformed ProjectDossierCard props:/);
+      assert.doesNotMatch(html, /Retry/);
+    }
   });
 });

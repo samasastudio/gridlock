@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { act, createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MetricComparisonTable } from "../src/index.ts";
 import {
@@ -7,6 +8,7 @@ import {
   makeCitedProject,
   makeEscapedShellCitedProject,
 } from "./helpers/ast-card-fixtures.ts";
+import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 function makeSubstationCitedProject() {
   const hash = makeArtifactHash("c");
@@ -106,6 +108,87 @@ describe("<MetricComparisonTable /> Seam 4 UI AST Card (Ticket #38 Phase 3)", ()
           `:where\\(\\.gridlock-comparison-table td:nth-child\\(${colIdx}\\)\\)::before\\s*\\{[^}]*content:\\s*var\\(--col-${colIdx}\\)`
         )
       );
+    }
+  });
+
+  test("Forwards ref, copies row sha256 to clipboard, and resets data-copied synchronously on nodeId or rows swap", async () => {
+    const initialRows = [makeCitedProject(), makeEscapedShellCitedProject()];
+    const sameHashDifferentProject = [
+      makeCitedProject({ project: { projectNumber: "TABS2027009101" } }),
+    ];
+
+    await withWidgetDom(async ({ container, root, getLastCopiedText }) => {
+      const sectionRef = createRef<HTMLElement>();
+
+      await act(async () => {
+        root.render(
+          <MetricComparisonTable ref={sectionRef} nodeId="table-a" rows={initialRows} />
+        );
+      });
+
+      assert.equal(sectionRef.current?.tagName, "SECTION");
+      const getFirstCopyBtn = () =>
+        Array.from(container.querySelectorAll("button")).find((btn) =>
+          btn.classList.contains("gridlock-copy-chip")
+        );
+
+      const firstBtn = getFirstCopyBtn();
+      assert.ok(firstBtn);
+
+      await act(async () => {
+        firstBtn.click();
+      });
+
+      assert.equal(getLastCopiedText(), initialRows[0]!.citation.sha256);
+      assert.equal(firstBtn.getAttribute("data-copied"), "true");
+
+      await act(async () => {
+        root.render(
+          <MetricComparisonTable ref={sectionRef} nodeId="table-b" rows={initialRows} />
+        );
+      });
+
+      assert.equal(getFirstCopyBtn()?.getAttribute("data-copied"), "false");
+
+      await act(async () => {
+        getFirstCopyBtn()?.click();
+      });
+      assert.equal(getFirstCopyBtn()?.getAttribute("data-copied"), "true");
+
+      await act(async () => {
+        root.render(
+          <MetricComparisonTable
+            ref={sectionRef}
+            nodeId="table-b"
+            rows={sameHashDifferentProject}
+          />
+        );
+      });
+
+      assert.equal(getFirstCopyBtn()?.getAttribute("data-copied"), "false");
+    });
+  });
+
+  test("Sad Path: duplicate projectNumber, > 10 rows, or mismatched citation renders DossierErrorShell without Retry", () => {
+    const duplicateRows = [makeCitedProject(), makeCitedProject()];
+    const elevenRows = Array.from({ length: 11 }, (_, idx) =>
+      makeCitedProject({
+        project: { projectNumber: `TABS20270060${String(idx).padStart(2, "0")}` },
+      })
+    );
+    const mismatchedCitationRows = [
+      makeCitedProject({ citation: { sha256: makeArtifactHash("f") } }),
+    ];
+
+    for (const invalidNode of [
+      <MetricComparisonTable key="dup" rows={duplicateRows} />,
+      <MetricComparisonTable key="over-max" rows={elevenRows} />,
+      <MetricComparisonTable key="bad-hash" rows={mismatchedCitationRows} />,
+    ]) {
+      const html = renderToStaticMarkup(invalidNode);
+      assert.match(html, /role="alert"/);
+      assert.match(html, /Malformed MetricComparisonTable props:/);
+      assert.doesNotMatch(html, /Retry/);
     }
   });
 });
