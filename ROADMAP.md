@@ -22,6 +22,20 @@ gh api --paginate 'repos/samasastudio/gridlock/issues?state=open' \
 
 ---
 
+## Editorial MVP Cut Line (Anti-Drift Scope)
+
+Gridlock is an **editorial civic publishing pipeline**, not a high-QPS platform. All core backend waves (`#2`–`#9`, `#17`, `#33`–`#37`) and two embeddable widgets (`<GridlockRepairLogWidget />` and `<GridlockPlateWidget />`) are already merged on `main`. To ship a live public artifact quickly and retire external I/O risk:
+
+- **In MVP (Wave 5 — Unblocked Now)**:
+  - Execute the **4-Step `#11` Live Smoke Spike** and deploy the Cloud Run Service + daily/backfill Job + Firestore/GCS spine (`#11` is **no longer blocked by `#39`/`#40`**).
+  - Mount the two already-built live widgets (`<GridlockPlateWidget />` and `<GridlockRepairLogWidget />`) on `/work/gridlock` in `profile-site` with Firebase `/api/**` rewrites (`profile-site#1`), fixing the cross-theme nested token leak in `packages/widgets/src/dossier-styles.ts`.
+  - Treat the Out-of-Band Repair Agent (`#5`) as an on-demand utility invoked only when a real `selector_anomaly` occurs, without adding extra automated retry infrastructure.
+- **Deferred to Post-MVP Fast-Follow (Wave 6)**:
+  - `#39` (Visual & Health UI AST Cards + Error Boundary) and `#40` (`<GridlockConsoleWidget />` Generative UI Workspace).
+  - Embedding `<GridlockConsoleWidget />` and secondary Field Notes multi-essay widgets in `profile-site`.
+
+---
+
 ## Dependency Graph
 
 ```mermaid
@@ -45,21 +59,25 @@ flowchart TD
     T34 --> T35["#35 [under #8] <GridlockPlateWidget /> Branching & Comparison (~500 diff lines)"]
   end
 
-  subgraph Wave4["Wave 4 — Generative UI Workspace (Seam 4 Core & UI)"]
+  subgraph Wave4["Wave 4 — Generative UI Core & Filing AST Cards (Seam 4 Core)"]
     T6 --> T36["#36 [under #9] UI AST Contracts & Workspace Hydrator (~520 diff lines)"]
     T33 --> T36
     T36 --> T37["#37 [under #9] Investigation Planner & POST /api/investigate/plan (~480 diff lines)"]
-    T36 --> T38["#38 [under #10] Filing & Comparative UI AST Cards (~560 diff lines)"]
-    T34 --> T39["#39 [under #10] Visual & Health UI AST Cards + Error Boundary (~520 diff lines)"]
-    T38 --> T39
-    T37 --> T40["#40 [under #10] <GridlockConsoleWidget /> Workspace & Live Refinement (~600 diff lines)"]
-    T39 --> T40
+    T36 --> T38["#38 [under #10] Filing & Comparative UI AST Cards (PRs #72–#76)"]
   end
 
-  subgraph Wave5["Wave 5 — Production Cloud Run & Host Integration"]
-    T35 --> T11["#11 [gridlock] Cloud Run, Firestore TTL & GCS Lifecycle (~250 LOC)"]
-    T40 --> T11
-    T11 --> P1["profile-site#1 Embed Live Gridlock Widgets (~300 LOC)"]
+  subgraph Wave5["Wave 5 — Editorial MVP Launch (Unblocked Now)"]
+    T6 --> T11["#11 [gridlock] Live Smoke Spike, Cloud Run, Firestore & GCS Spine"]
+    T35 --> T11
+    T11 --> P1["profile-site#1 Embed Live Plate & Repair Log Widgets (~300 LOC)"]
+  end
+
+  subgraph Wave6["Wave 6 — Post-MVP Fast-Follow (Generative UI Console)"]
+    T34 --> T39["#39 [under #10] Visual & Health UI AST Cards + Error Boundary"]
+    T38 --> T39
+    T37 --> T40["#40 [under #10] <GridlockConsoleWidget /> Workspace & Live Refinement"]
+    T39 --> T40
+    T40 --> P1
   end
 ```
 
@@ -180,45 +198,56 @@ flowchart TD
         - [x] **Happy Path**: `POST /api/investigate/plan` plans via `gemini-3.8-flash`, deterministically hydrates props from repository records with SHA-256 citations, supports in-place `currentAst` refinement, and records telemetry spans.
         - [x] **Sad Path**: Rejects empty/oversized/malformed bodies (`400` at `0` tokens) and non-`POST` (`405`), returns a valid empty-state `UI AST` on zero matching records, and fails closed (`422`/`502`) on malformed Gemini JSON, unknown components, or fabricated IDs.
 
-- [ ] **[`gridlock#10`](https://github.com/samasastudio/gridlock/issues/10) — `<GridlockConsoleWidget />` & 5 Atlas Dossier AST Cards (Seam 4 UI)** *(Parent tracker — closes with `#40`)*
-  - **Sub-issues (Single-PR Vertical Slices)**:
+- [ ] **[`gridlock#10`](https://github.com/samasastudio/gridlock/issues/10) — `<GridlockConsoleWidget />` & 5 Atlas Dossier AST Cards (Seam 4 UI)** *(Parent tracker — `#38` merged; `#39` and `#40` moved to Wave 6 Post-MVP Fast-Follow)*
+  - **Sub-issue (Completed)**:
     - [x] **[`gridlock#38`](https://github.com/samasastudio/gridlock/issues/38) — Atlas Dossier Filing & Comparative `UI AST` Cards (Seam 4 UI Part 1)** (`~560` changed lines)
       - **Blocked by**: [`#36`](https://github.com/samasastudio/gridlock/issues/36)
-      - **Unlocks**: `#39`
+      - **Unlocks**: `#39` (Wave 6 Fast-Follow)
       - **Delivers**: `ProjectDossierCard`, `ObservationTimeline`, and `MetricComparisonTable` (`<= 220` lines each) exported from `@samasastudio/gridlock-widgets`, Atlas Dossier CSS, CSF3 stories (`GridlockAstCards.stories.tsx`), and component/DOM tests.
       - **Testing Validation Gate**:
         - [x] **Happy Path**: Renders all 3 cards with `Geomanist` tabular figures, `Tinos` prose, upstream portal links, and interactive SHA-256 `CopyCitationButton` badges across diurnal/nocturnal themes.
         - [x] **Sad Path**: Cleanly handles empty timeline/comparison states, `320px` narrow viewports without horizontal overflow, and synchronous citation copy-state reset on prop changes.
-    - [ ] **[`gridlock#39`](https://github.com/samasastudio/gridlock/issues/39) — Visual & Health `UI AST` Cards, Renderer & Card Error Boundary (Seam 4 UI Part 2)** (`~520` changed lines)
-      - **Blocked by**: [`#34`](https://github.com/samasastudio/gridlock/issues/34), [`#38`](https://github.com/samasastudio/gridlock/issues/38)
-      - **Unlocks**: `#40`
-      - **Delivers**: `VisualPlateScrubber` (composing `PlateFrameStage` from `#34`), `ConnectorHealthCard`, `AstCardErrorBoundary`, and `UiAstCardRenderer` dispatching all 5 `UiWidgetNode` component types, with CSF3 stories and fault-isolation tests.
-      - **Testing Validation Gate**:
-        - [ ] **Happy Path**: `UiAstCardRenderer` deterministically renders all 5 MVP `UI AST` component variants with SHA-256 provenance citations across diurnal and nocturnal themes.
-        - [ ] **Sad Path**: `AstCardErrorBoundary` + per-node `UiWidgetNodeSchema.safeParse` isolates any malformed or throwing AST node into a bounded mineral alert card without unmounting sibling workspace cards.
-    - [ ] **[`gridlock#40`](https://github.com/samasastudio/gridlock/issues/40) — `<GridlockConsoleWidget />` Generative UI Workspace & Live Refinement (Seam 4 UI Part 3)** (`~600` changed lines; *closes `#40` & `#10`*)
-      - **Blocked by**: [`#37`](https://github.com/samasastudio/gridlock/issues/37), [`#39`](https://github.com/samasastudio/gridlock/issues/39)
-      - **Unlocks**: `#11` (alongside `#35`)
-      - **Delivers**: `submitInvestigationPlan` (`investigate-client.ts`) and `<GridlockConsoleWidget />` open-sheet workspace with investigative command bar (no chat transcript), in-place `currentAst` refinement, CSF3 stories, and live `/api/investigate/plan` seeding in `scripts/widget-workbench.mjs`.
-      - **Testing Validation Gate**:
-        - [ ] **Happy Path**: Renders validated multi-panel `UiWorkspaceAst` layouts across all 5 AST card types, submits natural-language queries and in-place refinements against `POST /api/investigate/plan`, and links SHA-256 provenance across cards.
-        - [ ] **Sad Path**: Prevents duplicate concurrent query submissions while a request is in flight, renders zero-match empty-state workspaces cleanly, and renders a mineral error banner with retry when `POST /api/investigate/plan` returns `429`/`500` or fails.
 
 ---
 
-### Wave 5 — Production Google Cloud Spine & `profile-site` Integration
+### Wave 5 — Editorial MVP Launch: Live Smoke Spike, Cloud Run & `profile-site` Integration *(Unblocked Now)*
 
-- [ ] **[`gridlock#11`](https://github.com/samasastudio/gridlock/issues/11) — Cloud Run Job/Service, Firestore TTL & GCS Lifecycle Spine** (`~250 LOC`)
-  - **Blocked by**: [`#8`](https://github.com/samasastudio/gridlock/issues/8) ([`#35`](https://github.com/samasastudio/gridlock/issues/35)), [`#10`](https://github.com/samasastudio/gridlock/issues/10) ([`#40`](https://github.com/samasastudio/gridlock/issues/40))
+- [ ] **[`gridlock#11`](https://github.com/samasastudio/gridlock/issues/11) — Live Smoke Spike, Cloud Run Job/Service, Firestore TTL & GCS Lifecycle Spine**
+  - **Blocked by**: [`#6`](https://github.com/samasastudio/gridlock/issues/6), [`#8`](https://github.com/samasastudio/gridlock/issues/8) ([`#35`](https://github.com/samasastudio/gridlock/issues/35)) *(no longer blocked by `#39`/`#40` — **Ready to start immediately**)*
   - **Unlocks**: [`samasastudio/profile-site#1`](https://github.com/samasastudio/profile-site/issues/1)
-  - **Delivers**: Containerizes `packages/core` for Cloud Run Job (`0 14 * * 1-5` UTC + `--backfill`) and Cloud Run Service, and codifies the 90-day Firestore TTL on unreferenced `source_artifacts` and GCS lifecycle rules on `/quarantine/` and `/branches/ephemeral/`.
+  - **4-Step Live Smoke Spike (run first to retire external I/O risk)**:
+    1. **Live TDLR Fetch Check**: Verify single-filing ingestion and `POST /TABS/Search/SearchProjects` discovery against live `tdlr.texas.gov` using existing `defaultPageLoader` / `defaultSearchLoader` (`fetch`). Only add Playwright/Chromium if plain `fetch` is blocked.
+    2. **Live `@google/genai` Interactions & `sharp` WebP Check**: Install `@google/genai` (`>= 2.29.1`) and `sharp`, wire concrete `GeminiInteractionsClient` and `PainterImageEncoder` adapters, and run live `gemini-3-pro-image` Turn 1 (`bootstrapCanvas`) + Turn 2 (`paintMilestoneDelta` with `previous_interaction_id`, `store: true`, `response_format: { type: "image" }`) plus a `gemini-3.8-flash` sanity check.
+    3. **Editorial-Scale Firestore & GCS Adapter**: Implement `GridlockRepository` on `@google-cloud/firestore` and `@google-cloud/storage` with bounded `listTelemetryRuns({ limit: 50 })` and transactional `EfficiencyLedger` updates; round-trip 1 `Project` + `Observation`, 1 `.gz` `SourceArtifact`, 1 `.webp` `VisualPlate`, and 1 `TelemetryRun`.
+    4. **Minimal HTTP Boot & `/healthz`**: Add `GET /healthz` to `http-server.ts`, containerize `packages/core` for Cloud Run Service + daily weekday Cloud Run Job (`0 14 * * 1-5` UTC + `--backfill`), and codify 90-day Firestore TTL on unreferenced `source_artifacts` plus GCS lifecycle rules on `/quarantine/` and `/branches/ephemeral/`.
   - **Testing Validation Gate**:
-    - [ ] **Happy Path**: Container image builds and boots both the Cloud Run Job entrypoint and Cloud Run Service HTTP healthcheck; Firestore TTL and GCS lifecycle configs validate cleanly and target only unreferenced `source_artifacts.expiresAt`, `/quarantine/`, and `/branches/ephemeral/`.
+    - [ ] **Happy Path**: Container image builds and boots both the Cloud Run Job entrypoint and Cloud Run Service `/healthz`; live TDLR fetch, Gemini image lineage, and Firestore/GCS round-trips succeed; Firestore TTL and GCS lifecycle configs target only unreferenced `source_artifacts.expiresAt`, `/quarantine/`, and `/branches/ephemeral/`.
     - [ ] **Sad Path**: Container entrypoint fails fast with explicit diagnostic errors when required GCP/Gemini environment variables are missing; automated config checks verify that canonical collections (`projects`, `observations`, `repair_changelog`, `telemetry_summary`, `telemetry_runs`) and milestone-referenced `source_artifacts` (`expiresAt: null`) are exempt from 90-day deletion.
 
-- [ ] **[`profile-site#1`](https://github.com/samasastudio/profile-site/issues/1) — Embed Live Gridlock Widgets in Atlas Dossier & Field Notes** (`~300 LOC`, in `samasastudio/profile-site`)
+- [ ] **[`profile-site#1`](https://github.com/samasastudio/profile-site/issues/1) — Embed Live Gridlock Widgets in `/work/gridlock`** (`~300 LOC`, in `samasastudio/profile-site`)
   - **Blocked by**: [`samasastudio/gridlock#11`](https://github.com/samasastudio/gridlock/issues/11)
-  - **Delivers**: Consumes `@samasastudio/gridlock-widgets` in `profile-site`, configures Firebase Hosting `/api/**` rewrites, and replaces static mock data in `/work/gridlock` and Field Notes with the 3 live widgets.
+  - **Delivers**: Publishes/packs compiled `dist/` exports from `@samasastudio/gridlock-widgets`, fixes the cross-theme nested surface token bug in `packages/widgets/src/dossier-styles.ts` (`--card`, `--muted-foreground`, `--border`), configures Firebase Hosting `/api/**` rewrites, and mounts the two MVP widgets (`<GridlockPlateWidget />` and `<GridlockRepairLogWidget />`) on `/work/gridlock`.
   - **Testing Validation Gate**:
-    - [ ] **Happy Path**: `profile-site` builds and renders `<GridlockPlateWidget />`, `<GridlockConsoleWidget />`, and `<GridlockRepairLogWidget />` in `/work/gridlock` and Field Notes with full diurnal/nocturnal CSS custom property inheritance (`--paper`, `--ink`) and working `/api/**` rewrites.
-    - [ ] **Sad Path**: When `/api/**` endpoints are offline, slow, or return `500`, each widget degrades gracefully inside its own skeleton/error boundary without breaking `profile-site` routing, essays, or page layout.
+    - [ ] **Happy Path**: `profile-site` builds and renders `<GridlockPlateWidget />` and `<GridlockRepairLogWidget />` in `/work/gridlock` with full diurnal/nocturnal CSS custom property inheritance (`--paper`, `--ink`) and working `/api/**` rewrites.
+    - [ ] **Sad Path**: When `/api/**` endpoints are offline, slow, or return `500`, each widget degrades gracefully inside its own skeleton/error boundary without breaking `profile-site` routing or page layout.
+
+---
+
+### Wave 6 — Post-MVP Fast-Follow: Generative UI Console & Secondary Embeds
+
+*(Deferred until after Wave 5 MVP is live on Google Cloud and `profile-site`. Reuse `PlateFrameStage` and `DossierPrimitives` directly with minimal scope.)*
+
+- [ ] **[`gridlock#39`](https://github.com/samasastudio/gridlock/issues/39) — Visual & Health `UI AST` Cards, Renderer & Card Error Boundary (Seam 4 UI Part 2)**
+  - **Blocked by**: [`#34`](https://github.com/samasastudio/gridlock/issues/34), [`#38`](https://github.com/samasastudio/gridlock/issues/38)
+  - **Unlocks**: `#40`
+  - **Delivers**: `VisualPlateScrubber` (composing `PlateFrameStage` from `#34`), `ConnectorHealthCard`, `AstCardErrorBoundary`, and `UiAstCardRenderer` dispatching all 5 `UiWidgetNode` component types, with CSF3 stories and fault-isolation tests.
+  - **Testing Validation Gate**:
+    - [ ] **Happy Path**: `UiAstCardRenderer` deterministically renders all 5 `UI AST` component variants with SHA-256 provenance citations across diurnal and nocturnal themes.
+    - [ ] **Sad Path**: `AstCardErrorBoundary` + per-node `UiWidgetNodeSchema.safeParse` isolates any malformed or throwing AST node into a bounded mineral alert card without unmounting sibling workspace cards.
+
+- [ ] **[`gridlock#40`](https://github.com/samasastudio/gridlock/issues/40) — `<GridlockConsoleWidget />` Generative UI Workspace & Live Refinement (Seam 4 UI Part 3)** *(closes `#40` & `#10`)*
+  - **Blocked by**: [`#37`](https://github.com/samasastudio/gridlock/issues/37), [`#39`](https://github.com/samasastudio/gridlock/issues/39)
+  - **Delivers**: `submitInvestigationPlan` (`investigate-client.ts`) and `<GridlockConsoleWidget />` open-sheet workspace with investigative command bar (no chat transcript), in-place `currentAst` refinement, CSF3 stories, and live `/api/investigate/plan` seeding in `scripts/widget-workbench.mjs`, followed by mounting `<GridlockConsoleWidget />` and secondary Field Notes embeds in `profile-site`.
+  - **Testing Validation Gate**:
+    - [ ] **Happy Path**: Renders validated multi-panel `UiWorkspaceAst` layouts across all 5 AST card types, submits natural-language queries and in-place refinements against `POST /api/investigate/plan`, and links SHA-256 provenance across cards.
+    - [ ] **Sad Path**: Prevents duplicate concurrent query submissions while a request is in flight, renders zero-match empty-state workspaces cleanly, and renders a mineral error banner with retry when `POST /api/investigate/plan` returns `429`/`500` or fails.
