@@ -43,3 +43,4 @@ export { PlateFrameStage, type PlateFrameStageProps } from "./PlateFrameStage.ts
 export { GridlockPlateWidget, type GridlockPlateWidgetProps } from "./GridlockPlateWidget.tsx";
 export { ProjectDossierCard, type ProjectDossierCardProps } from "./ProjectDossierCard.tsx";
 export { ObservationTimeline, type ObservationTimelineProps } from "./ObservationTimeline.tsx";
+export { MetricComparisonTable, type MetricComparisonTableProps } from "./MetricComparisonTable.tsx";
