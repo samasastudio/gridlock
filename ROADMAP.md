@@ -182,13 +182,13 @@ flowchart TD
 
 - [ ] **[`gridlock#10`](https://github.com/samasastudio/gridlock/issues/10) — `<GridlockConsoleWidget />` & 5 Atlas Dossier AST Cards (Seam 4 UI)** *(Parent tracker — closes with `#40`)*
   - **Sub-issues (Single-PR Vertical Slices)**:
-    - [ ] **[`gridlock#38`](https://github.com/samasastudio/gridlock/issues/38) — Atlas Dossier Filing & Comparative `UI AST` Cards (Seam 4 UI Part 1)** (`~560` changed lines)
+    - [x] **[`gridlock#38`](https://github.com/samasastudio/gridlock/issues/38) — Atlas Dossier Filing & Comparative `UI AST` Cards (Seam 4 UI Part 1)** (`~560` changed lines)
       - **Blocked by**: [`#36`](https://github.com/samasastudio/gridlock/issues/36)
       - **Unlocks**: `#39`
       - **Delivers**: `ProjectDossierCard`, `ObservationTimeline`, and `MetricComparisonTable` (`<= 220` lines each) exported from `@samasastudio/gridlock-widgets`, Atlas Dossier CSS, CSF3 stories (`GridlockAstCards.stories.tsx`), and component/DOM tests.
       - **Testing Validation Gate**:
-        - [ ] **Happy Path**: Renders all 3 cards with `Geomanist` tabular figures, `Tinos` prose, upstream portal links, and interactive SHA-256 `CopyCitationButton` badges across diurnal/nocturnal themes.
-        - [ ] **Sad Path**: Cleanly handles empty timeline/comparison states, `320px` narrow viewports without horizontal overflow, and synchronous citation copy-state reset on prop changes.
+        - [x] **Happy Path**: Renders all 3 cards with `Geomanist` tabular figures, `Tinos` prose, upstream portal links, and interactive SHA-256 `CopyCitationButton` badges across diurnal/nocturnal themes.
+        - [x] **Sad Path**: Cleanly handles empty timeline/comparison states, `320px` narrow viewports without horizontal overflow, and synchronous citation copy-state reset on prop changes.
     - [ ] **[`gridlock#39`](https://github.com/samasastudio/gridlock/issues/39) — Visual & Health `UI AST` Cards, Renderer & Card Error Boundary (Seam 4 UI Part 2)** (`~520` changed lines)
       - **Blocked by**: [`#34`](https://github.com/samasastudio/gridlock/issues/34), [`#38`](https://github.com/samasastudio/gridlock/issues/38)
       - **Unlocks**: `#40`
