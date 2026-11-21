@@ -11,6 +11,7 @@ import type {
   TelemetrySpanSink,
 } from "../interfaces/index.ts";
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
+import { handlePostInvestigatePlan } from "./investigate-controller.ts";
 import {
   handleGetPlateAsset,
   handleGetPlateLineage,
@@ -76,6 +77,11 @@ export async function handleGridlockHttpRequest(
 
   if (pathname === "/api/plates/branch") {
     await handlePostPlateBranch(req, res, parsedUrl, deps);
+    return;
+  }
+
+  if (pathname === "/api/investigate/plan") {
+    await handlePostInvestigatePlan(req, res, parsedUrl, deps);
     return;
   }
 

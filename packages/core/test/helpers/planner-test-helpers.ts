@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import type { AddressInfo } from "node:net";
 import {
   ARTIFACT_BUCKET_URI,
+  createGridlockHttpServer,
   createInMemoryGridlockRepository,
   ObservationSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
+  type GridlockHttpDeps,
   type GridlockRepository,
   type Observation,
 } from "../../src/index.ts";
@@ -165,4 +168,48 @@ export async function seedFilingPlannerRepository(): Promise<GridlockRepository>
   );
 
   return repository;
+}
+
+export async function withGridlockTestServer(
+  deps: GridlockHttpDeps,
+  run: (baseUrl: string) => Promise<void>
+): Promise<void> {
+  const server = createGridlockHttpServer(deps);
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = server.address() as AddressInfo;
+    await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+  }
+}
+
+export function postInvestigatePlan(
+  url: string,
+  body: string
+): Promise<Response> {
+  return fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body,
+  });
+}
+
+export async function assertInvestigateErrorResponse(
+  resPromise: Promise<Response>,
+  expectedStatus: number,
+  expectedError: string
+): Promise<Response> {
+  const res = await resPromise;
+  assert.equal(res.status, expectedStatus);
+  assert.equal(res.headers.get("access-control-allow-origin"), "*");
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  const payload = (await res.json()) as { error: string; message: string };
+  assert.equal(payload.error, expectedError);
+  assert.equal(typeof payload.message, "string");
+  return res;
 }
