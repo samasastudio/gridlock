@@ -1,8 +1,10 @@
 import {
+  RepairChangelogEntrySchema,
   VisualPlateSchema,
   type EpistemicPlateLabel,
   type LineageNode,
   type PlateLineageResponse,
+  type RepairChangelogResponse,
 } from "../../interfaces/index.ts";
 import { SafeAstIdSchema } from "../../interfaces/investigate-ast-models.ts";
 import {
@@ -24,6 +26,13 @@ export interface PlannerCatalogLineageEntry {
   lineageId: string;
   activeCanonicalPlateId: string | null;
   plates: readonly PlannerCatalogPlateSummary[];
+}
+
+export interface PlannerCatalogConnectorEntry {
+  connectorId: string;
+  status: RepairChangelogResponse["connectorStatus"];
+  activeVersion: number;
+  repairCount: number;
 }
 
 function isLineageNodeHydratable(node: LineageNode): boolean {
@@ -95,6 +104,47 @@ export function extractValidatedLineageIds(
   return { ok: true, lineageIds };
 }
 
+export function extractValidatedChangelogConnectorIds(
+  rawChangelogEntries: unknown
+): { ok: true; connectorIds: string[] } | HydratorStepFailure {
+  if (!Array.isArray(rawChangelogEntries)) {
+    return stepFailure(
+      "repository_integrity_error",
+      "Stored RepairChangelogEntry list failed runtime schema validation"
+    );
+  }
+
+  const parsedItems = rawChangelogEntries.map((item) =>
+    RepairChangelogEntrySchema.safeParse(item)
+  );
+  if (parsedItems.some((parsed) => !parsed.success)) {
+    return stepFailure(
+      "repository_integrity_error",
+      "Stored RepairChangelogEntry failed runtime schema validation"
+    );
+  }
+
+  const parsedEntries = parsedItems.flatMap((parsed) => (parsed.success ? [parsed.data] : []));
+  const hasBlankChangelogProse = parsedEntries.some(
+    (entry) =>
+      sanitizeAstProse(entry.rootCauseSummary).length === 0 ||
+      entry.brokenInvariants.some(
+        (invariant) => sanitizeAstProse(invariant).length === 0
+      )
+  );
+  if (hasBlankChangelogProse) {
+    return stepFailure(
+      "repository_integrity_error",
+      "Sanitized RepairChangelogEntry prose failed runtime schema validation"
+    );
+  }
+
+  const connectorIds = Array.from(
+    new Set(parsedEntries.map((entry) => entry.connectorId))
+  ).sort((left, right) => left.localeCompare(right));
+  return { ok: true, connectorIds };
+}
+
 export function buildLineageCatalogEntries(
   lineages: readonly PlateLineageResponse[]
 ): { ok: true; lineages: PlannerCatalogLineageEntry[] } | HydratorStepFailure {
@@ -134,4 +184,18 @@ export function buildLineageCatalogEntries(
         })),
       })),
   };
+}
+
+export function buildConnectorCatalogEntries(
+  changelogs: readonly RepairChangelogResponse[]
+): PlannerCatalogConnectorEntry[] {
+  return changelogs
+    .filter((changelog) => SafeAstIdSchema.safeParse(changelog.connectorId).success)
+    .sort((left, right) => left.connectorId.localeCompare(right.connectorId))
+    .map((changelog) => ({
+      connectorId: changelog.connectorId,
+      status: changelog.connectorStatus,
+      activeVersion: changelog.activeVersion,
+      repairCount: changelog.entries.length,
+    }));
 }

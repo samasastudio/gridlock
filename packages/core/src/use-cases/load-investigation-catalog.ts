@@ -1,5 +1,14 @@
-import type { GridlockRepository } from "../interfaces/index.ts";
+import {
+  CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
+  DEFAULT_TDLR_CONNECTOR_CONFIG,
+  type GridlockRepository,
+  type PlateLineageResponse,
+  type SourceArtifact,
+  type TelemetryRun,
+} from "../interfaces/index.ts";
+import { getEfficiencyScorecard } from "./get-efficiency-scorecard.ts";
 import { getPlateLineage } from "./get-plate-lineage.ts";
+import { getRepairChangelog } from "./get-repair-changelog.ts";
 import {
   buildFilingCatalogEntries,
   extractUnseenObservationHashes,
@@ -8,18 +17,45 @@ import {
   type PlannerGroundingCatalog,
 } from "./helpers/investigate-planner-catalog.ts";
 import {
+  buildConnectorCatalogEntries,
   buildLineageCatalogEntries,
+  extractValidatedChangelogConnectorIds,
   extractValidatedLineageIds,
 } from "./helpers/investigate-planner-seam-catalog.ts";
+
+function collectCandidateConnectorIds(
+  changelogConnectorIds: readonly string[],
+  artifactsByHash: ReadonlyMap<string, SourceArtifact | null>,
+  recentRuns: readonly TelemetryRun[],
+  validLineages: readonly PlateLineageResponse[]
+): string[] {
+  return Array.from(
+    new Set([
+      DEFAULT_TDLR_CONNECTOR_CONFIG.connectorId,
+      ...changelogConnectorIds,
+      ...Array.from(artifactsByHash.values()).flatMap((artifact) =>
+        artifact ? [artifact.connectorId] : []
+      ),
+      ...recentRuns.flatMap((run) => (run.connectorId ? [run.connectorId] : [])),
+      ...validLineages.flatMap((lineage) =>
+        lineage.nodes.flatMap((node) =>
+          node.sourceArtifacts.map((artifact) => artifact.connectorId)
+        )
+      ),
+    ])
+  ).sort((left, right) => left.localeCompare(right));
+}
 
 export async function loadPlannerGroundingCatalog(
   repository: GridlockRepository,
   now: Date
 ): Promise<{ ok: true; catalog: PlannerGroundingCatalog } | { ok: false; message: string }> {
   try {
-    const [rawProjects, rawAllPlates] = await Promise.all([
+    const [rawProjects, rawAllPlates, rawChangelogEntries, scorecardResult] = await Promise.all([
       repository.listProjects(),
       repository.listVisualPlatesByLineage(),
+      repository.listRepairChangelog(),
+      getEfficiencyScorecard({ limit: CONNECTOR_HEALTH_RECENT_RUNS_LIMIT }, { repository }),
     ]);
 
     const validatedProjects = validateCatalogProjectList(rawProjects);
@@ -30,6 +66,15 @@ export async function loadPlannerGroundingCatalog(
     const validatedLineages = extractValidatedLineageIds(rawAllPlates);
     if (!validatedLineages.ok) {
       return { ok: false, message: validatedLineages.message };
+    }
+
+    const validatedChangelogs = extractValidatedChangelogConnectorIds(rawChangelogEntries);
+    if (!validatedChangelogs.ok) {
+      return { ok: false, message: validatedChangelogs.message };
+    }
+
+    if (!scorecardResult.ok) {
+      return { ok: false, message: scorecardResult.message };
     }
 
     const projectHashes = Array.from(
@@ -94,6 +139,27 @@ export async function loadPlannerGroundingCatalog(
       result.ok ? [result.lineage] : []
     );
 
+    const candidateConnectorIds = collectCandidateConnectorIds(
+      validatedChangelogs.connectorIds,
+      filingEntries.artifactsByHash,
+      scorecardResult.ledger.recentRuns,
+      validLineages
+    );
+    const changelogResults = await Promise.all(
+      candidateConnectorIds.map((connectorId) =>
+        getRepairChangelog({ connectorId, format: "json" }, { repository })
+      )
+    );
+    const failedChangelog = changelogResults.find(
+      (result) => !result.ok && result.error === "repair_changelog_error"
+    );
+    if (failedChangelog && !failedChangelog.ok) {
+      return { ok: false, message: failedChangelog.message };
+    }
+    const validChangelogs = changelogResults.flatMap((result) =>
+      result.ok ? [result.changelog] : []
+    );
+
     const lineageCatalogResult = buildLineageCatalogEntries(validLineages);
     if (!lineageCatalogResult.ok) {
       return { ok: false, message: lineageCatalogResult.message };
@@ -104,6 +170,7 @@ export async function loadPlannerGroundingCatalog(
       catalog: {
         projects: filingEntries.projects,
         lineages: lineageCatalogResult.lineages,
+        connectors: buildConnectorCatalogEntries(validChangelogs),
       },
     };
   } catch (error) {

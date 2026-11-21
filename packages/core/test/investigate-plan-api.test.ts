@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  DEFAULT_LINEAGE_ID,
   InvestigatePlanResponseSchema,
   MAX_INVESTIGATE_QUERY_LENGTH,
   MAX_WORKSPACE_NODES,
@@ -9,11 +10,14 @@ import {
 } from "../src/index.ts";
 import {
   assertInvestigateErrorResponse,
+  createFiveCardLayoutSpec,
   createPlannerClientStub,
   createQueuedLayoutClientStub,
   HASH_ACTIVE_A,
   postInvestigatePlan,
   seedFilingPlannerRepository,
+  seedFiveCardPlannerRepository,
+  singleNodeLayout,
   withGridlockTestServer,
 } from "./helpers/planner-test-helpers.ts";
 
@@ -348,6 +352,101 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
     assert.deepEqual(
       runs.map((run) => run.tokensUsed),
       [0, 40, 45, 48, 50, 55, 60, 65, 80, 85, 90]
+    );
+  });
+});
+
+describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
+  test("returns 200 for mixed 5-card workspace and maps cross-seam 422 and 502 errors", async () => {
+    const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
+    const { geminiClient } = createQueuedLayoutClientStub(
+      [
+        createFiveCardLayoutSpec(branchPlateId),
+        singleNodeLayout({
+          nodeId: "scrubber-missing-lineage",
+          component: "VisualPlateScrubber",
+          lineageId: "fabricated-lineage",
+        }),
+        singleNodeLayout({
+          nodeId: "scrubber-unknown-plate",
+          component: "VisualPlateScrubber",
+          lineageId: DEFAULT_LINEAGE_ID,
+          initialPlateId: "plate_unknown_999",
+        }),
+        singleNodeLayout({
+          nodeId: "scrubber-expired-plate",
+          component: "VisualPlateScrubber",
+          lineageId: DEFAULT_LINEAGE_ID,
+          initialPlateId: "plate_expired_branch",
+        }),
+        singleNodeLayout({
+          nodeId: "scrubber-quarantined",
+          component: "VisualPlateScrubber",
+          lineageId: "quarantined-lineage",
+        }),
+        singleNodeLayout({
+          nodeId: "connector-missing",
+          component: "ConnectorHealthCard",
+          connectorId: "unknown-connector",
+        }),
+        singleNodeLayout({
+          nodeId: "scrubber-bad-id",
+          component: "VisualPlateScrubber",
+          lineageId: "../bad/id",
+        }),
+        singleNodeLayout({
+          nodeId: "connector-bad-id",
+          component: "ConnectorHealthCard",
+          connectorId: "../bad/id",
+        }),
+      ],
+      { idPrefix: "ix_cross_seam", baseTokens: 200, tokenStep: 10 }
+    );
+
+    await withGridlockTestServer(
+      { repository, geminiClient, now: () => NOW },
+      async (baseUrl) => {
+        const okRes = await postInvestigatePlan(
+          `${baseUrl}/api/investigate/plan`,
+          JSON.stringify({ query: "Show full Ellis investigation workspace" })
+        );
+        assert.equal(okRes.status, 200);
+        const okPayload = InvestigatePlanResponseSchema.parse(await okRes.json());
+        assert.equal(okPayload.workspace.nodes.length, 5);
+        const scrubberNode = okPayload.workspace.nodes.find(
+          (node) => node.component === "VisualPlateScrubber"
+        );
+        assert.equal(scrubberNode?.component, "VisualPlateScrubber");
+        if (scrubberNode?.component === "VisualPlateScrubber") {
+          assert.equal(scrubberNode.initialPlateId, branchPlateId);
+          const frameIds = scrubberNode.lineage.nodes.map((n) => n.plate.plateId);
+          assert.equal(frameIds.length, 2);
+          assert.equal(frameIds.includes(branchPlateId), true);
+          assert.equal(frameIds.includes("plate_expired_branch"), false);
+        }
+
+        for (let i = 0; i < 5; i += 1) {
+          await assertInvestigateErrorResponse(
+            postInvestigatePlan(
+              `${baseUrl}/api/investigate/plan`,
+              '{"query":"Ellis"}'
+            ),
+            422,
+            "planner_unresolvable_plan"
+          );
+        }
+
+        for (let i = 0; i < 2; i += 1) {
+          await assertInvestigateErrorResponse(
+            postInvestigatePlan(
+              `${baseUrl}/api/investigate/plan`,
+              '{"query":"Ellis"}'
+            ),
+            502,
+            "planner_upstream_error"
+          );
+        }
+      }
     );
   });
 });
