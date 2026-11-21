@@ -222,6 +222,102 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
     min-inline-size: 0;
   }
 
+  .gridlock-ast-card :where(.gridlock-tracked-projects) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-inline-size: 0;
+  }
+  .gridlock-ast-card :where(.gridlock-timeline-rail) {
+    list-style: none;
+    padding-inline-start: 1.35rem;
+    border-inline-start: 1px solid var(--gridlock-border);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-inline-size: 0;
+  }
+  .gridlock-ast-card :where(.gridlock-timeline-item) {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    min-inline-size: 0;
+  }
+  .gridlock-ast-card :where(.gridlock-timeline-marker) {
+    position: absolute;
+    box-sizing: border-box;
+    inset-inline-start: -1.73rem;
+    inset-block-start: 0.25rem;
+    inline-size: 0.7rem;
+    block-size: 0.7rem;
+    background-color: var(--gridlock-paper);
+    border: 1.5px solid var(--gridlock-border-strong);
+  }
+  .gridlock-ast-card :where(.gridlock-timeline-item[data-milestone="true"] .gridlock-timeline-marker) {
+    background-color: var(--gridlock-accent);
+    border-color: var(--gridlock-accent);
+  }
+  .gridlock-ast-card :where(.gridlock-timeline-head) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.65rem;
+    min-inline-size: 0;
+    font-family: var(--gridlock-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    color: var(--gridlock-muted);
+    overflow-wrap: anywhere;
+  }
+  .gridlock-ast-card :where(.gridlock-milestone-tag) {
+    display: inline-flex;
+    align-items: center;
+    padding-block: 0.15rem;
+    padding-inline: 0.45rem;
+    border: 1px solid var(--gridlock-accent);
+    border-radius: var(--gridlock-radius);
+    background-color: var(--gridlock-card);
+    color: var(--gridlock-ink);
+    font-family: var(--gridlock-font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .gridlock-ast-card :where(.gridlock-delta-strip) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    min-inline-size: 0;
+  }
+  .gridlock-ast-card :where(.gridlock-delta-pill) {
+    display: inline-flex;
+    align-items: center;
+    max-inline-size: 100%;
+    padding-block: 0.15rem;
+    padding-inline: 0.45rem;
+    border: 1px solid var(--gridlock-border);
+    border-radius: var(--gridlock-radius);
+    background-color: var(--gridlock-card);
+    color: var(--gridlock-ink);
+    font-family: var(--gridlock-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+  }
+  .gridlock-ast-card :where(.gridlock-empty-row) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem;
+    padding-block: 0.5rem 0.25rem;
+    font-size: 0.9375rem;
+    color: var(--gridlock-ink);
+    overflow-wrap: anywhere;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .gridlock-ast-card :where(.gridlock-citation-link, .gridlock-ast-disclosure-summary) {
       transition: none;

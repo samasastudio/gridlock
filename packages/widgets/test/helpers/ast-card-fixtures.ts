@@ -1,4 +1,9 @@
-import type { CitedProject, Project } from "@samasastudio/gridlock-core";
+import type {
+  CitedObservation,
+  CitedProject,
+  Observation,
+  Project,
+} from "@samasastudio/gridlock-core";
 
 export function makeArtifactHash(hexChar: string): string {
   return hexChar.slice(0, 1).toLowerCase().repeat(64);
@@ -74,4 +79,71 @@ export function makeEscapedShellCitedProject(): CitedProject {
       referencedByMilestone: false,
     },
   });
+}
+
+export interface CitedObservationOverrides {
+  observation?: Partial<Observation>;
+  citation?: Partial<CitedObservation["citation"]>;
+}
+
+export function makeCitedObservation(
+  overrides: CitedObservationOverrides = {}
+): CitedObservation {
+  const defaultHash = makeArtifactHash("1");
+  const observation: Observation = {
+    id: "obs-3697-1",
+    projectNumber: "TABS2027003697",
+    sourceArtifactHash: defaultHash,
+    observedAt: "2026-09-10T14:00:00.000Z",
+    status: "Registered",
+    estimatedCostUsd: 95_000_000,
+    squareFootage: 180_000,
+    scopeOfWork:
+      "Initial registration for \\[Building A\\] 180,000 sq ft liquid-cooled compute hall.",
+    isMilestone: true,
+    ...overrides.observation,
+  };
+
+  return {
+    observation,
+    citation: {
+      sha256: observation.sourceArtifactHash,
+      sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${observation.projectNumber}`,
+      connectorId: "tdlr-tabs",
+      capturedAt: observation.observedAt,
+      referencedByMilestone: observation.isMilestone,
+      ...overrides.citation,
+    },
+  };
+}
+
+export function makeInterleavedObservations(): readonly CitedObservation[] {
+  return [
+    makeCitedObservation(),
+    makeCitedObservation({
+      observation: {
+        id: "obs-4112-1",
+        projectNumber: "TABS2027004112",
+        sourceArtifactHash: makeArtifactHash("2"),
+        observedAt: "2026-10-04T11:20:00.000Z",
+        estimatedCostUsd: 18_500_000,
+        squareFootage: 85_000,
+        scopeOfWork:
+          "Construct \\[Auxiliary Yard\\] adjacent to [REDACTED_ADDRESS] logistics spur.",
+        isMilestone: false,
+      },
+    }),
+    makeCitedObservation({
+      observation: {
+        id: "obs-3697-2",
+        sourceArtifactHash: makeArtifactHash("3"),
+        observedAt: "2026-11-18T15:30:00.000Z",
+        status: "Under Construction",
+        estimatedCostUsd: 148_000_000,
+        squareFootage: 240_000,
+        scopeOfWork:
+          "Expand Building A compute hall to 240,000 sq ft with dual 345kV interconnect bays.",
+      },
+    }),
+  ];
 }
