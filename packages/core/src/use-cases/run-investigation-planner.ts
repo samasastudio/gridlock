@@ -4,12 +4,14 @@ import {
   PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
   type GeminiInteractionsClient,
   type GridlockRepository,
+  type HydrateWorkspaceErrorCode,
   type InvestigatePlanResponse,
   type TelemetrySpanSink,
   type UiWorkspaceAst,
 } from "../interfaces/index.ts";
 import {
   buildInvestigationPlannerPrompt,
+  mapHydrationErrorToPlannerStatus,
   validatePlannerInteractionOutput,
   validatePlannerRequestInput,
   type PlannerInteractionValidationResult,
@@ -101,14 +103,65 @@ export async function runInvestigationPlanner(
     );
   }
 
+  const hasCurrentAst = Boolean(parsedRequest.request.currentAst);
+  const recordTelemetry = async (params: {
+    status: "agentic_completed" | "agentic_failed";
+    tokensUsed: number;
+    interactionId?: string;
+    attributes: Record<string, string | number | boolean | null>;
+  }): Promise<void> => {
+    await recordAgenticStageTelemetry(
+      {
+        stage: "investigation_planner",
+        ...params,
+        startedAt,
+        endedAt: new Date(startedAt.getTime() + Math.max(0, Date.now() - startedWallMs)),
+      },
+      {
+        repository: deps.repository,
+        ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+      }
+    );
+  };
+
+  const failTurn = async (params: {
+    status: 422 | 500 | 502;
+    error: InvestigationPlannerErrorCode;
+    message: string;
+    tokensUsed: number;
+    interactionId?: string;
+    hydrateError?: HydrateWorkspaceErrorCode;
+  }): Promise<InvestigationPlannerResult> => {
+    try {
+      await recordTelemetry({
+        status: "agentic_failed",
+        tokensUsed: params.tokensUsed,
+        ...(params.interactionId !== undefined ? { interactionId: params.interactionId } : {}),
+        attributes: {
+          errorCode: params.error,
+          ...(params.hydrateError !== undefined ? { hydrateError: params.hydrateError } : {}),
+          hasCurrentAst,
+        },
+      });
+    } catch {
+      // Preserve planner error response if repository telemetry persistence fails.
+    }
+    return plannerErr(params.status, params.error, params.message);
+  };
+
   const prompt = buildInvestigationPlannerPrompt({
     query: parsedRequest.request.query,
     catalog: catalogResult.catalog,
   });
-
   const validated = await executePlannerGeminiTurn(deps.geminiClient, prompt);
   if (!validated.ok) {
-    return plannerErr(502, "planner_upstream_error", validated.message);
+    return failTurn({
+      status: 502,
+      error: "planner_upstream_error",
+      message: validated.message,
+      tokensUsed: validated.tokensUsed,
+      ...(validated.interactionId !== undefined ? { interactionId: validated.interactionId } : {}),
+    });
   }
 
   const hydrated = await hydrateInvestigationWorkspace(
@@ -117,34 +170,49 @@ export async function runInvestigationPlanner(
     { now: startedAt }
   );
   if (!hydrated.ok) {
-    return plannerErr(422, "planner_unresolvable_plan", hydrated.message);
+    return failTurn({
+      ...mapHydrationErrorToPlannerStatus(hydrated.error),
+      message: hydrated.message,
+      tokensUsed: validated.tokensUsed,
+      interactionId: validated.interactionId,
+      hydrateError: hydrated.error,
+    });
   }
 
-  const parsedResponse = InvestigatePlanResponseSchema.parse({
+  const parsedResponse = InvestigatePlanResponseSchema.safeParse({
     workspace: hydrated.workspace,
     interactionId: validated.interactionId,
     tokensUsed: validated.tokensUsed,
   });
+  if (!parsedResponse.success) {
+    return failTurn({
+      status: 500,
+      error: "investigate_plan_error",
+      message: "InvestigatePlanResponse failed runtime schema validation",
+      tokensUsed: validated.tokensUsed,
+      interactionId: validated.interactionId,
+    });
+  }
 
-  await recordAgenticStageTelemetry(
-    {
-      stage: "investigation_planner",
+  try {
+    await recordTelemetry({
       status: "agentic_completed",
       tokensUsed: validated.tokensUsed,
       interactionId: validated.interactionId,
       attributes: {
-        nodeCount: parsedResponse.workspace.nodes.length,
-        isEmpty: parsedResponse.workspace.isEmpty,
-        hasCurrentAst: Boolean(parsedRequest.request.currentAst),
+        nodeCount: parsedResponse.data.workspace.nodes.length,
+        isEmpty: parsedResponse.data.workspace.isEmpty,
+        hasCurrentAst,
       },
-      startedAt,
-      endedAt: new Date(startedAt.getTime() + Math.max(0, Date.now() - startedWallMs)),
-    },
-    {
-      repository: deps.repository,
-      ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
-    }
-  );
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return plannerErr(
+      500,
+      "investigate_plan_error",
+      `Failed to persist investigation_planner telemetry: ${detail}`
+    );
+  }
 
-  return { ok: true, status: 200, response: parsedResponse };
+  return { ok: true, status: 200, response: parsedResponse.data };
 }

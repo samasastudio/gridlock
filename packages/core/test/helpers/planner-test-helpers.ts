@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import {
   ARTIFACT_BUCKET_URI,
   createInMemoryGridlockRepository,
@@ -19,6 +20,12 @@ export const HASH_ACTIVE_A = "a".repeat(64);
 export const HASH_ACTIVE_B = "b".repeat(64);
 export const HASH_QUARANTINED = "c".repeat(64);
 export const HASH_EXPIRED = "d".repeat(64);
+
+export function singleNodeLayout(
+  node: Record<string, unknown>
+): Record<string, unknown> {
+  return { nodes: [node] };
+}
 
 export function createPlannerObservation(
   id: string,
@@ -60,6 +67,34 @@ export function createPlannerClientStub(
       },
     },
   };
+}
+
+export function createQueuedLayoutClientStub(
+  layouts: ReadonlyArray<Record<string, unknown>>,
+  options: {
+    idPrefix?: string;
+    baseTokens?: number;
+    tokenStep?: number;
+  } = {}
+): {
+  geminiClient: GeminiInteractionsClient;
+  recordedRequests: GeminiInteractionCreateRequest[];
+} {
+  const idPrefix = options.idPrefix ?? "ix_queued";
+  const baseTokens = options.baseTokens ?? 240;
+  const tokenStep = options.tokenStep ?? 20;
+  let turnIndex = 0;
+  return createPlannerClientStub(async () => {
+    const layout = layouts[turnIndex];
+    assert.notEqual(layout, undefined);
+    turnIndex += 1;
+    return {
+      id: `${idPrefix}_${turnIndex}`,
+      status: "completed",
+      output_text: JSON.stringify(layout),
+      usage: { total_tokens: baseTokens + turnIndex * tokenStep },
+    };
+  });
 }
 
 export async function seedFilingPlannerRepository(): Promise<GridlockRepository> {
