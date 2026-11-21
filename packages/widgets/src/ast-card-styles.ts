@@ -318,6 +318,137 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
     overflow-wrap: anywhere;
   }
 
+  .gridlock-ast-card :where(.gridlock-comparison-scroll) {
+    overflow-x: auto;
+    max-inline-size: 100%;
+    container-type: inline-size;
+    border-block: 1px solid var(--gridlock-border-strong);
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-table) {
+    inline-size: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8125rem;
+    --col-2: "Location & Owner";
+    --col-3: "Estimated Capital";
+    --col-4: "Footprint & Density";
+    --col-5: "Window & Status";
+    --col-6: "Provenance";
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-table caption) {
+    padding-block: 0.55rem;
+    padding-inline: 0.85rem;
+    text-align: start;
+    font-family: var(--gridlock-font-mono);
+    font-size: 0.75rem;
+    color: var(--gridlock-muted);
+    background-color: var(--gridlock-card);
+    border-block-end: 1px solid var(--gridlock-border);
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-table thead th) {
+    font-family: var(--gridlock-font-sans);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gridlock-muted);
+    background-color: var(--gridlock-paper);
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-table tbody th) {
+    font-family: var(--gridlock-font-display);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--gridlock-ink);
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-table th, .gridlock-comparison-table td) {
+    padding-block: 0.75rem;
+    padding-inline: 0.65rem;
+    border-block-end: 1px solid var(--gridlock-border);
+    text-align: start;
+    vertical-align: top;
+    font-variant-numeric: tabular-nums;
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-table :is(.gridlock-project-chip, .gridlock-copy-chip, .gridlock-citation-link)) {
+    white-space: nowrap;
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-table tbody tr:last-child :is(th, td)) {
+    border-block-end: 0;
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-cell-stack) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+    min-inline-size: 0;
+  }
+  .gridlock-ast-card :where(.gridlock-comparison-sub) {
+    font-family: var(--gridlock-font-mono);
+    font-size: 0.75rem;
+    color: var(--gridlock-muted);
+  }
+  .gridlock-ast-card :where(.gridlock-scale-track) {
+    block-size: 2px;
+    inline-size: 100%;
+    margin-block-start: 0.45rem;
+    background-color: var(--gridlock-border);
+  }
+  .gridlock-ast-card :where(.gridlock-scale-bar) {
+    block-size: 2px;
+    background-color: var(--gridlock-accent);
+  }
+  @container (width < 38em) {
+    .gridlock-ast-card :where(.gridlock-comparison-table, .gridlock-comparison-table caption, .gridlock-comparison-table tbody, .gridlock-comparison-table tr, .gridlock-comparison-table th, .gridlock-comparison-table td) {
+      display: block;
+      inline-size: 100%;
+      min-inline-size: 0;
+      box-sizing: border-box;
+      overflow-wrap: anywhere;
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table :is(.gridlock-project-chip, .gridlock-copy-chip, .gridlock-citation-link)) {
+      white-space: normal;
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table thead) {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table tbody tr + tr > th) {
+      border-block-start: 1px solid var(--gridlock-border-strong);
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table td)::before {
+      display: block;
+      margin-block-end: 0.2rem;
+      font-family: var(--gridlock-font-sans);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gridlock-muted);
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table td:nth-child(2))::before {
+      content: var(--col-2) ": ";
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table td:nth-child(3))::before {
+      content: var(--col-3) ": ";
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table td:nth-child(4))::before {
+      content: var(--col-4) ": ";
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table td:nth-child(5))::before {
+      content: var(--col-5) ": ";
+    }
+    .gridlock-ast-card :where(.gridlock-comparison-table td:nth-child(6))::before {
+      content: var(--col-6) ": ";
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .gridlock-ast-card :where(.gridlock-citation-link, .gridlock-ast-disclosure-summary) {
       transition: none;
