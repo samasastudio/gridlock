@@ -7,20 +7,7 @@ import {
   type InvestigatePlanRequest,
   type PlannerLayoutSpec,
 } from "../../interfaces/index.ts";
-
-export interface InitialPlannerProjectCatalog {
-  projects: ReadonlyArray<{
-    projectNumber: string;
-    projectName: string;
-    facilityName: string;
-    ownerName: string;
-    county: string;
-    currentStatus: string;
-    estimatedCostUsd: number;
-    squareFootage: number;
-    updatedAt: string;
-  }>;
-}
+import type { PlannerGroundingCatalog } from "./investigate-planner-catalog.ts";
 
 export type PlannerInteractionValidationResult =
   | { ok: true; spec: PlannerLayoutSpec; interactionId: string; tokensUsed: number }
@@ -58,14 +45,14 @@ export function validatePlannerRequestInput(
 
 export function buildInvestigationPlannerPrompt(input: {
   query: string;
-  catalog: InitialPlannerProjectCatalog;
+  catalog: PlannerGroundingCatalog;
 }): string {
   return JSON.stringify({
     task: "Plan a bounded Gridlock UI AST workspace layout matching the civic researcher query.",
     rules: [
       `Emit JSON matching { "nodes": [...] } with 0 to ${MAX_WORKSPACE_NODES} unique nodeId strings.`,
       `Component keys: ProjectDossierCard requires projectNumber; ObservationTimeline and MetricComparisonTable require 1 to ${MAX_PROJECTS_PER_CARD} unique projectNumbers; VisualPlateScrubber requires lineageId and optional initialPlateId; ConnectorHealthCard requires connectorId.`,
-      "Reference only verified identifiers present in catalog.",
+      "Reference only verified identifiers present in catalog; select ObservationTimeline only for projects with timelineHydratable === true.",
       'Return { "nodes": [] } when no catalog records match query.',
     ],
     query: input.query,
