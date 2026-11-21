@@ -1,23 +1,28 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { describe, test } from "node:test";
 import {
   DEFAULT_LINEAGE_ID,
   InvestigatePlanResponseSchema,
+  MAX_INVESTIGATE_BODY_BYTES,
   MAX_INVESTIGATE_QUERY_LENGTH,
   MAX_WORKSPACE_NODES,
   type GeminiInteractionResponse,
   type GridlockRepository,
+  type TelemetrySpan,
 } from "../src/index.ts";
 import {
   assertInvestigateErrorResponse,
   createFiveCardLayoutSpec,
   createPlannerClientStub,
+  createPlannerObservation,
   createQueuedLayoutClientStub,
   HASH_ACTIVE_A,
   postInvestigatePlan,
   seedFilingPlannerRepository,
   seedFiveCardPlannerRepository,
   singleNodeLayout,
+  streamOversizedJsonPost,
   withGridlockTestServer,
 } from "./helpers/planner-test-helpers.ts";
 
@@ -448,5 +453,141 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
         }
       }
     );
+  });
+});
+
+describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
+  test("accepts 20-60 KiB currentAst refinement payloads with hasCurrentAst telemetry", async () => {
+    assert.equal(MAX_INVESTIGATE_BODY_BYTES, 131_072);
+    const { repository, canonicalArtifactHash, branchPlateId } =
+      await seedFiveCardPlannerRepository();
+    for (let idx = 0; idx < 40; idx += 1) {
+      await repository.appendObservation(
+        createPlannerObservation(
+          `obs_1001_bulk_${idx}`,
+          "TABS2027001001",
+          canonicalArtifactHash,
+          {
+            observedAt: `2026-10-28T12:${String(idx).padStart(2, "0")}:00.000Z`,
+            status: "Inspection Logged",
+            scopeOfWork: `Structural steel and switchgear inspection sequence ${idx} for Red Oak corridor campus expansion hall`,
+            isMilestone: false,
+          }
+        )
+      );
+    }
+
+    const spans: TelemetrySpan[] = [];
+    const { geminiClient } = createQueuedLayoutClientStub(
+      [
+        createFiveCardLayoutSpec(branchPlateId),
+        {
+          nodes: [
+            {
+              nodeId: "scrubber-corridor",
+              component: "VisualPlateScrubber",
+              lineageId: DEFAULT_LINEAGE_ID,
+              initialPlateId: branchPlateId,
+            },
+            {
+              nodeId: "dossier-1002",
+              component: "ProjectDossierCard",
+              projectNumber: "TABS2027001002",
+            },
+          ],
+        },
+      ],
+      { idPrefix: "ix_http_refine", baseTokens: 300, tokenStep: 10 }
+    );
+
+    await withGridlockTestServer(
+      {
+        repository,
+        geminiClient,
+        spanSink: (span) => spans.push(span),
+        now: () => NOW,
+      },
+      async (baseUrl) => {
+        const initialRes = await postInvestigatePlan(
+          `${baseUrl}/api/investigate/plan`,
+          JSON.stringify({ query: "Assemble Ellis workspace" })
+        );
+        assert.equal(initialRes.status, 200);
+        const initialPayload = InvestigatePlanResponseSchema.parse(
+          await initialRes.json()
+        );
+
+        const refineBody = JSON.stringify({
+          query: "Keep corridor plate and switch dossier to TABS2027001002",
+          currentAst: initialPayload.workspace,
+        });
+        const refineBytes = Buffer.byteLength(refineBody, "utf-8");
+        assert.equal(refineBytes > 20 * 1024 && refineBytes < 60 * 1024, true);
+
+        const refineRes = await postInvestigatePlan(
+          `${baseUrl}/api/investigate/plan`,
+          refineBody
+        );
+        assert.equal(refineRes.status, 200);
+        const refinePayload = InvestigatePlanResponseSchema.parse(
+          await refineRes.json()
+        );
+        assert.deepEqual(
+          refinePayload.workspace.nodes.map((node) => node.nodeId),
+          ["scrubber-corridor", "dossier-1002"]
+        );
+      }
+    );
+
+    assert.equal(spans.length, 2);
+    assert.equal(spans[0]?.attributes?.hasCurrentAst, false);
+    assert.equal(spans[1]?.attributes?.hasCurrentAst, true);
+  });
+
+  test("enforces 131072-byte streaming cutoff on /api/investigate/plan and preserves 16384-byte cutoff on /api/plates/branch", async () => {
+    const repository = await seedFilingPlannerRepository();
+    const { geminiClient, recordedRequests } = createPlannerClientStub(
+      async () => ({
+        id: "ix_unreachable_stream",
+        status: "completed",
+        output_text: '{"nodes":[]}',
+      })
+    );
+
+    await withGridlockTestServer(
+      { repository, geminiClient, now: () => NOW },
+      async (baseUrl) => {
+        const investigateOutcome = await streamOversizedJsonPost(
+          baseUrl,
+          "/api/investigate/plan",
+          32_768,
+          8
+        );
+        assert.equal(investigateOutcome.status, 400);
+        assert.equal(investigateOutcome.connection, "close");
+        assert.equal(investigateOutcome.error, "request_body_too_large");
+        assert.equal(
+          investigateOutcome.message,
+          "Request body exceeds 131072-byte limit"
+        );
+
+        const branchOutcome = await streamOversizedJsonPost(
+          baseUrl,
+          "/api/plates/branch",
+          16_384,
+          2
+        );
+        assert.equal(branchOutcome.status, 400);
+        assert.equal(branchOutcome.connection, "close");
+        assert.equal(branchOutcome.error, "request_body_too_large");
+        assert.equal(
+          branchOutcome.message,
+          "Request body exceeds 16384-byte limit"
+        );
+      }
+    );
+
+    assert.equal(recordedRequests.length, 0);
+    assert.equal((await repository.listTelemetryRuns()).length, 0);
   });
 });

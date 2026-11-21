@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
-import { InvestigatePlanRequestSchema } from "../interfaces/index.ts";
+import {
+  InvestigatePlanRequestSchema,
+  MAX_INVESTIGATE_BODY_BYTES,
+} from "../interfaces/index.ts";
 import { runInvestigationPlanner } from "../use-cases/run-investigation-planner.ts";
 import type { GridlockHttpDeps } from "./http-server.ts";
 import {
@@ -40,7 +43,11 @@ export async function handlePostInvestigatePlan(
     return;
   }
 
-  const bodyResult = await readJsonObjectBody(req, res);
+  const bodyResult = await readJsonObjectBody(
+    req,
+    res,
+    MAX_INVESTIGATE_BODY_BYTES
+  );
   if (!bodyResult.ok) {
     sendJson(res, 400, { error: bodyResult.error, message: bodyResult.message });
     return;

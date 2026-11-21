@@ -163,7 +163,7 @@ flowchart TD
 
 ### Wave 4 — Generative UI Workspace (Seam 4 Core & UI)
 
-- [ ] **[`gridlock#9`](https://github.com/samasastudio/gridlock/issues/9) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core)** *(Parent tracker — closes with `#37`)*
+- [x] **[`gridlock#9`](https://github.com/samasastudio/gridlock/issues/9) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core)** *(Parent tracker — closes with `#37`)*
   - **Sub-issues (Single-PR Vertical Slices)**:
     - [x] **[`gridlock#36`](https://github.com/samasastudio/gridlock/issues/36) — `UI AST` Zod Contracts & Deterministic Workspace Hydrator (Seam 4 Core Part 1)** (`~520` changed lines)
       - **Blocked by**: [`#33`](https://github.com/samasastudio/gridlock/issues/33)
@@ -172,13 +172,13 @@ flowchart TD
       - **Testing Validation Gate**:
         - [x] **Happy Path**: Hydrates all 5 permitted component types exclusively from verified Firestore/repository records paired with SHA-256 `SourceArtifact` hashes and upstream URLs, returning a valid empty-state `UiWorkspaceAst` when zero records match.
         - [x] **Sad Path**: Fails closed on unknown/hallucinated component names (`z.enum` failure) or fabricated `projectNumber` / `lineageId` / `connectorId` IDs absent from `GridlockRepository` (zero invented numbers).
-    - [ ] **[`gridlock#37`](https://github.com/samasastudio/gridlock/issues/37) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core Part 2)** (`~480` changed lines; *closes `#37` & `#9`*)
+    - [x] **[`gridlock#37`](https://github.com/samasastudio/gridlock/issues/37) — Investigation Planner (`gemini-3.8-flash`) & `POST /api/investigate/plan` (Seam 4 Core Part 2)** (`~480` changed lines; *closes `#37` & `#9`*)
       - **Blocked by**: [`#36`](https://github.com/samasastudio/gridlock/issues/36)
       - **Unlocks**: `#40`
       - **Delivers**: `runInvestigationPlanner` (`gemini-3.8-flash` structured JSON output + `hydrateInvestigationWorkspace` + `investigation_planner` `TelemetryRun`/`TelemetrySpan`) and `POST /api/investigate/plan` supporting fresh queries and in-place `currentAst` mutations.
       - **Testing Validation Gate**:
-        - [ ] **Happy Path**: `POST /api/investigate/plan` plans via `gemini-3.8-flash`, deterministically hydrates props from repository records with SHA-256 citations, supports in-place `currentAst` refinement, and records telemetry spans.
-        - [ ] **Sad Path**: Rejects empty/oversized/malformed bodies (`400` at `0` tokens) and non-`POST` (`405`), returns a valid empty-state `UI AST` on zero matching records, and fails closed (`422`/`502`) on malformed Gemini JSON, unknown components, or fabricated IDs.
+        - [x] **Happy Path**: `POST /api/investigate/plan` plans via `gemini-3.8-flash`, deterministically hydrates props from repository records with SHA-256 citations, supports in-place `currentAst` refinement, and records telemetry spans.
+        - [x] **Sad Path**: Rejects empty/oversized/malformed bodies (`400` at `0` tokens) and non-`POST` (`405`), returns a valid empty-state `UI AST` on zero matching records, and fails closed (`422`/`502`) on malformed Gemini JSON, unknown components, or fabricated IDs.
 
 - [ ] **[`gridlock#10`](https://github.com/samasastudio/gridlock/issues/10) — `<GridlockConsoleWidget />` & 5 Atlas Dossier AST Cards (Seam 4 UI)** *(Parent tracker — closes with `#40`)*
   - **Sub-issues (Single-PR Vertical Slices)**:
