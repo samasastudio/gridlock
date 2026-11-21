@@ -44,6 +44,7 @@ Read during pre-PR code reviews (Standards axis) and when designing modules acro
 ## 4. Bounded Gemini Interactions API (`ADR-0003`)
 
 - **SDK & Models**: Use `@google/genai` (`>= 2.29.1`) `client.interactions.create` exclusively with `gemini-3.8-flash` (Out-of-Band Repair Agent and Investigation Planner) and `gemini-3-pro-image` (Stateful Painter Agent with `store: true` and `previous_interaction_id`).
+- **Lightest Working Transport & Real Media Codecs**: Prefer plain `fetch` loaders (`defaultPageLoader`, `defaultSearchLoader`) for server-rendered HTML/JSON portals and only pull in Playwright/Chromium if live requests are blocked. For live Painter runs, wire a real image codec (such as `sharp`) behind `PainterImageEncoder` to decode JPEG/PNG outputs and emit compressed `.webp` assets rather than relying on hand-rolled JS bitstreams.
 - **Context Pointer**: Consult the `gemini-api-dev` skill before writing or reviewing any `@google/genai` code.
 
 ---
