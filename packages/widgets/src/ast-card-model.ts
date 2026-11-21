@@ -1,5 +1,6 @@
 import type {
   CitedObservation,
+  CitedProject,
   IsoCalendarDate,
   Observation,
 } from "@samasastudio/gridlock-core/schemas";
@@ -25,6 +26,23 @@ export interface ObservationTrajectorySummary {
   readonly milestoneCount: number;
   readonly peakCapitalUsd: number;
   readonly latestCapitalUsd: number;
+}
+
+export interface ComparisonRowViewModel {
+  readonly citedProject: CitedProject;
+  readonly costPerSqFtUsd: number;
+  readonly scalePercent: number;
+  readonly buildWindow: BuildWindowSummary;
+}
+
+export interface ComparisonBenchmarkModel {
+  readonly projectCount: number;
+  readonly combinedCapitalUsd: number;
+  readonly maxCapitalUsd: number;
+  readonly peakDensityUsdPerSqFt: number;
+  readonly uniqueCounties: readonly string[];
+  readonly framingCopy: string;
+  readonly rows: readonly ComparisonRowViewModel[];
 }
 
 export function unescapeAstProse(value: string): string {
@@ -160,5 +178,64 @@ export function summarizeObservationTrajectory(
       0
     ),
     latestCapitalUsd: latestEntry ? latestEntry.observation.estimatedCostUsd : 0,
+  };
+}
+
+export function buildComparisonBenchmarkModel(
+  rows: readonly CitedProject[]
+): ComparisonBenchmarkModel {
+  if (rows.length === 0) {
+    return {
+      projectCount: 0,
+      combinedCapitalUsd: 0,
+      maxCapitalUsd: 0,
+      peakDensityUsdPerSqFt: 0,
+      uniqueCounties: [],
+      framingCopy: "",
+      rows: [],
+    };
+  }
+
+  const combinedCapitalUsd = rows.reduce((sum, item) => sum + item.project.estimatedCostUsd, 0);
+  const maxCapitalUsd = rows.reduce((max, item) => Math.max(max, item.project.estimatedCostUsd), 0);
+  const minCapitalUsd = rows.reduce(
+    (min, item) => Math.min(min, item.project.estimatedCostUsd),
+    Infinity
+  );
+  const uniqueCounties = Array.from(new Set(rows.map((item) => unescapeAstProse(item.project.county))));
+  const mappedRows = rows.map((item) => {
+    const { project } = item;
+    const costPerSqFtUsd = computeCostPerSqFtUsd(project.estimatedCostUsd, project.squareFootage);
+    const scalePercent =
+      maxCapitalUsd > 0 ? Number(((project.estimatedCostUsd / maxCapitalUsd) * 100).toFixed(2)) : 0;
+
+    return {
+      citedProject: item,
+      costPerSqFtUsd,
+      scalePercent,
+      buildWindow: computeBuildWindowSummary(project.startDate, project.completionDate),
+    };
+  });
+  const peakDensityUsdPerSqFt = mappedRows.reduce(
+    (max, row) => Math.max(max, row.costPerSqFtUsd),
+    0
+  );
+  const countySpan =
+    uniqueCounties.length === 1
+      ? `${uniqueCounties[0]} County`
+      : `${uniqueCounties.join(", ")} Counties`;
+  const capitalSpan =
+    minCapitalUsd === maxCapitalUsd
+      ? `$${maxCapitalUsd.toLocaleString("en-US")} declared capital`
+      : `$${minCapitalUsd.toLocaleString("en-US")}–$${maxCapitalUsd.toLocaleString("en-US")} declared capital`;
+
+  return {
+    projectCount: rows.length,
+    combinedCapitalUsd,
+    maxCapitalUsd,
+    peakDensityUsdPerSqFt,
+    uniqueCounties,
+    framingCopy: `Benchmarking ${rows.length} ${rows.length === 1 ? "filing" : "filings"} across ${countySpan} spanning ${capitalSpan}.`,
+    rows: mappedRows,
   };
 }
