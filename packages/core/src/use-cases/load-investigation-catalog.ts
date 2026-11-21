@@ -1,4 +1,5 @@
 import type { GridlockRepository } from "../interfaces/index.ts";
+import { getPlateLineage } from "./get-plate-lineage.ts";
 import {
   buildFilingCatalogEntries,
   extractUnseenObservationHashes,
@@ -6,16 +7,29 @@ import {
   validateCatalogProjectList,
   type PlannerGroundingCatalog,
 } from "./helpers/investigate-planner-catalog.ts";
+import {
+  buildLineageCatalogEntries,
+  extractValidatedLineageIds,
+} from "./helpers/investigate-planner-seam-catalog.ts";
 
 export async function loadPlannerGroundingCatalog(
   repository: GridlockRepository,
   now: Date
 ): Promise<{ ok: true; catalog: PlannerGroundingCatalog } | { ok: false; message: string }> {
   try {
-    const rawProjects = await repository.listProjects();
+    const [rawProjects, rawAllPlates] = await Promise.all([
+      repository.listProjects(),
+      repository.listVisualPlatesByLineage(),
+    ]);
+
     const validatedProjects = validateCatalogProjectList(rawProjects);
     if (!validatedProjects.ok) {
       return { ok: false, message: validatedProjects.message };
+    }
+
+    const validatedLineages = extractValidatedLineageIds(rawAllPlates);
+    if (!validatedLineages.ok) {
+      return { ok: false, message: validatedLineages.message };
     }
 
     const projectHashes = Array.from(
@@ -67,10 +81,29 @@ export async function loadPlannerGroundingCatalog(
       return { ok: false, message: filingEntries.message };
     }
 
+    const lineageResults = await Promise.all(
+      validatedLineages.lineageIds.map((lineageId) =>
+        getPlateLineage({ lineageId, now }, { repository })
+      )
+    );
+    const failedLineage = lineageResults.find((result) => !result.ok);
+    if (failedLineage && !failedLineage.ok) {
+      return { ok: false, message: failedLineage.message };
+    }
+    const validLineages = lineageResults.flatMap((result) =>
+      result.ok ? [result.lineage] : []
+    );
+
+    const lineageCatalogResult = buildLineageCatalogEntries(validLineages);
+    if (!lineageCatalogResult.ok) {
+      return { ok: false, message: lineageCatalogResult.message };
+    }
+
     return {
       ok: true,
       catalog: {
         projects: filingEntries.projects,
+        lineages: lineageCatalogResult.lineages,
       },
     };
   } catch (error) {
