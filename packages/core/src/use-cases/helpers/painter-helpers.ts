@@ -11,6 +11,7 @@ import {
   type TelemetryStage,
   type VisualPlate,
 } from "../../interfaces/index.ts";
+import { applyScenarioBranchWatermarkToWebp } from "./webp-codec.ts";
 
 export type PainterStage = Extract<TelemetryStage, `painter_${string}`>;
 
@@ -155,6 +156,36 @@ export function synthesizeMilestoneDeltaPrompt(
 
 export function isVisualPlateActiveAt(plate: VisualPlate, now: Date): boolean {
   return plate.expiresAt === null || Date.parse(plate.expiresAt) > now.getTime();
+}
+
+export function prepareFinalPlateWebp(
+  encoded: { webpBuffer: Buffer; sha256: string },
+  isBranch: boolean
+): { webpBuffer: Buffer; sha256: string; pinCanonicalArtifacts: boolean } {
+  if (!isBranch) {
+    return {
+      webpBuffer: encoded.webpBuffer,
+      sha256: encoded.sha256,
+      pinCanonicalArtifacts: true,
+    };
+  }
+  const expectedRightsTag = `<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`;
+  if (encoded.webpBuffer.includes(expectedRightsTag, 0, "utf8")) {
+    return {
+      webpBuffer: encoded.webpBuffer,
+      sha256: encoded.sha256,
+      pinCanonicalArtifacts: false,
+    };
+  }
+  const watermarked = applyScenarioBranchWatermarkToWebp(
+    encoded.webpBuffer,
+    SCENARIO_BRANCH_WATERMARK
+  );
+  return {
+    webpBuffer: watermarked,
+    sha256: createHash("sha256").update(watermarked).digest("hex"),
+    pinCanonicalArtifacts: false,
+  };
 }
 
 export function synthesizeScenarioBranchPrompt(parentPlate: VisualPlate, scenarioPrompt: string): string {

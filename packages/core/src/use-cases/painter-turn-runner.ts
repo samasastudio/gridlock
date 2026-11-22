@@ -1,5 +1,3 @@
-import type { Buffer } from "node:buffer";
-import { createHash } from "node:crypto";
 import {
   DEFAULT_LINEAGE_ID,
   PAINTER_AGENT_MODEL,
@@ -22,6 +20,7 @@ import {
   classifyThrownPainterError,
   evaluateMilestoneObservations,
   isExpiredOrRejectedPreviousInteraction,
+  prepareFinalPlateWebp,
   selectActiveCanonicalPlate,
   type PainterCompletedTurn,
   type PainterInteractionFailure,
@@ -30,7 +29,6 @@ import {
   type VisualPlateTurnSpec,
 } from "./helpers/painter-helpers.ts";
 import {
-  applyScenarioBranchWatermarkToWebp,
   defaultPainterImageEncoder,
   isWebpBuffer,
 } from "./helpers/webp-codec.ts";
@@ -232,21 +230,6 @@ async function pinMilestoneSourceArtifacts(repository: GridlockRepository, hashe
   );
 }
 
-function prepareFinalPlateWebp(
-  encoded: { webpBuffer: Buffer; sha256: string },
-  isBranch: boolean
-): { webpBuffer: Buffer; sha256: string; pinCanonicalArtifacts: boolean } {
-  if (!isBranch) {
-    return { webpBuffer: encoded.webpBuffer, sha256: encoded.sha256, pinCanonicalArtifacts: true };
-  }
-  const watermarked = applyScenarioBranchWatermarkToWebp(encoded.webpBuffer, SCENARIO_BRANCH_WATERMARK);
-  return {
-    webpBuffer: watermarked,
-    sha256: createHash("sha256").update(watermarked).digest("hex"),
-    pinCanonicalArtifacts: false,
-  };
-}
-
 export async function finalizePaintedPlateTurn(
   ctx: PainterTurnContext,
   params: VisualPlateTurnSpec & {
@@ -261,7 +244,10 @@ export async function finalizePaintedPlateTurn(
   if (!interactionId) {
     return failClosedPainter(ctx, { stage: params.stage, reason: "Gemini painter interaction missing required interaction.id", errorCode: "interaction_failed", tokensUsed, observations: params.observations });
   }
-  const encoded = ctx.imageEncoder(interaction.output_image);
+  const encoded = await ctx.imageEncoder(interaction.output_image, {
+    isBranch: params.isBranch,
+    watermarkText: params.isBranch ? SCENARIO_BRANCH_WATERMARK : null,
+  });
   if (!encoded.ok) {
     return failClosedPainter(ctx, { stage: params.stage, reason: encoded.reason, errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
