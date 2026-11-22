@@ -686,4 +686,66 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
       }
     }
   );
+
+  test(
+    "Smoke Step 1: live TDLR discovery sweep + filing ingestion via plain fetch (opt-in via LIVE_ACCESS_TEST=1)",
+    { skip: process.env.LIVE_ACCESS_TEST !== "1" },
+    async () => {
+      const maintenanceReasonRe =
+        /\bHTTP 503\b|Under Maintenance|Maintenance Window/i;
+      const repository = createInMemoryGridlockRepository();
+      const sweep = await runTdlrDiscoverySweep(
+        {
+          mode: "daily",
+          sinceDate: new Date("2025-01-01T00:00:00.000Z"),
+          maxRecordsPerRun: 2,
+          searchFilters: [{ field: "ProjectName", value: "Data Center" }],
+        },
+        { repository }
+      );
+
+      if (sweep.status === "blocked_by_waf") {
+        assert.equal(sweep.tokensUsed, 0);
+        if (maintenanceReasonRe.test(sweep.reason)) {
+          return;
+        }
+        assert.fail(sweep.reason);
+      }
+
+      assert.equal(sweep.status, "completed");
+      assert.equal(sweep.tokensUsed, 0);
+      assert.ok(sweep.discoveredCount >= 1);
+
+      const targetProjectNumber =
+        sweep.ingestedProjectNumbers[0] ?? "TABS2027003697";
+      const directIngest = await ingestTdlrFiling(
+        { projectNumber: targetProjectNumber },
+        { repository }
+      );
+      if (directIngest.status === "blocked_by_waf") {
+        assert.equal(directIngest.tokensUsed, 0);
+        if (maintenanceReasonRe.test(directIngest.reason)) {
+          return;
+        }
+        assert.fail(directIngest.reason);
+      }
+      assert.ok(
+        directIngest.status === "ingested" ||
+          directIngest.status === "unchanged_artifact",
+        `Expected ingested or unchanged_artifact, received ${directIngest.status}`
+      );
+
+      const projects = await repository.listProjects();
+      assert.ok(projects.length >= 1);
+      const firstProject = projects[0]!;
+      const observations = await repository.listObservationsByProject(
+        firstProject.projectNumber
+      );
+      assert.ok(observations.length >= 1);
+      const gzipBlob = await repository.readArtifactGzip(
+        firstProject.latestSourceArtifactHash
+      );
+      assert.ok(gzipBlob !== null && gzipBlob.byteLength > 0);
+    }
+  );
 });
