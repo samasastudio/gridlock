@@ -99,13 +99,19 @@ export interface GeminiInteractionImageBlock {
   mime_type?: string;
 }
 
+export interface PainterImageEncodeOptions {
+  isBranch?: boolean;
+  watermarkText?: string | null;
+}
+
 export type PainterImageEncodeResult =
   | { ok: true; webpBuffer: Buffer; sha256: string }
   | { ok: false; reason: string };
 
 export type PainterImageEncoder = (
-  outputImage: GeminiInteractionImageBlock | null | undefined
-) => PainterImageEncodeResult;
+  outputImage: GeminiInteractionImageBlock | null | undefined,
+  options?: PainterImageEncodeOptions
+) => PainterImageEncodeResult | Promise<PainterImageEncodeResult>;
 
 export type GeminiInteractionResponseFormat =
   | {

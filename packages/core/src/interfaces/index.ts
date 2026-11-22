@@ -92,6 +92,7 @@ export type {
   GridlockRepository,
   PageLoader,
   PageLoaderResponse,
+  PainterImageEncodeOptions,
   PainterImageEncodeResult,
   PainterImageEncoder,
   SearchLoader,

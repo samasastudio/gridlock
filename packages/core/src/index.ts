@@ -108,6 +108,11 @@ export {
   type PlaywrightPageLike,
 } from "./adapters/http-loaders.ts";
 export { createInMemoryGridlockRepository } from "./adapters/in-memory-repository.ts";
+export {
+  createSharpImageEncoder,
+  sharpImageEncoder,
+  type SharpImageEncoderOptions,
+} from "./adapters/sharp-image-encoder.ts";
 
 export {
   sanitizeLocationAddressPii,
