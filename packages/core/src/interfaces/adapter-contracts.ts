@@ -107,16 +107,26 @@ export type PainterImageEncoder = (
   outputImage: GeminiInteractionImageBlock | null | undefined
 ) => PainterImageEncodeResult;
 
+export type GeminiInteractionResponseFormat =
+  | {
+      type: "text";
+      mime_type: "application/json";
+      schema?: Record<string, unknown>;
+    }
+  | {
+      type: "image";
+      mime_type?: "image/png" | "image/jpeg" | "image/webp";
+      aspect_ratio?: string;
+      image_size?: "1K" | "2K" | "4K";
+      schema?: undefined;
+    };
+
 export interface GeminiInteractionCreateRequest {
   model: string;
   input: string | Array<Record<string, unknown>>;
   previous_interaction_id?: string;
   store?: boolean;
-  response_format?: {
-    type: "text";
-    mime_type: "application/json";
-    schema: Record<string, unknown>;
-  };
+  response_format?: GeminiInteractionResponseFormat;
 }
 
 export interface GeminiInteractionError {

@@ -87,6 +87,7 @@ export type {
   GeminiInteractionError,
   GeminiInteractionImageBlock,
   GeminiInteractionResponse,
+  GeminiInteractionResponseFormat,
   GeminiInteractionsClient,
   GridlockRepository,
   PageLoader,

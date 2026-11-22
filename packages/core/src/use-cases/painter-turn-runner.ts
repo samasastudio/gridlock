@@ -141,7 +141,10 @@ export async function tryCreatePainterInteraction(
   request: GeminiInteractionCreateRequest
 ): Promise<PainterTurnAttemptResult> {
   try {
-    const interaction = await geminiClient.interactions.create(request);
+    const interaction = await geminiClient.interactions.create({
+      ...request,
+      response_format: request.response_format ?? { type: "image" },
+    });
     const tokensUsed = Math.max(0, interaction.usage?.total_tokens ?? 0);
     const trimmedId = interaction.id?.trim();
     if (interaction.status !== "completed") {
