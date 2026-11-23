@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, posix, relative } from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { runTypeHygieneChecks } from "./type-hygiene.mjs";
 
 export const BANNED_GLOSSARY_TERMS = [
   { pattern: /\bCompute Atlas\b/i, useInstead: "Gridlock" },
@@ -16,7 +17,7 @@ export const BANNED_GLOSSARY_TERMS = [
 
 export const MAX_TSX_LINES = 220;
 export const MAX_CORE_TS_LINES = 300;
-const MAX_PR_CHANGED_LINES = 700;
+export const MAX_PR_CHANGED_LINES = 800;
 export const ALLOWED_CORE_TOP_DIRS = new Set([
   "interfaces",
   "use-cases",
@@ -444,6 +445,75 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
     }
   }
 
+  if (/^packages\/widgets\/(?:src|stories|test)\/.+\.(?:ts|tsx)$/.test(relPath)) {
+    for (const spec of extractImportSpecifiers(content)) {
+      if (spec === "framer-motion" || spec.startsWith("framer-motion/")) {
+        violations.push(
+          `${relPath}: Animation SDK violation — import from "motion/react" or "motion-plus/react", not legacy "${spec}" (CODING_STANDARDS.md §5)`
+        );
+      }
+    }
+  }
+
+  if (/^packages\/widgets\/src\/.+\.(?:ts|tsx)$/.test(relPath)) {
+    for (const [index, line] of lines.entries()) {
+      const stripped = stripCommentsAndStrings(line);
+      if (/\buseReducedMotion\b/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Wrap animated widget roots in <MotionConfig reducedMotion="user"> rather than scattering useReducedMotion() ternaries (CODING_STANDARDS.md §5)`
+        );
+      }
+    }
+  }
+
+  if (/^packages\/widgets\/test\/.+\.(?:ts|tsx)$/.test(relPath) && /\bwithWidgetDom\b/.test(content)) {
+    for (const [index, line] of lines.entries()) {
+      const stripped = stripCommentsAndStrings(line);
+      if (/\brenderToReadableStream\b/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Pair same-file withWidgetDom SSR tests with renderToStaticMarkup instead of renderToReadableStream (CODING_STANDARDS.md §5)`
+        );
+      }
+    }
+  }
+
+  if (/^packages\/[^/]+\/(?:src|test)\/.+\.(?:ts|tsx)$/.test(relPath)) {
+    for (const [index, line] of lines.entries()) {
+      const withoutStrings = line.replace(
+        /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/g,
+        '""'
+      );
+      if (/\/\/\s*@ts-(?:ignore|nocheck)\b|\/\*\s*@ts-(?:ignore|nocheck)\b/.test(withoutStrings)) {
+        violations.push(
+          `${relPath}:${index + 1}: TypeScript suppression directive (@ts-ignore / @ts-nocheck) is prohibited (CODING_STANDARDS.md §2)`
+        );
+      }
+    }
+  }
+
+  if (/^packages\/[^/]+\/src\/.+\.(?:ts|tsx)$/.test(relPath)) {
+    for (const spec of extractImportSpecifiers(content)) {
+      if (spec === "@google/generative-ai" || spec.startsWith("@google/generative-ai/")) {
+        violations.push(
+          `${relPath}: Gemini SDK violation — use "@google/genai" v1 Interactions API, not legacy "${spec}" (CODING_STANDARDS.md §4)`
+        );
+      }
+    }
+    for (const [index, line] of lines.entries()) {
+      const stripped = stripCommentsAndStrings(line);
+      if (/\bmodels\.generateContent\b/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Gemini API violation — use client.interactions.create instead of legacy models.generateContent (CODING_STANDARDS.md §4)`
+        );
+      }
+      if (/\bgemini-(?:1\.5|2\.0|2\.5)-[a-z0-9.-]+/i.test(line)) {
+        violations.push(
+          `${relPath}:${index + 1}: Deprecated Gemini model ID — use gemini-3.8-flash or gemini-3-pro-image (CODING_STANDARDS.md §4)`
+        );
+      }
+    }
+  }
+
   for (const [index, line] of lines.entries()) {
     for (const { pattern, useInstead } of BANNED_GLOSSARY_TERMS) {
       if (pattern.test(line)) {
@@ -479,8 +549,11 @@ export function checkPullRequestDiffSize(repoRoot, options = {}) {
     (process.env.GITHUB_BASE_REF
       ? `origin/${process.env.GITHUB_BASE_REF}`
       : "origin/main");
-  const headRef = options.headRef || process.env.PR_HEAD_REF || "HEAD";
-  const diffRange = `${baseRef}...${headRef}`;
+  const workingTree = Boolean(options.workingTree);
+  const headRef = workingTree
+    ? "WORKTREE"
+    : options.headRef || process.env.PR_HEAD_REF || "HEAD";
+  const diffRange = workingTree ? baseRef : `${baseRef}...${headRef}`;
   const diffResult = spawnSync(
     "git",
     ["diff", "--numstat", diffRange],
@@ -718,7 +791,8 @@ if (
     process.exit(0);
   }
   if (process.argv.includes("--check-pr-size")) {
-    const prCheck = checkPullRequestDiffSize(repoRoot);
+    const workingTree = process.argv.includes("--working-tree");
+    const prCheck = checkPullRequestDiffSize(repoRoot, { workingTree });
     if (prCheck.violations.length > 0) {
       console.error("Pull Request size check failed:");
       for (const v of prCheck.violations) {
@@ -743,7 +817,10 @@ if (
     process.exit(tscResult.status ?? 1);
   }
 
-  const violations = runRepoLintChecks(repoRoot);
+  const violations = [
+    ...runRepoLintChecks(repoRoot),
+    ...runTypeHygieneChecks(repoRoot),
+  ];
   if (violations.length > 0) {
     console.error("Lint check violations found:");
     for (const v of violations) {

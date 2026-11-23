@@ -1,14 +1,21 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import ts from "typescript";
 import {
   TelemetryRunSchema,
   TelemetrySpanSchema,
   TelemetryStageSchema,
 } from "../src/index.ts";
 import {
+  MAX_PR_CHANGED_LINES,
+  evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   evaluateUnusedModuleExports,
 } from "../../../scripts/lint-checks.mjs";
+import {
+  evaluateProgramTypeHygiene,
+  runTypeHygieneChecks,
+} from "../../../scripts/type-hygiene.mjs";
 
 describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Issue #27 & #35 Retros)", () => {
   test("TelemetryStageSchema, TelemetryRunSchema, and TelemetrySpanSchema reject non-canonical stage strings", () => {
@@ -151,5 +158,111 @@ describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Is
       evaluateSourceFileLintRules("packages/core/src/use-cases/example.ts", cleanWidgetSource),
       []
     );
+  });
+
+  test("evaluateSourceFileLintRules enforces Gemini v1, Motion/Motion+, withWidgetDom SSR, and @ts-ignore guardrails", () => {
+    const coreViolations = evaluateSourceFileLintRules(
+      "packages/core/src/adapters/bad-gemini.ts",
+      [
+        'import { GoogleGenerativeAI } from "@google/generative-ai";',
+        "// @ts-ignore legacy shim",
+        'export const model = "gemini-2.5-flash";',
+        "export function call(client: { models: { generateContent: () => void } }) {",
+        "  void GoogleGenerativeAI;",
+        "  return client.models.generateContent();",
+        "}",
+      ].join("\n")
+    );
+    assert.ok(coreViolations.some((v) => v.includes('"@google/generative-ai"')));
+    assert.ok(coreViolations.some((v) => v.includes("@ts-ignore")));
+    assert.ok(coreViolations.some((v) => v.includes("Deprecated Gemini model ID")));
+    assert.ok(coreViolations.some((v) => v.includes("models.generateContent")));
+
+    const widgetViolations = evaluateSourceFileLintRules(
+      "packages/widgets/src/BadMotion.tsx",
+      [
+        'import { motion, useReducedMotion } from "framer-motion";',
+        "export function BadMotion() {",
+        "  const reduced = useReducedMotion();",
+        "  return reduced ? null : motion;",
+        "}",
+      ].join("\n")
+    );
+    assert.ok(widgetViolations.some((v) => v.includes('"framer-motion"')));
+    assert.ok(widgetViolations.some((v) => v.includes("MotionConfig")));
+
+    const ssrConflict = evaluateSourceFileLintRules(
+      "packages/widgets/test/bad-dom-ssr.test.tsx",
+      [
+        'import { renderToReadableStream } from "react-dom/server";',
+        'import { withWidgetDom } from "./helpers/dom-harness.ts";',
+        "export const run = () => [withWidgetDom, renderToReadableStream];",
+      ].join("\n")
+    );
+    assert.ok(ssrConflict.some((v) => v.includes("renderToStaticMarkup")));
+
+    const pureSsrTest = evaluateSourceFileLintRules(
+      "packages/widgets/test/pure-ssr.test.tsx",
+      [
+        'import { renderToReadableStream } from "react-dom/server";',
+        "export const run = () => renderToReadableStream;",
+      ].join("\n")
+    );
+    assert.deepEqual(pureSsrTest, []);
+  });
+
+  test("evaluatePullRequestLineBudget enforces the 800-line PR cap", () => {
+    assert.equal(MAX_PR_CHANGED_LINES, 800);
+    assert.deepEqual(
+      evaluatePullRequestLineBudget({ insertions: 700, deletions: 100, baseRef: "origin/main" }),
+      []
+    );
+    const over = evaluatePullRequestLineBudget({
+      insertions: 701,
+      deletions: 100,
+      baseRef: "origin/main",
+      headRef: "WORKTREE",
+    });
+    assert.equal(over.length, 1);
+    assert.ok(over[0]?.includes("801 changed lines"));
+    assert.ok(over[0]?.includes("<= 800-line budget"));
+  });
+
+  test("evaluateProgramTypeHygiene flags explicit and inherent any leaks and passes on the real workspace", () => {
+    const virtualFile = "/repo/packages/core/src/use-cases/leaky.ts";
+    const leakySource = [
+      "export function parseThing(raw: unknown, p: Promise<void>): unknown {",
+      "  const explicit: any = raw;",
+      "  const parsed = JSON.parse('{}');",
+      "  void p.catch((err) => err);",
+      "  const mapped = Array.isArray(raw) ? raw.map((item) => item) : [];",
+      "  return parsed ?? explicit ?? mapped;",
+      "}",
+    ].join("\n");
+    const compilerOptions: ts.CompilerOptions = {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.NodeNext,
+      moduleResolution: ts.ModuleResolutionKind.NodeNext,
+      strict: true,
+      noEmit: true,
+    };
+    const defaultHost = ts.createCompilerHost(compilerOptions);
+    const host: ts.CompilerHost = {
+      ...defaultHost,
+      fileExists: (f) => f === virtualFile || defaultHost.fileExists(f),
+      readFile: (f) => (f === virtualFile ? leakySource : defaultHost.readFile(f)),
+      getSourceFile: (f, langVersion) =>
+        f === virtualFile
+          ? ts.createSourceFile(f, leakySource, langVersion)
+          : defaultHost.getSourceFile(f, langVersion),
+    };
+    const program = ts.createProgram([virtualFile], compilerOptions, host);
+    const violations = evaluateProgramTypeHygiene(program, "/repo");
+
+    assert.ok(violations.some((v) => v.includes("explicit any")));
+    assert.ok(violations.some((v) => v.includes('variable "parsed"')));
+    assert.ok(violations.some((v) => v.includes('parameter "err"')));
+    assert.ok(violations.some((v) => v.includes('parameter "item"')));
+    assert.deepEqual(runTypeHygieneChecks(process.cwd()), []);
   });
 });

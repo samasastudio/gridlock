@@ -200,7 +200,7 @@ export async function runTdlrDiscoverySweep(
     };
   };
 
-  const searchPhaseOutcome = await runSearchPhase().catch(async (error) => {
+  const searchPhaseOutcome = await runSearchPhase().catch(async (error: unknown) => {
     await recordDiscoveryFailureTelemetry("aborted");
     throw error;
   });

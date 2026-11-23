@@ -68,7 +68,7 @@ export function extractValidatedLineageIds(
     );
   }
 
-  const parsedItems = rawAllPlates.map((item) => VisualPlateSchema.safeParse(item));
+  const parsedItems = rawAllPlates.map((item: unknown) => VisualPlateSchema.safeParse(item));
   if (parsedItems.some((parsed) => !parsed.success)) {
     return stepFailure(
       "repository_integrity_error",
@@ -114,7 +114,7 @@ export function extractValidatedChangelogConnectorIds(
     );
   }
 
-  const parsedItems = rawChangelogEntries.map((item) =>
+  const parsedItems = rawChangelogEntries.map((item: unknown) =>
     RepairChangelogEntrySchema.safeParse(item)
   );
   if (parsedItems.some((parsed) => !parsed.success)) {

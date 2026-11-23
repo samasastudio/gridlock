@@ -50,7 +50,7 @@ export async function fetchPlateLineageSnapshot(
         message: await readErrorMessage(res, `Plate Lineage HTTP ${res.status}`),
       };
     }
-    const raw = await res.json();
+    const raw: unknown = await res.json();
     const parsed = PlateLineageResponseSchema.safeParse(raw);
     if (!parsed.success) {
       return { ok: false, message: "Malformed Plate Lineage payload" };
