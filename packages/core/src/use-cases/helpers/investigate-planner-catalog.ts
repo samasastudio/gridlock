@@ -56,7 +56,7 @@ export function validateCatalogProjectList(
     );
   }
 
-  const parsedItems = rawProjects.map((item) => ProjectSchema.safeParse(item));
+  const parsedItems = rawProjects.map((item: unknown) => ProjectSchema.safeParse(item));
   if (parsedItems.some((parsed) => !parsed.success)) {
     return stepFailure(
       "repository_integrity_error",
@@ -118,7 +118,7 @@ export function extractUnseenObservationHashes(
     new Set(
       rawObservationsByProject.flatMap(({ raw }) =>
         Array.isArray(raw)
-          ? raw.flatMap((item) => {
+          ? raw.flatMap((item: unknown) => {
               const rawHash =
                 typeof item === "object" && item !== null
                   ? (item as Record<string, unknown>).sourceArtifactHash

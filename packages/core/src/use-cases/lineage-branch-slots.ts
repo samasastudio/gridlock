@@ -114,7 +114,7 @@ export function wrapRepositoryWithBranchSlot(
   slot: BranchSlotHandle
 ): GridlockRepository {
   return new Proxy(repo, {
-    get(target, prop, receiver) {
+    get(target, prop, receiver: unknown): unknown {
       if (prop === "saveVisualPlate") {
         return async (plate: VisualPlate, webpBuffer: Buffer) => {
           slot.markPersisting(plate.plateId);
@@ -125,8 +125,10 @@ export function wrapRepositoryWithBranchSlot(
           }
         };
       }
-      const value = Reflect.get(target, prop, receiver);
-      return typeof value === "function" ? value.bind(target) : value;
+      const value: unknown = Reflect.get(target, prop, receiver);
+      return typeof value === "function"
+        ? (value as (...args: readonly unknown[]) => unknown).bind(target)
+        : value;
     },
   });
 }

@@ -512,7 +512,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
 
     assert.deepEqual(
       evaluatePullRequestLineBudget({
-        insertions: 520,
+        insertions: 620,
         deletions: 180,
         baseRef: "origin/main",
       }),
@@ -520,7 +520,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     );
     assert.equal(
       evaluatePullRequestLineBudget({
-        insertions: 650,
+        insertions: 750,
         deletions: 51,
         baseRef: "origin/main",
       }).length,
@@ -543,18 +543,26 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       git("commit", "-m", "initial");
 
       git("checkout", "-b", "feat/stacked-slice");
-      const sharedChunk = Array.from({ length: 400 }, (_, i) => `shared-${i}`).join("\n") + "\n";
-      const sliceChunk = Array.from({ length: 305 }, (_, i) => `slice-${i}`).join("\n") + "\n";
+      const sharedChunk = Array.from({ length: 450 }, (_, i) => `shared-${i}`).join("\n") + "\n";
+      const sliceChunk = Array.from({ length: 355 }, (_, i) => `slice-${i}`).join("\n") + "\n";
       writeFileSync(join(syntheticRepoDir, "shared.txt"), sharedChunk);
       writeFileSync(join(syntheticRepoDir, "slice.txt"), sliceChunk);
+      git("add", "-N", "shared.txt", "slice.txt");
+      const worktreeCheck = checkPullRequestDiffSize(syntheticRepoDir, {
+        baseRef: "main",
+        workingTree: true,
+      });
+      assert.equal(worktreeCheck.insertions, 805);
+      assert.equal(worktreeCheck.violations.length, 1);
+
       git("add", "shared.txt", "slice.txt");
-      git("commit", "-m", "pr head (+705 lines)");
+      git("commit", "-m", "pr head (+805 lines)");
       const prHeadSha = git("rev-parse", "HEAD");
 
       git("checkout", "main");
       writeFileSync(join(syntheticRepoDir, "shared.txt"), sharedChunk);
       git("add", "shared.txt");
-      git("commit", "-m", "squash-merged earlier slice (+400 lines)");
+      git("commit", "-m", "squash-merged earlier slice (+450 lines)");
 
       git("checkout", "--detach", "main");
       git("merge", "--no-ff", "-m", "synthetic refs/pull/N/merge", prHeadSha);
@@ -567,7 +575,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
         baseRef: "main",
         headRef: prHeadSha,
       });
-      assert.equal(headDiffCheck.insertions, 705);
+      assert.equal(headDiffCheck.insertions, 805);
       assert.equal(headDiffCheck.violations.length, 1);
     } finally {
       rmSync(syntheticRepoDir, { recursive: true, force: true });

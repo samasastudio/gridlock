@@ -156,7 +156,7 @@ export function validateStoredObservationsByProject(
         `Stored Observations for "${projectNumber}" failed runtime schema validation`
       );
     }
-    const parsedItems = raw.map((item) => ObservationSchema.safeParse(item));
+    const parsedItems = raw.map((item: unknown) => ObservationSchema.safeParse(item));
     const hasInvalidItem = parsedItems.some(
       (parsed) => !parsed.success || parsed.data.projectNumber !== projectNumber
     );

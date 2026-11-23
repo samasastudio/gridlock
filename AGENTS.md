@@ -1,8 +1,18 @@
 # Gridlock (`samasastudio/gridlock`) — Agent Pointers
 
-- **GitHub Issues, `gh` CLI & Stacked PR Workflow**: Read [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md) before running `gh` commands (`--json` and REST `PATCH` required), slicing follow-up issues, branching or stacking PRs, reading PR reviews, or committing/pushing/opening a Pull Request.
-- **VM `ext4` Bind-Mount & Verification**: Read [`.agents/skills/gridlock-monorepo-hygiene/SKILL.md`](./.agents/skills/gridlock-monorepo-hygiene/SKILL.md) when `virtiofs` / `npm` hits `EMFILE` or `EPERM` or before running local verification.
 - **Unblocked Frontier & Acceptance Gates**: Read [`ROADMAP.md`](./ROADMAP.md) when selecting the next ticket or verifying Happy/Sad Path test gates.
-- **Atlas Dossier Widgets, Design Plates & Motion**: Read [`CODING_STANDARDS.md` §5](./CODING_STANDARDS.md#5-react-19--atlas-dossier-widget-standards-packageswidgets), inspect [`../profile-site/design-systems/`](../profile-site/design-systems/), and consult the `motion` and `impeccable` skills before styling or animating `packages/widgets`; preview with `npm run preview:widgets`.
-- **Coding Standards & TDLR Polite Access**: Read [`CODING_STANDARDS.md`](./CODING_STANDARDS.md) during pre-PR code reviews or when touching Gemini/Firestore/widget seams, and [`docs/connectors/tdlr-site-access-and-cadence.md`](./docs/connectors/tdlr-site-access-and-cadence.md) when touching TDLR connectors.
-- **Domain Glossary & ADRs**: Read [`docs/agents/domain.md`](./docs/agents/domain.md), [`GLOSSARY.md`](./GLOSSARY.md), and [`docs/adr/`](./docs/adr/) before naming domain concepts or modifying architecture.
+- **Coding Standards, Widget Plates & VM Hygiene**: Read [`CODING_STANDARDS.md`](./CODING_STANDARDS.md) during pre-PR reviews, when touching `packages/core` Gemini/Firestore seams (§2–§4), before styling or testing `packages/widgets` (§5, plus [`../profile-site/design-systems/`](../profile-site/design-systems/) and the `motion` / `impeccable` skills), or before running local verification / troubleshooting `virtiofs` `EMFILE` or `EPERM` errors (§6). Read [`docs/connectors/tdlr-site-access-and-cadence.md`](./docs/connectors/tdlr-site-access-and-cadence.md) when touching TDLR connectors.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues and stacked PRs (`samasastudio/gridlock`). Read [`docs/agents/issue-tracker.md`](./docs/agents/issue-tracker.md) before running `gh` commands (`--json` and REST `PATCH` required on `gh` 2.46), slicing follow-up issues, branching or stacking PRs, reading PR reviews, or committing/opening a Pull Request.
+
+### Triage labels
+
+Uses the five default canonical triage labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See [`docs/agents/triage-labels.md`](./docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context (`GLOSSARY.md` + `docs/adr/` at the repo root across `packages/*`). Read [`docs/agents/domain.md`](./docs/agents/domain.md), [`GLOSSARY.md`](./GLOSSARY.md), and [`docs/adr/`](./docs/adr/) before naming domain concepts or modifying architecture.

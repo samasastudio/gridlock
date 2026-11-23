@@ -99,7 +99,7 @@ export async function handleGridlockHttpRequest(
 
 export function createGridlockHttpServer(deps: GridlockHttpDeps): Server {
   return createServer((req, res) => {
-    void handleGridlockHttpRequest(req, res, deps).catch((error) => {
+    void handleGridlockHttpRequest(req, res, deps).catch((error: unknown) => {
       if (!res.headersSent) {
         sendJson(res, 500, {
           error: "internal_server_error",
