@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type Interactions } from "@google/genai";
 import type {
   GeminiInteractionCreateRequest,
   GeminiInteractionError,
@@ -7,11 +7,14 @@ import type {
   GeminiInteractionsClient,
 } from "../interfaces/index.ts";
 
+type GeminiSdkCreateInteractionParams =
+  Interactions.CreateModelInteractionParamsNonStreaming;
+
 export interface GeminiInteractionsAdapterOptions {
   apiKey?: string;
   sdkClient?: {
     interactions: {
-      create(params: Record<string, unknown>): Promise<unknown>;
+      create(params: GeminiSdkCreateInteractionParams): Promise<unknown>;
     };
   };
 }
@@ -35,39 +38,32 @@ function resolveSdkClient(
   const ai = new GoogleGenAI({ apiKey: trimmedKey });
   return {
     interactions: {
-      create: (params) =>
-        ai.interactions.create(
-          params as Parameters<typeof ai.interactions.create>[0]
-        ),
+      create: (params) => ai.interactions.create(params),
     },
   };
 }
 
-type SdkNormalizedInput =
-  | string
-  | readonly Record<string, unknown>[]
-  | readonly [{ type: "user_input"; content: readonly Record<string, unknown>[] }];
-
-function isFlatContentBlock(item: unknown): item is Record<string, unknown> {
+function isFlatContentBlock(item: unknown): item is Interactions.Content {
   return isRecord(item) && (item.type === "text" || item.type === "image");
 }
 
 function normalizeSdkInput(
   input: GeminiInteractionCreateRequest["input"]
-): SdkNormalizedInput {
+): Interactions.CreateModelInteractionParamsNonStreaming["input"] {
   if (!Array.isArray(input) || input.length === 0) {
-    return input;
+    return typeof input === "string" ? input : [];
   }
-  return input.every(isFlatContentBlock)
-    ? [{ type: "user_input", content: input }]
-    : input;
+  if (input.every(isFlatContentBlock)) {
+    return [{ type: "user_input", content: input }];
+  }
+  return input as Interactions.Step[];
 }
 
 function buildSdkRequestPayload(
   request: GeminiInteractionCreateRequest
-): Record<string, unknown> {
+): GeminiSdkCreateInteractionParams {
   const format = request.response_format;
-  const responseFormat =
+  const responseFormat: GeminiSdkCreateInteractionParams["response_format"] =
     format === undefined
       ? undefined
       : format.type === "text"

@@ -266,14 +266,26 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
         { lineageId: "smoke-corridor", observations: [milestoneObs] },
         { repository, geminiClient, imageEncoder: sharpImageEncoder }
       );
-      assert.equal(turn1.status, "plate_painted");
+      assert.equal(
+        turn1.status,
+        "plate_painted",
+        turn1.status === "painter_failed"
+          ? `${turn1.errorCode}: ${turn1.reason}`
+          : undefined
+      );
       assert.equal(isWebpBuffer(turn1.webpBuffer), true);
 
       const turn2 = await paintMilestoneDelta(
         { lineageId: "smoke-corridor", observations: [secondMilestone] },
         { repository, geminiClient, imageEncoder: sharpImageEncoder }
       );
-      assert.equal(turn2.status, "plate_painted");
+      assert.equal(
+        turn2.status,
+        "plate_painted",
+        turn2.status === "painter_failed"
+          ? `${turn2.errorCode}: ${turn2.reason}`
+          : undefined
+      );
       assert.equal(isWebpBuffer(turn2.webpBuffer), true);
       assert.equal(turn2.plate.turnNumber, 2);
       assert.equal(turn2.rebootstrappedFromParentWebp, false);

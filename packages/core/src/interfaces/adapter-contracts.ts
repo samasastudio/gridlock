@@ -121,7 +121,7 @@ export type GeminiInteractionResponseFormat =
     }
   | {
       type: "image";
-      mime_type?: "image/png" | "image/jpeg" | "image/webp";
+      mime_type?: "image/jpeg";
       aspect_ratio?: string;
       image_size?: "1K" | "2K" | "4K";
       schema?: undefined;
