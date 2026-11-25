@@ -43,6 +43,26 @@ function resolveSdkClient(
   };
 }
 
+type SdkNormalizedInput =
+  | string
+  | readonly Record<string, unknown>[]
+  | readonly [{ type: "user_input"; content: readonly Record<string, unknown>[] }];
+
+function isFlatContentBlock(item: unknown): item is Record<string, unknown> {
+  return isRecord(item) && (item.type === "text" || item.type === "image");
+}
+
+function normalizeSdkInput(
+  input: GeminiInteractionCreateRequest["input"]
+): SdkNormalizedInput {
+  if (!Array.isArray(input) || input.length === 0) {
+    return input;
+  }
+  return input.every(isFlatContentBlock)
+    ? [{ type: "user_input", content: input }]
+    : input;
+}
+
 function buildSdkRequestPayload(
   request: GeminiInteractionCreateRequest
 ): Record<string, unknown> {
@@ -71,7 +91,7 @@ function buildSdkRequestPayload(
 
   return {
     model: request.model,
-    input: request.input,
+    input: normalizeSdkInput(request.input),
     ...(request.previous_interaction_id !== undefined
       ? { previous_interaction_id: request.previous_interaction_id }
       : {}),

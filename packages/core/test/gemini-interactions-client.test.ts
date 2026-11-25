@@ -92,6 +92,7 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
     };
     const jsonRes = await client.interactions.create(jsonReq);
     assert.equal(seenPayloads[0]?.model, INVESTIGATION_PLANNER_MODEL);
+    assert.equal(seenPayloads[0]?.input, "Plan workspace");
     assert.equal(seenPayloads[0]?.previous_interaction_id, "inter_prev_0");
     assert.equal(seenPayloads[0]?.store, false);
     assert.deepEqual(seenPayloads[0]?.response_format, {
@@ -137,6 +138,42 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
     );
     assert.equal(boot.status, "plate_painted");
     assert.deepEqual(seenPayloads[2]?.response_format, { type: "image" });
+    const bootInput = seenPayloads[2]?.input as Array<{
+      type?: string;
+      content?: Array<{ type?: string }>;
+    }>;
+    assert.equal(Array.isArray(bootInput), true);
+    assert.equal(bootInput.length, 1);
+    assert.equal(bootInput[0]?.type, "user_input");
+    assert.deepEqual(
+      bootInput[0]?.content?.map((block) => block.type),
+      ["text", "image"]
+    );
+
+    const wrappedStep = [
+      { type: "user_input", content: [{ type: "text", text: "Already wrapped" }] },
+    ];
+    await client.interactions.create({
+      model: INVESTIGATION_PLANNER_MODEL,
+      input: wrappedStep,
+    });
+    assert.deepEqual(seenPayloads[3]?.input, wrappedStep);
+
+    await client.interactions.create({
+      model: INVESTIGATION_PLANNER_MODEL,
+      input: [],
+    });
+    assert.deepEqual(seenPayloads[4]?.input, []);
+
+    const mixedSteps = [
+      { type: "user_input", content: [{ type: "text", text: "Prior turn" }] },
+      { type: "text", text: "Loose trailing block" },
+    ];
+    await client.interactions.create({
+      model: INVESTIGATION_PLANNER_MODEL,
+      input: mixedSteps,
+    });
+    assert.deepEqual(seenPayloads[5]?.input, mixedSteps);
   });
 
   test("Sad Path: rejects omitted, empty, and whitespace API keys without echoing key material", () => {
