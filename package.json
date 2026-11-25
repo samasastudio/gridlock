@@ -22,7 +22,7 @@
     "pretest:live:tdlr": "bash ./scripts/ensure-ext4-deps.sh",
     "test:live:tdlr": "LIVE_ACCESS_TEST=1 node --import ./scripts/tsx-loader.mjs --test packages/core/test/tdlr-discovery.test.ts",
     "preverify": "bash ./scripts/ensure-ext4-deps.sh",
-    "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx' && node --import ./scripts/tsx-loader.mjs ./scripts/widget-workbench.mjs --smoke-check",
+    "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test --test-reporter=dot 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx' && node --import ./scripts/tsx-loader.mjs ./scripts/widget-workbench.mjs --smoke-check",
     "prepreview:widgets": "bash ./scripts/ensure-ext4-deps.sh",
     "preview:widgets": "node --import ./scripts/tsx-loader.mjs ./scripts/widget-workbench.mjs"
   },
