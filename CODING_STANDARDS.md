@@ -37,7 +37,7 @@ Read during pre-PR code reviews (Standards axis) and when designing modules acro
 
 ## 4. Bounded Gemini Interactions API (`ADR-0003`)
 
-- **SDK & Models**: Use `@google/genai` (`>= 3.2.0`, v1 GA Interactions API) `client.interactions.create` with `gemini-3.8-flash` (Out-of-Band Repair Agent and Investigation Planner) and `gemini-3-pro-image` (Stateful Painter Agent with `store: true` and `previous_interaction_id`). Legacy SDKs, `models.generateContent`, and older Gemini model IDs are blocked by `npm run lint`.
+- **SDK & Models**: Use `@google/genai` (`>= 3.2.0`, v1 GA Interactions API) `client.interactions.create` with `gemini-3.8-flash` (Out-of-Band Repair Agent and Investigation Planner) and `gemini-3-pro-image` (Stateful Painter Agent with `store: true` and `previous_interaction_id`). Legacy SDKs, `models.generateContent`, and older Gemini model IDs are blocked by `npm run lint`. On live `v1`, wrap multimodal `input` arrays in `[{ type: "user_input", content }]`, and note that `gemini-3-pro-image` requires a billed GCP project and only accepts `"image/jpeg"` (or omitted `mime_type`) in `response_format`.
 - **Lightest Working Transport & Real Media Codecs**: Prefer plain `fetch` loaders (`defaultPageLoader`, `defaultSearchLoader`) for server-rendered HTML/JSON portals and only pull in Playwright/Chromium if live requests are blocked. Wire `sharp` behind `PainterImageEncoder` to decode JPEG/PNG/WebP into `.webp`, attach XMP via `.withXmp(xmp)` (`sharp >= 0.34`), and composite speculative branch banners from font-independent raw RGBA buffers (`{ raw: { width, height, channels: 4 } }`) so `node:24-slim` containers never render tofu.
 - **Context Pointer**: Consult the `gemini-api-dev` skill before writing or reviewing any `@google/genai` code.
 
