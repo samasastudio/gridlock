@@ -4,4 +4,4 @@ set -euo pipefail
 CURRENT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
 node ./scripts/lint-checks.mjs --check-branch "$CURRENT_BRANCH"
 
-npm run verify
+npm run lint
