@@ -44,11 +44,11 @@ export const CitedProjectSchema = z
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.citation.sha256 !== entry.project.latestSourceArtifactHash) {
+    if (entry.citation.sha256 !== entry.project.latestRawCaptureHash) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["citation", "sha256"],
-        message: "Citation sha256 must match project.latestSourceArtifactHash",
+        message: "Citation sha256 must match project.latestRawCaptureHash",
       });
     }
   });
@@ -62,11 +62,11 @@ export const CitedObservationSchema = z
   })
   .strict()
   .superRefine((entry, ctx) => {
-    if (entry.citation.sha256 !== entry.observation.sourceArtifactHash) {
+    if (entry.citation.sha256 !== entry.observation.rawCaptureHash) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["citation", "sha256"],
-        message: "Citation sha256 must match observation.sourceArtifactHash",
+        message: "Citation sha256 must match observation.rawCaptureHash",
       });
     }
   });
@@ -166,21 +166,21 @@ const NonEmptyPlateLineageSchema = PlateLineageResponseSchema.refine(
   }
 )
   .refine(
-    (lineage) => lineage.nodes.every((node) => node.sourceArtifacts.length > 0),
+    (lineage) => lineage.nodes.every((node) => node.rawCaptures.length > 0),
     {
       path: ["nodes"],
       message:
-        "Every LineageNode in VisualPlateScrubber requires at least one SourceArtifact citation",
+        "Every LineageNode in VisualPlateScrubber requires at least one RawCapture citation",
     }
   )
   .refine(
     (lineage) =>
       lineage.nodes.every((node) =>
-        node.sourceArtifacts.every((art) => /^https?:\/\//i.test(art.sourceUrl))
+        node.rawCaptures.every((art) => /^https?:\/\//i.test(art.sourceUrl))
       ),
     {
       path: ["nodes"],
-      message: "Lineage sourceArtifacts must use http:// or https:// sourceUrl",
+      message: "Lineage rawCaptures must use http:// or https:// sourceUrl",
     }
   );
 

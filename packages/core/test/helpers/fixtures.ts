@@ -6,10 +6,10 @@ import {
   isWebpBuffer,
   ObservationSchema,
   ProjectSchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   type Observation,
   type Project,
-  type SourceArtifact,
+  type RawCapture,
 } from "../../src/index.ts";
 
 export { isWebpBuffer };
@@ -107,17 +107,17 @@ export function createSamplePngBuffer(width = 16, height = 9): Buffer {
 
 export function createPainterTestObservations(): { routineObs: Observation; milestoneObs: Observation } {
   return {
-    routineObs: ObservationSchema.parse({ id: "obs_TABS2027001111_routine", projectNumber: "TABS2027001111", sourceArtifactHash: "1".repeat(64), observedAt: "2026-10-27T14:00:00.000Z", status: "Project Registered", estimatedCostUsd: 2_500_000, squareFootage: 12_000, scopeOfWork: "Minor interior office remodel", isMilestone: false }),
-    milestoneObs: ObservationSchema.parse({ id: "obs_TABS2027003697_m1", projectNumber: "TABS2027003697", sourceArtifactHash: "a".repeat(64), observedAt: "2026-10-27T14:05:00.000Z", status: "Project Registered", estimatedCostUsd: 125_000_000, squareFootage: 250_000, scopeOfWork: "New 250,000 sq ft hyperscale data center shell", isMilestone: true }),
+    routineObs: ObservationSchema.parse({ id: "obs_TABS2027001111_routine", projectNumber: "TABS2027001111", rawCaptureHash: "1".repeat(64), observedAt: "2026-10-27T14:00:00.000Z", status: "Project Registered", estimatedCostUsd: 2_500_000, squareFootage: 12_000, scopeOfWork: "Minor interior office remodel", isMilestone: false }),
+    milestoneObs: ObservationSchema.parse({ id: "obs_TABS2027003697_m1", projectNumber: "TABS2027003697", rawCaptureHash: "a".repeat(64), observedAt: "2026-10-27T14:05:00.000Z", status: "Project Registered", estimatedCostUsd: 125_000_000, squareFootage: 250_000, scopeOfWork: "New 250,000 sq ft hyperscale data center shell", isMilestone: true }),
   };
 }
 
-export function createTestSourceArtifact(
+export function createTestRawCapture(
   sha256: string,
   projectNumber: string,
-  overrides: Partial<SourceArtifact> = {}
-): SourceArtifact {
-  return SourceArtifactSchema.parse({
+  overrides: Partial<RawCapture> = {}
+): RawCapture {
+  return RawCaptureSchema.parse({
     sha256,
     connectorId: "tdlr-tabs",
     sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${projectNumber}`,
@@ -134,7 +134,7 @@ export function createTestSourceArtifact(
 
 export function createTestProject(
   projectNumber: string,
-  latestSourceArtifactHash: string,
+  latestRawCaptureHash: string,
   overrides: Partial<Project> = {}
 ): Project {
   return ProjectSchema.parse({
@@ -151,7 +151,7 @@ export function createTestProject(
     currentStatus: "Project Registered",
     startDate: "2026-11-01",
     completionDate: "2028-06-01",
-    latestSourceArtifactHash,
+    latestRawCaptureHash,
     updatedAt: "2026-10-27T14:05:00.000Z",
     ...overrides,
   });

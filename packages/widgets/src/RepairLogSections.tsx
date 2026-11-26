@@ -64,7 +64,7 @@ export function ConnectorHealthBanner(props: { connectorStatus: ConnectorStatus;
   if (props.connectorStatus === "healthy") return null;
   const detail =
     props.connectorStatus === "selector_anomaly"
-      ? `Connector degraded (selector_anomaly on ConnectorConfig v${props.activeVersion}): Source Artifact quarantined while the Out-of-Band Repair Agent verifies a candidate selector patch in the Sandbox Replay Gate.`
+      ? `Connector degraded (selector_anomaly on ConnectorConfig v${props.activeVersion}): Raw Capture quarantined while the Out-of-Band Repair Agent verifies a candidate selector patch in the Sandbox Replay Gate.`
       : `Connector paused (blocked_by_waf on ConnectorConfig v${props.activeVersion}): polite access gate halted ingestion at 0 Gemini tokens to respect portal WAF / rate-limit boundaries.`;
   return (
     <div role="alert" className="gridlock-banner">

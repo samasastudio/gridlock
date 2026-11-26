@@ -18,7 +18,7 @@ import {
   recordAgenticStageTelemetry,
   recordStageTelemetry,
   SCENARIO_BRANCH_WATERMARK,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   VisualPlateSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
@@ -48,7 +48,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       rebootstrappedFromParentWebp: false,
       projectNumbers: [milestoneObs1.projectNumber],
       triggeringObservationIds: [milestoneObs1.id],
-      sourceArtifactHashes: [milestoneObs1.sourceArtifactHash],
+      rawCaptureHashes: [milestoneObs1.rawCaptureHash],
       prompt: "Paint Turn 2 corridor plate",
       storageUri: `${ARTIFACT_BUCKET_URI}/plates/texas-corridor-main/plate_texas-corridor-main_t2_abcd1234.webp`,
       mimeType: "image/webp",
@@ -202,7 +202,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(ledger.visualPlateCacheEfficiencyPercentage, 75);
   });
 
-  test("Part 2 (Turn 1 bootstrapCanvas, Real PNG->WebP Lossless Codec, Artifact Pinning & Fail-Closed Guards): validates corridor base canvas, transcodes PNG to RFC-9649 WebP, pins SourceArtifact retention, and fails closed across status/ID/image sad paths", async () => {
+  test("Part 2 (Turn 1 bootstrapCanvas, Real PNG->WebP Lossless Codec, Artifact Pinning & Fail-Closed Guards): validates corridor base canvas, transcodes PNG to RFC-9649 WebP, pins RawCapture retention, and fails closed across status/ID/image sad paths", async () => {
     const repository = createInMemoryGridlockRepository();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const emittedSpans: TelemetrySpan[] = [];
@@ -213,12 +213,12 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(isWebpBuffer(createCorridorBaseCanvasWebp("texas-corridor-main")), true);
 
     const rawHtmlGz = gzipSync(Buffer.from("<html>milestone</html>", "utf-8"));
-    await repository.saveSourceArtifact(
-      SourceArtifactSchema.parse({
-        sha256: milestoneObs.sourceArtifactHash, connectorId: "tdlr-tabs",
+    await repository.saveRawCapture(
+      RawCaptureSchema.parse({
+        sha256: milestoneObs.rawCaptureHash, connectorId: "tdlr-tabs",
         sourceUrl: "https://www.tdlr.texas.gov/TABS/Search/Project/TABS2027003697",
         contentType: "text/html", rawByteLength: 22, compressedByteLength: rawHtmlGz.byteLength,
-        storageUri: `${ARTIFACT_BUCKET_URI}/artifacts/${milestoneObs.sourceArtifactHash}.gz`,
+        storageUri: `${ARTIFACT_BUCKET_URI}/artifacts/${milestoneObs.rawCaptureHash}.gz`,
         capturedAt: "2026-10-27T14:00:00.000Z", expiresAt: "2027-01-25T14:00:00.000Z", referencedByMilestone: false,
       }),
       rawHtmlGz
@@ -263,7 +263,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(isWebpBuffer(Buffer.from(sentBase64, "base64")), true);
     assert.equal(isWebpBuffer(painted.webpBuffer), true);
     assert.equal(painted.plate.interactionId, "inter_turn_1_bootstrap");
-    const pinnedArtifact = await repository.getSourceArtifactByHash(milestoneObs.sourceArtifactHash);
+    const pinnedArtifact = await repository.getRawCaptureByHash(milestoneObs.rawCaptureHash);
     assert.equal(pinnedArtifact?.expiresAt, null);
     assert.equal(pinnedArtifact?.referencedByMilestone, true);
 
@@ -301,10 +301,10 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     const repository = createInMemoryGridlockRepository();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const { milestoneObs: m1 } = createPainterTestObservations();
-    const m2 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027005555_t2", projectNumber: "TABS2027005555", sourceArtifactHash: "b".repeat(64), scopeOfWork: "345kV substation interconnect" });
-    const m3 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027008888_t3", projectNumber: "TABS2027008888", sourceArtifactHash: "c".repeat(64), scopeOfWork: "Phase 2 chilled-water plant" });
-    const m4 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027009111_t4", projectNumber: "TABS2027009111", sourceArtifactHash: "d".repeat(64), scopeOfWork: "Phase 3 switchgear yard" });
-    const m5 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027009222_t5", projectNumber: "TABS2027009222", sourceArtifactHash: "e".repeat(64), scopeOfWork: "Phase 4 synchronous condenser" });
+    const m2 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027005555_t2", projectNumber: "TABS2027005555", rawCaptureHash: "b".repeat(64), scopeOfWork: "345kV substation interconnect" });
+    const m3 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027008888_t3", projectNumber: "TABS2027008888", rawCaptureHash: "c".repeat(64), scopeOfWork: "Phase 2 chilled-water plant" });
+    const m4 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027009111_t4", projectNumber: "TABS2027009111", rawCaptureHash: "d".repeat(64), scopeOfWork: "Phase 3 switchgear yard" });
+    const m5 = ObservationSchema.parse({ ...m1, id: "obs_TABS2027009222_t5", projectNumber: "TABS2027009222", rawCaptureHash: "e".repeat(64), scopeOfWork: "Phase 4 synchronous condenser" });
 
     const faultQueue: Array<() => GeminiInteractionResponse> = [];
     const geminiClient: GeminiInteractionsClient = {
@@ -342,7 +342,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
         rebootstrappedFromParentWebp: false,
         projectNumbers: [m1.projectNumber],
         triggeringObservationIds: ["obs_branch_only"],
-        sourceArtifactHashes: [m1.sourceArtifactHash],
+        rawCaptureHashes: [m1.rawCaptureHash],
         prompt: "Ephemeral branch",
         storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/texas-corridor-main/branch_texas-corridor-main_t1_deadbeef.webp`,
         mimeType: "image/webp",

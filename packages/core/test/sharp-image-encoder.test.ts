@@ -19,7 +19,7 @@ import {
 import {
   createPainterTestObservations,
   createTestProject,
-  createTestSourceArtifact,
+  createTestRawCapture,
   GZIP_HTML_STUB,
 } from "./helpers/fixtures.ts";
 import { withGridlockTestServer } from "./helpers/planner-test-helpers.ts";
@@ -77,11 +77,11 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
 
     const repository = createInMemoryGridlockRepository();
     const { milestoneObs } = createPainterTestObservations();
-    const artifact = createTestSourceArtifact(
-      milestoneObs.sourceArtifactHash,
+    const artifact = createTestRawCapture(
+      milestoneObs.rawCaptureHash,
       milestoneObs.projectNumber
     );
-    await repository.saveSourceArtifact(artifact, GZIP_HTML_STUB);
+    await repository.saveRawCapture(artifact, GZIP_HTML_STUB);
     await repository.upsertProject(
       createTestProject(milestoneObs.projectNumber, artifact.sha256)
     );

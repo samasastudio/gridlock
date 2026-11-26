@@ -2,7 +2,7 @@ import {
   DEFAULT_LINEAGE_ID,
   PAINTER_AGENT_MODEL,
   SCENARIO_BRANCH_WATERMARK,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionsClient,
   type GridlockRepository,
@@ -87,7 +87,7 @@ function telemetryDeps(ctx: PainterTurnContext) {
 function observationTelemetryRef(observations: readonly Observation[]) {
   const firstObs = observations[0];
   return firstObs !== undefined
-    ? { projectNumber: firstObs.projectNumber, sourceArtifactHash: firstObs.sourceArtifactHash }
+    ? { projectNumber: firstObs.projectNumber, rawCaptureHash: firstObs.rawCaptureHash }
     : {};
 }
 
@@ -219,13 +219,13 @@ export async function failClosedInteraction(
   });
 }
 
-async function pinMilestoneSourceArtifacts(repository: GridlockRepository, hashes: readonly string[]): Promise<void> {
+async function pinMilestoneRawCaptures(repository: GridlockRepository, hashes: readonly string[]): Promise<void> {
   await Promise.all(
     hashes.map(async (sha256) => {
-      const existing = await repository.getSourceArtifactByHash(sha256);
+      const existing = await repository.getRawCaptureByHash(sha256);
       if (!existing || existing.storageUri.includes("/quarantine/") || (existing.expiresAt === null && existing.referencedByMilestone)) return;
       const gz = await repository.readArtifactGzip(sha256);
-      if (gz) await repository.saveSourceArtifact(SourceArtifactSchema.parse({ ...existing, referencedByMilestone: true, expiresAt: null }), gz);
+      if (gz) await repository.saveRawCapture(RawCaptureSchema.parse({ ...existing, referencedByMilestone: true, expiresAt: null }), gz);
     })
   );
 }
@@ -257,7 +257,7 @@ export async function finalizePaintedPlateTurn(
   }
   const plate = buildVisualPlateRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: finalized.webpBuffer, sha256: finalized.sha256, createdAt: ctx.now.toISOString() });
   await ctx.repository.saveVisualPlate(plate, finalized.webpBuffer);
-  if (finalized.pinCanonicalArtifacts) await pinMilestoneSourceArtifacts(ctx.repository, plate.sourceArtifactHashes);
+  if (finalized.pinCanonicalArtifacts) await pinMilestoneRawCaptures(ctx.repository, plate.rawCaptureHashes);
   await recordAgenticStageTelemetry(
     {
       stage: params.stage,

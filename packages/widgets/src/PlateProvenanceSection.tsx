@@ -71,13 +71,13 @@ export function PlateProvenanceSection(props: PlateProvenanceSectionProps) {
   return (
     <>
       {citations.length > 0 ? (
-        <div key={`citations-${plate.plateId}`} className="gridlock-citations-row" aria-label="Source Artifact citations">
+        <div key={`citations-${plate.plateId}`} className="gridlock-citations-row" aria-label="Raw Capture citations">
           {citations.map((citation) => (
             <span key={citation.sha256} className="gridlock-citation-item">
               <CopyCitationButton
                 value={citation.sha256}
                 displayLabel={`sha256:${citation.sha256.slice(0, 12)}`}
-                citationKind="Source Artifact SHA-256"
+                citationKind="Raw Capture SHA-256"
               />
               {citation.kind === "hydrated" && /^https?:\/\//i.test(citation.sourceUrl) ? (
                 <a className="gridlock-citation-link" href={citation.sourceUrl} target="_blank" rel="noreferrer noopener">

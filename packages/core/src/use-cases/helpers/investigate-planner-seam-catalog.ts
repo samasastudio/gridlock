@@ -36,16 +36,16 @@ export interface PlannerCatalogConnectorEntry {
 }
 
 function isLineageNodeHydratable(node: LineageNode): boolean {
-  const expectedCitationCount = new Set(node.plate.sourceArtifactHashes).size;
+  const expectedCitationCount = new Set(node.plate.rawCaptureHashes).size;
   const expectedObservationCount = new Set(node.plate.triggeringObservationIds).size;
-  const allHttpUrls = node.sourceArtifacts.every((artifact) =>
+  const allHttpUrls = node.rawCaptures.every((artifact) =>
     /^https?:\/\//i.test(artifact.sourceUrl)
   );
   return (
     SafeAstIdSchema.safeParse(node.plate.plateId).success &&
     expectedCitationCount > 0 &&
     allHttpUrls &&
-    node.sourceArtifacts.length === expectedCitationCount &&
+    node.rawCaptures.length === expectedCitationCount &&
     node.triggeringObservations.length === expectedObservationCount
   );
 }

@@ -50,7 +50,7 @@ describe("UI AST & Planner Zod Contracts", () => {
       currentStatus: "Project Registered",
       startDate: "2026-11-01",
       completionDate: "2028-06-01",
-      latestSourceArtifactHash: hashA,
+      latestRawCaptureHash: hashA,
       updatedAt: "2026-10-27T14:05:00.000Z",
     });
     const citationA = {
@@ -80,7 +80,7 @@ describe("UI AST & Planner Zod Contracts", () => {
         parentPlateId: null,
         projectNumbers: ["TABS2027003697"],
         triggeringObservationIds: [milestoneObs.id],
-        sourceArtifactHashes: [hashA],
+        rawCaptureHashes: [hashA],
         prompt: "Corridor baseline",
         storageUri: `${ARTIFACT_BUCKET_URI}/plates/plate_canonical_1.webp`,
         mimeType: "image/webp" as const,
@@ -94,7 +94,7 @@ describe("UI AST & Planner Zod Contracts", () => {
       },
       assetPath: "/api/plates/assets/plate_canonical_1.webp",
       triggeringObservations: [milestoneObs],
-      sourceArtifacts: [citationA],
+      rawCaptures: [citationA],
     };
 
     const validScrubberNode = {
@@ -165,8 +165,8 @@ describe("UI AST & Planner Zod Contracts", () => {
               nodes: [
                 {
                   ...validLineageNode,
-                  plate: { ...validLineageNode.plate, sourceArtifactHashes: [] },
-                  sourceArtifacts: [],
+                  plate: { ...validLineageNode.plate, rawCaptureHashes: [] },
+                  rawCaptures: [],
                 },
               ],
             },

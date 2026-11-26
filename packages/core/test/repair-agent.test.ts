@@ -60,7 +60,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     const repository = createInMemoryGridlockRepository();
     const anomalyDetectedAt = new Date("2026-10-26T18:00:00.000Z");
 
-    // 1. Mutated markup triggers selector_anomaly and quarantines SourceArtifact with referencedByMilestone: true
+    // 1. Mutated markup triggers selector_anomaly and quarantines RawCapture with referencedByMilestone: true
     const anomalyResult = await ingestTdlrFiling(
       {
         projectNumber: "TABS2027009888",
@@ -70,8 +70,8 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       { repository }
     );
     assert.equal(anomalyResult.status, "selector_anomaly");
-    assert.equal(anomalyResult.sourceArtifact.referencedByMilestone, true);
-    assert.ok(anomalyResult.sourceArtifact.storageUri.includes("/quarantine/"));
+    assert.equal(anomalyResult.rawCapture.referencedByMilestone, true);
+    assert.ok(anomalyResult.rawCapture.storageUri.includes("/quarantine/"));
     assert.equal((await repository.listProjects()).length, 0);
 
     // 2. Out-of-Band Repair Agent synthesizes backward-compatible selector patch via gemini-3.8-flash
@@ -104,7 +104,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     const repairResult = await runOutOfBandRepairAgent(
       {
         connectorId: "tdlr-tabs",
-        quarantinedArtifact: anomalyResult.sourceArtifact,
+        quarantinedArtifact: anomalyResult.rawCapture,
         brokenInvariants: anomalyResult.invariantErrors,
         historicalFixtures: [HISTORICAL_FIXTURE_V1_HTML],
         anomalyDetectedAt,
@@ -163,7 +163,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       { repository }
     );
     assert.equal(healedIngest.status, "ingested");
-    assert.ok(healedIngest.sourceArtifact.storageUri.includes("/artifacts/"));
+    assert.ok(healedIngest.rawCapture.storageUri.includes("/artifacts/"));
 
     const secondHealedRun = await ingestTdlrFiling(
       {
@@ -205,7 +205,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     const regressingPatchResult = await runOutOfBandRepairAgent(
       {
         connectorId: "tdlr-tabs",
-        quarantinedArtifact: anomalyResult.sourceArtifact,
+        quarantinedArtifact: anomalyResult.rawCapture,
         brokenInvariants: anomalyResult.invariantErrors,
         historicalFixtures: [HISTORICAL_FIXTURE_V1_HTML],
         now: new Date("2026-10-26T19:00:01.000Z"),
@@ -241,7 +241,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     const malformedJsonResult = await runOutOfBandRepairAgent(
       {
         connectorId: "tdlr-tabs",
-        quarantinedArtifact: anomalyResult.sourceArtifact,
+        quarantinedArtifact: anomalyResult.rawCapture,
         brokenInvariants: anomalyResult.invariantErrors,
         historicalFixtures: [HISTORICAL_FIXTURE_V1_HTML],
         now: new Date("2026-10-26T19:00:02.000Z"),
@@ -269,7 +269,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     const timeoutResult = await runOutOfBandRepairAgent(
       {
         connectorId: "tdlr-tabs",
-        quarantinedArtifact: anomalyResult.sourceArtifact,
+        quarantinedArtifact: anomalyResult.rawCapture,
         brokenInvariants: anomalyResult.invariantErrors,
         historicalFixtures: [HISTORICAL_FIXTURE_V1_HTML],
         now: new Date("2026-10-26T19:00:03.000Z"),

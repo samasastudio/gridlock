@@ -53,7 +53,7 @@ async function triggerAndPromoteHeal(options: {
   const repairResult = await runOutOfBandRepairAgent(
     {
       connectorId: "tdlr-tabs",
-      quarantinedArtifact: anomaly.sourceArtifact,
+      quarantinedArtifact: anomaly.rawCapture,
       brokenInvariants: anomaly.invariantErrors,
       historicalFixtures: options.historicalFixtures,
       anomalyDetectedAt: new Date(options.detectedIso),

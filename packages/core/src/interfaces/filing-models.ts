@@ -56,7 +56,7 @@ export class UnknownConnectorError extends Error {
   }
 }
 
-export const SourceArtifactSchema = z.object({
+export const RawCaptureSchema = z.object({
   sha256: Sha256HashSchema,
   connectorId: z.string().min(1),
   sourceUrl: z.string().url(),
@@ -69,7 +69,7 @@ export const SourceArtifactSchema = z.object({
   referencedByMilestone: z.boolean().default(false),
 });
 
-export type SourceArtifact = z.infer<typeof SourceArtifactSchema>;
+export type RawCapture = z.infer<typeof RawCaptureSchema>;
 
 export const ProjectSchema = z.object({
   projectNumber: TdlrProjectNumberSchema,
@@ -86,7 +86,7 @@ export const ProjectSchema = z.object({
   currentStatus: z.string().min(1),
   startDate: IsoCalendarDateSchema,
   completionDate: IsoCalendarDateSchema,
-  latestSourceArtifactHash: Sha256HashSchema,
+  latestRawCaptureHash: Sha256HashSchema,
   updatedAt: z.string().datetime(),
 });
 
@@ -95,7 +95,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export const ObservationSchema = z.object({
   id: z.string().min(1),
   projectNumber: TdlrProjectNumberSchema,
-  sourceArtifactHash: Sha256HashSchema,
+  rawCaptureHash: Sha256HashSchema,
   observedAt: z.string().datetime(),
   status: z.string().min(1),
   estimatedCostUsd: z.number().positive(),
@@ -146,17 +146,17 @@ export type SiteAccessCheckResult =
 export type IngestFilingResult =
   | {
       status: "ingested";
-      sourceArtifact: SourceArtifact;
+      rawCapture: RawCapture;
       project: Project;
       observation: Observation;
     }
   | {
       status: "unchanged_artifact";
-      sourceArtifact: SourceArtifact;
+      rawCapture: RawCapture;
     }
   | {
       status: "selector_anomaly";
-      sourceArtifact: SourceArtifact;
+      rawCapture: RawCapture;
       invariantErrors: string[];
     }
   | {

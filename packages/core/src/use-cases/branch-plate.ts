@@ -210,8 +210,8 @@ export async function branchPlate(
       triggeringObservations: parentNode.triggeringObservations.filter((obs) =>
         painterResult.plate.triggeringObservationIds.includes(obs.id)
       ),
-      sourceArtifacts: parentNode.sourceArtifacts.filter((art) =>
-        painterResult.plate.sourceArtifactHashes.includes(art.sha256)
+      rawCaptures: parentNode.rawCaptures.filter((art) =>
+        painterResult.plate.rawCaptureHashes.includes(art.sha256)
       ),
     });
     if (!branchedNode.success) {

@@ -28,7 +28,7 @@ describe("@samasastudio/gridlock-widgets shell", () => {
       currentStatus: "Project Registered",
       startDate: "2024-12-01",
       completionDate: "2028-08-22",
-      latestSourceArtifactHash: sha256,
+      latestRawCaptureHash: sha256,
       updatedAt: "2026-10-25T14:00:00.000Z",
     });
 

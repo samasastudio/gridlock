@@ -60,13 +60,13 @@ function ObservationTimelineItem(props: { entry: TimelineEntryViewModel; nodeId?
         {META_DOT_NODE}
         <span>{unescapeAstProse(obs.status)}</span>
       </div>
-      <div className="gridlock-citations-row" aria-label="Source Artifact citation">
+      <div className="gridlock-citations-row" aria-label="Raw Capture citation">
         <span className="gridlock-citation-item">
           <CopyCitationButton
             key={`copy-${citationKey}`}
             value={citation.sha256}
             displayLabel={`sha256:${citation.sha256.slice(0, 12)}`}
-            citationKind="Source Artifact SHA-256"
+            citationKind="Raw Capture SHA-256"
           />
           <a className="gridlock-citation-link" href={citation.sourceUrl} target="_blank" rel="noreferrer noopener">
             <span>{`${citation.connectorId} filing`}</span>

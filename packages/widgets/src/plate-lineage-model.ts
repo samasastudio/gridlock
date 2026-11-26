@@ -149,9 +149,9 @@ export interface ProvenanceHop {
 }
 
 export function resolveNodeSourceCitations(node: LineageNode): ResolvedPlateCitation[] {
-  const hydratedByHash = new Map(node.sourceArtifacts.map((art) => [art.sha256, art]));
+  const hydratedByHash = new Map(node.rawCaptures.map((art) => [art.sha256, art]));
 
-  return Array.from(new Set(node.plate.sourceArtifactHashes), (sha256) => {
+  return Array.from(new Set(node.plate.rawCaptureHashes), (sha256) => {
     const hydrated = hydratedByHash.get(sha256);
     return hydrated ? { kind: "hydrated", ...hydrated } : { kind: "hash_only_ttl_aged", sha256 };
   });

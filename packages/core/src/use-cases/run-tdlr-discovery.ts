@@ -262,7 +262,7 @@ export async function runTdlrDiscoverySweep(
   const sweepDurationMs = Math.max(0, Date.now() - startedWallMs);
   const sweepTokensAvoided = results.reduce((sum, r) => {
     if (r.status === "ingested" || r.status === "unchanged_artifact") {
-      return sum + calculateNaiveTokensAvoided(r.sourceArtifact.rawByteLength);
+      return sum + calculateNaiveTokensAvoided(r.rawCapture.rawByteLength);
     }
     return sum;
   }, 0);

@@ -81,7 +81,7 @@ function ComparisonTableRow(props: { row: ComparisonRowViewModel; nodeId?: strin
             key={`copy-${citationKey}`}
             value={citation.sha256}
             displayLabel={`sha256:${citation.sha256.slice(0, 12)}`}
-            citationKind="Source Artifact SHA-256"
+            citationKind="Raw Capture SHA-256"
           />
           <a className="gridlock-citation-link" href={citation.sourceUrl} target="_blank" rel="noreferrer noopener">
             <span>{`${citation.connectorId} filing`}</span>

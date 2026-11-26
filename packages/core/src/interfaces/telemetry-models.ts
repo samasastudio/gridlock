@@ -57,7 +57,7 @@ export const TelemetryRunSchema = z.object({
   stage: TelemetryStageSchema,
   connectorId: z.string().min(1).optional(),
   projectNumber: TdlrProjectNumberSchema.optional(),
-  sourceArtifactHash: Sha256HashSchema.optional(),
+  rawCaptureHash: Sha256HashSchema.optional(),
   execution_mode: ExecutionModeSchema,
   status: TelemetryRunStatusSchema,
   durationMs: z.number().nonnegative(),

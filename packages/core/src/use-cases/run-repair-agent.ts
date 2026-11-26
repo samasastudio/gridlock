@@ -11,7 +11,7 @@ import {
   type GridlockRepository,
   type RepairAgentResult,
   type SandboxReplayResult,
-  type SourceArtifact,
+  type RawCapture,
   type TelemetrySpanSink,
 } from "../interfaces/index.ts";
 import { evaluateSandboxReplayGate } from "./helpers/sandbox-replay.ts";
@@ -70,7 +70,7 @@ function tryParseJsonPayload(
 export async function runOutOfBandRepairAgent(
   input: {
     connectorId?: string;
-    quarantinedArtifact: SourceArtifact;
+    quarantinedArtifact: RawCapture;
     brokenInvariants: readonly string[];
     historicalFixtures: readonly string[];
     anomalyDetectedAt?: Date;
@@ -105,7 +105,7 @@ export async function runOutOfBandRepairAgent(
       {
         stage: "repair_agent",
         connectorId,
-        sourceArtifactHash: input.quarantinedArtifact.sha256,
+        rawCaptureHash: input.quarantinedArtifact.sha256,
         status: "agentic_failed",
         tokensUsed,
         ...(interactionId !== undefined ? { interactionId } : {}),
@@ -131,7 +131,7 @@ export async function runOutOfBandRepairAgent(
   );
   if (!gzipBuffer) {
     return rejectFailClosed(
-      `Missing quarantined SourceArtifact buffer for ${input.quarantinedArtifact.sha256}`,
+      `Missing quarantined RawCapture buffer for ${input.quarantinedArtifact.sha256}`,
       0
     );
   }
@@ -232,7 +232,7 @@ export async function runOutOfBandRepairAgent(
   });
 
   const existingChangelog = await deps.repository.listRepairChangelog();
-  const existingQuarantined = await deps.repository.getSourceArtifactByHash(
+  const existingQuarantined = await deps.repository.getRawCaptureByHash(
     changelogEntry.quarantinedArtifactHash
   );
   const currentLedger = await deps.repository.getEfficiencyLedger();
@@ -252,7 +252,7 @@ export async function runOutOfBandRepairAgent(
     {
       stage: "repair_agent",
       connectorId,
-      sourceArtifactHash: input.quarantinedArtifact.sha256,
+      rawCaptureHash: input.quarantinedArtifact.sha256,
       status: "agentic_completed",
       tokensUsed: repairTokensUsed,
       interactionId,

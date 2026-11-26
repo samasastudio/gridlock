@@ -32,7 +32,7 @@ export function makeCitedProject(overrides: CitedProjectOverrides = {}): CitedPr
     currentStatus: "Under Construction",
     startDate: "2027-02-01",
     completionDate: "2028-08-01",
-    latestSourceArtifactHash: defaultHash,
+    latestRawCaptureHash: defaultHash,
     updatedAt: "2026-11-18T15:30:00.000Z",
     ...overrides.project,
   };
@@ -40,7 +40,7 @@ export function makeCitedProject(overrides: CitedProjectOverrides = {}): CitedPr
   return {
     project,
     citation: {
-      sha256: project.latestSourceArtifactHash,
+      sha256: project.latestRawCaptureHash,
       sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${project.projectNumber}`,
       connectorId: "tdlr-tabs",
       capturedAt: "2026-11-18T15:28:12.000Z",
@@ -70,7 +70,7 @@ export function makeEscapedShellCitedProject(): CitedProject {
       currentStatus: "Registered",
       startDate: "2027-03-01",
       completionDate: "2027-03-29",
-      latestSourceArtifactHash: shellHash,
+      latestRawCaptureHash: shellHash,
       updatedAt: "2026-11-19T09:15:00.000Z",
     },
     citation: {
@@ -93,7 +93,7 @@ export function makeCitedObservation(
   const observation: Observation = {
     id: "obs-3697-1",
     projectNumber: "TABS2027003697",
-    sourceArtifactHash: defaultHash,
+    rawCaptureHash: defaultHash,
     observedAt: "2026-09-10T14:00:00.000Z",
     status: "Registered",
     estimatedCostUsd: 95_000_000,
@@ -107,7 +107,7 @@ export function makeCitedObservation(
   return {
     observation,
     citation: {
-      sha256: observation.sourceArtifactHash,
+      sha256: observation.rawCaptureHash,
       sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${observation.projectNumber}`,
       connectorId: "tdlr-tabs",
       capturedAt: observation.observedAt,
@@ -124,7 +124,7 @@ export function makeInterleavedObservations(): readonly CitedObservation[] {
       observation: {
         id: "obs-4112-1",
         projectNumber: "TABS2027004112",
-        sourceArtifactHash: makeArtifactHash("2"),
+        rawCaptureHash: makeArtifactHash("2"),
         observedAt: "2026-10-04T11:20:00.000Z",
         estimatedCostUsd: 18_500_000,
         squareFootage: 85_000,
@@ -136,7 +136,7 @@ export function makeInterleavedObservations(): readonly CitedObservation[] {
     makeCitedObservation({
       observation: {
         id: "obs-3697-2",
-        sourceArtifactHash: makeArtifactHash("3"),
+        rawCaptureHash: makeArtifactHash("3"),
         observedAt: "2026-11-18T15:30:00.000Z",
         status: "Under Construction",
         estimatedCostUsd: 148_000_000,

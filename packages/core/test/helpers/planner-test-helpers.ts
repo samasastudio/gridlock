@@ -29,7 +29,7 @@ import {
 import {
   createFixtureWebpBuffer,
   createTestProject,
-  createTestSourceArtifact,
+  createTestRawCapture,
   GZIP_HTML_STUB,
   HISTORICAL_FIXTURE_V1_HTML,
   MUTATED_PORTAL_V2_HTML,
@@ -52,13 +52,13 @@ export function singleNodeLayout(
 export function createPlannerObservation(
   id: string,
   projectNumber: string,
-  sourceArtifactHash: string,
+  rawCaptureHash: string,
   overrides: Partial<Observation> = {}
 ): Observation {
   return ObservationSchema.parse({
     id,
     projectNumber,
-    sourceArtifactHash,
+    rawCaptureHash,
     observedAt: "2026-10-28T10:00:00.000Z",
     status: "Project Registered",
     estimatedCostUsd: 120_000_000,
@@ -122,23 +122,23 @@ export function createQueuedLayoutClientStub(
 export async function seedFilingPlannerRepository(): Promise<GridlockRepository> {
   const repository = createInMemoryGridlockRepository();
 
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(HASH_ACTIVE_A, "TABS2027001001"),
+  await repository.saveRawCapture(
+    createTestRawCapture(HASH_ACTIVE_A, "TABS2027001001"),
     GZIP_HTML_STUB
   );
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(HASH_ACTIVE_B, "TABS2027001002"),
+  await repository.saveRawCapture(
+    createTestRawCapture(HASH_ACTIVE_B, "TABS2027001002"),
     GZIP_HTML_STUB
   );
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(HASH_QUARANTINED, "TABS2027001003", {
+  await repository.saveRawCapture(
+    createTestRawCapture(HASH_QUARANTINED, "TABS2027001003", {
       storageUri: `${ARTIFACT_BUCKET_URI}/quarantine/${HASH_QUARANTINED}.gz`,
       referencedByMilestone: false,
     }),
     GZIP_HTML_STUB
   );
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(HASH_EXPIRED, "TABS2027001004", {
+  await repository.saveRawCapture(
+    createTestRawCapture(HASH_EXPIRED, "TABS2027001004", {
       expiresAt: "2026-10-15T00:00:00.000Z",
       referencedByMilestone: false,
     }),
@@ -198,7 +198,7 @@ async function saveTestVisualPlate(
       | "lineageId"
       | "projectNumbers"
       | "triggeringObservationIds"
-      | "sourceArtifactHashes"
+      | "rawCaptureHashes"
       | "sha256"
     >
 ): Promise<void> {
@@ -259,7 +259,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
   const repairResult = await runOutOfBandRepairAgent(
     {
       connectorId: "tdlr-tabs",
-      quarantinedArtifact: anomaly.sourceArtifact,
+      quarantinedArtifact: anomaly.rawCapture,
       brokenInvariants: anomaly.invariantErrors,
       historicalFixtures: [HISTORICAL_FIXTURE_V1_HTML],
       anomalyDetectedAt: new Date("2026-10-27T14:00:00.000Z"),
@@ -348,7 +348,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
     parentPlateId: bootstrapRes.plate.plateId,
     projectNumbers: ["TABS2027001001"],
     triggeringObservationIds: ["obs_1001_m1"],
-    sourceArtifactHashes: [HASH_ACTIVE_A],
+    rawCaptureHashes: [HASH_ACTIVE_A],
     storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/plate_expired_branch.webp`,
     sha256: "9".repeat(64),
     isBranch: true,
@@ -369,7 +369,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
     lineageId: "quarantined-lineage",
     projectNumbers: ["TABS2027001003"],
     triggeringObservationIds: ["obs_quarantined_lineage"],
-    sourceArtifactHashes: [HASH_QUARANTINED],
+    rawCaptureHashes: [HASH_QUARANTINED],
     sha256: "e".repeat(64),
   });
 
@@ -385,7 +385,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
     lineageId: "expired-lineage",
     projectNumbers: ["TABS2027001004"],
     triggeringObservationIds: ["obs_expired_lineage"],
-    sourceArtifactHashes: [HASH_EXPIRED],
+    rawCaptureHashes: [HASH_EXPIRED],
     sha256: "f".repeat(64),
   });
 

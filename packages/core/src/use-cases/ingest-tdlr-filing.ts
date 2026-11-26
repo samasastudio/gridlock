@@ -14,7 +14,7 @@ import {
 } from "../interfaces/index.ts";
 import { verifySiteAccess } from "./helpers/site-access.ts";
 import {
-  buildSourceArtifact,
+  buildRawCapture,
   parseTdlrFilingHtml,
 } from "./helpers/tdlr-parser.ts";
 import {
@@ -60,7 +60,7 @@ export async function ingestTdlrFiling(
     const durationMs = Math.max(0, Date.now() - startedWallMs);
     const endedAt = new Date(now.getTime() + durationMs);
     const isSuccess = result.status === "ingested" || result.status === "unchanged_artifact";
-    const rawByteLength = result.status === "blocked_by_waf" ? 0 : result.sourceArtifact.rawByteLength;
+    const rawByteLength = result.status === "blocked_by_waf" ? 0 : result.rawCapture.rawByteLength;
     const naiveTokensAvoided = isSuccess ? calculateNaiveTokensAvoided(rawByteLength) : 0;
     const estimatedCostSavedUsd = isSuccess ? calculateEstimatedCostSavedUsd(naiveTokensAvoided) : 0;
 
@@ -69,7 +69,7 @@ export async function ingestTdlrFiling(
         stage: "tdlr_ingest",
         connectorId: config.connectorId,
         ...projectNumberProp,
-        ...(result.status !== "blocked_by_waf" ? { sourceArtifactHash: result.sourceArtifact.sha256 } : {}),
+        ...(result.status !== "blocked_by_waf" ? { rawCaptureHash: result.rawCapture.sha256 } : {}),
         execution_mode: "deterministic",
         status: result.status,
         rawByteLength,
@@ -123,11 +123,11 @@ export async function ingestTdlrFiling(
     const rawBuffer = Buffer.from(response.body, "utf-8");
     const sha256 = createHash("sha256").update(rawBuffer).digest("hex");
 
-    const existingArtifact = await deps.repository.getSourceArtifactByHash(sha256);
+    const existingArtifact = await deps.repository.getRawCaptureByHash(sha256);
     if (existingArtifact && !existingArtifact.storageUri.includes("/quarantine/")) {
       return finalizeTelemetry({
         status: "unchanged_artifact",
-        sourceArtifact: existingArtifact,
+        rawCapture: existingArtifact,
       });
     }
 
@@ -136,7 +136,7 @@ export async function ingestTdlrFiling(
     const parsed = parseTdlrFilingHtml(response.body, config, { sha256, nowIso });
 
     if (!parsed.ok) {
-      const quarantinedArtifact = buildSourceArtifact({
+      const quarantinedArtifact = buildRawCapture({
         sha256,
         connectorId: config.connectorId,
         sourceUrl,
@@ -147,11 +147,11 @@ export async function ingestTdlrFiling(
         capturedAt: nowIso,
         expiresAt: plusNinetyDaysIso,
       });
-      await deps.repository.saveSourceArtifact(quarantinedArtifact, gzipBuffer);
+      await deps.repository.saveRawCapture(quarantinedArtifact, gzipBuffer);
       await deps.repository.setConnectorStatus(config.connectorId, "selector_anomaly", nowIso);
       return finalizeTelemetry({
         status: "selector_anomaly",
-        sourceArtifact: quarantinedArtifact,
+        rawCapture: quarantinedArtifact,
         invariantErrors: parsed.invariantErrors,
       });
     }
@@ -162,7 +162,7 @@ export async function ingestTdlrFiling(
       project.estimatedCostUsd >= MILESTONE_COST_THRESHOLD_USD ||
       (existingProject !== null && existingProject.currentStatus !== project.currentStatus);
 
-    const sourceArtifact = buildSourceArtifact({
+    const rawCapture = buildRawCapture({
       sha256,
       connectorId: config.connectorId,
       sourceUrl,
@@ -177,7 +177,7 @@ export async function ingestTdlrFiling(
     const observation = ObservationSchema.parse({
       id: `obs_${project.projectNumber}_${sha256.slice(0, 12)}`,
       projectNumber: project.projectNumber,
-      sourceArtifactHash: sha256,
+      rawCaptureHash: sha256,
       observedAt: nowIso,
       status: project.currentStatus,
       estimatedCostUsd: project.estimatedCostUsd,
@@ -186,13 +186,13 @@ export async function ingestTdlrFiling(
       isMilestone,
     });
 
-    await deps.repository.saveSourceArtifact(sourceArtifact, gzipBuffer);
+    await deps.repository.saveRawCapture(rawCapture, gzipBuffer);
     await deps.repository.upsertProject(project);
     await deps.repository.appendObservation(observation);
 
     return finalizeTelemetry({
       status: "ingested",
-      sourceArtifact,
+      rawCapture,
       project,
       observation,
     });

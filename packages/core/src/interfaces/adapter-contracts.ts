@@ -4,7 +4,7 @@ import type {
   ConnectorStatus,
   Observation,
   Project,
-  SourceArtifact,
+  RawCapture,
 } from "./filing-models.ts";
 import type {
   EfficiencyLedger,
@@ -27,7 +27,7 @@ export interface TelemetryStateUpdate {
 
 export interface ConnectorPromotionStateUpdate {
   updatedLedger: EfficiencyLedger;
-  promotedArtifact?: SourceArtifact;
+  promotedArtifact?: RawCapture;
 }
 
 export interface TelemetryLedgerQueryOptions {
@@ -42,9 +42,9 @@ export interface GridlockRepository {
     status: ConnectorStatus,
     updatedAt: string
   ): Promise<ConnectorConfig>;
-  getSourceArtifactByHash(sha256: string): Promise<SourceArtifact | null>;
-  saveSourceArtifact(
-    artifact: SourceArtifact,
+  getRawCaptureByHash(sha256: string): Promise<RawCapture | null>;
+  saveRawCapture(
+    artifact: RawCapture,
     gzipBuffer: Buffer
   ): Promise<void>;
   readArtifactGzip(sha256: string): Promise<Buffer | null>;

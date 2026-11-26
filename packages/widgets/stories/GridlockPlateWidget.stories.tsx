@@ -32,22 +32,22 @@ function makeCitation(sha256: string, capturedAt: string): LineageSourceCitation
 }
 
 function makeMilestoneObs(
-  id: string, projectNumber: string, sourceArtifactHash: string,
+  id: string, projectNumber: string, rawCaptureHash: string,
   observedAt: string, status: string, estimatedCostUsd: number, squareFootage: number, scopeOfWork: string
 ): Observation {
-  return { id, projectNumber, sourceArtifactHash, observedAt, status, estimatedCostUsd, squareFootage, scopeOfWork, isMilestone: true };
+  return { id, projectNumber, rawCaptureHash, observedAt, status, estimatedCostUsd, squareFootage, scopeOfWork, isMilestone: true };
 }
 
 function makePlateNode(
   plate: Omit<VisualPlate, "lineageId" | "model" | "mimeType" | "byteLength">,
   triggeringObservations: Observation[],
-  sourceArtifacts: LineageSourceCitation[]
+  rawCaptures: LineageSourceCitation[]
 ): LineageNode {
   return {
     plate: { ...plate, lineageId: DEFAULT_LINEAGE_ID, model: PAINTER_AGENT_MODEL, mimeType: "image/webp", byteLength: 129_782 },
     assetPath: `/api/plates/assets/${plate.plateId}.webp`,
     triggeringObservations,
-    sourceArtifacts,
+    rawCaptures,
   };
 }
 
@@ -67,7 +67,7 @@ const OBS_T2_SWITCHGEAR = makeMilestoneObs(
 const NODE_T1 = makePlateNode({
   plateId: "plate_corridor_t1", turnNumber: 1, interactionId: "inter_painter_t1",
   parentInteractionId: null, parentPlateId: null, rebootstrappedFromParentWebp: false,
-  projectNumbers: ["TABS2027003697"], triggeringObservationIds: [OBS_T1.id], sourceArtifactHashes: [HASH_T1],
+  projectNumbers: ["TABS2027003697"], triggeringObservationIds: [OBS_T1.id], rawCaptureHashes: [HASH_T1],
   prompt: "Bootstrap Ellis County 345kV data center corridor plate from TABS2027003697",
   storageUri: `${ARTIFACT_BUCKET_URI}/plates/plate_corridor_t1.webp`, sha256: "1".repeat(64),
   isBranch: false, epistemicLabel: CANONICAL_MILESTONE_LABEL, watermarkText: null,
@@ -78,7 +78,7 @@ const NODE_T2 = makePlateNode({
   plateId: "plate_corridor_t2", turnNumber: 2, interactionId: "inter_painter_t2",
   parentInteractionId: "inter_painter_t1", parentPlateId: "plate_corridor_t1", rebootstrappedFromParentWebp: false,
   projectNumbers: ["TABS2027003697", "TABS2027004200"],
-  triggeringObservationIds: [OBS_T2_PRIMARY.id, OBS_T2_SWITCHGEAR.id], sourceArtifactHashes: [HASH_T2, HASH_AGED],
+  triggeringObservationIds: [OBS_T2_PRIMARY.id, OBS_T2_SWITCHGEAR.id], rawCaptureHashes: [HASH_T2, HASH_AGED],
   prompt: "Paint chilled-water loop expansion and TABS2027004200 switchgear interconnect pad",
   storageUri: `${ARTIFACT_BUCKET_URI}/plates/plate_corridor_t2.webp`, sha256: "2".repeat(64),
   isBranch: false, epistemicLabel: CANONICAL_MILESTONE_LABEL, watermarkText: null,
@@ -88,7 +88,7 @@ const NODE_T2 = makePlateNode({
 const NODE_B3 = makePlateNode({
   plateId: "plate_branch_t3", turnNumber: 3, interactionId: "inter_painter_b3",
   parentInteractionId: "inter_painter_t2", parentPlateId: "plate_corridor_t2", rebootstrappedFromParentWebp: true,
-  projectNumbers: ["TABS2027003697", "TABS2027004200"], triggeringObservationIds: [], sourceArtifactHashes: [HASH_T2],
+  projectNumbers: ["TABS2027003697", "TABS2027004200"], triggeringObservationIds: [], rawCaptureHashes: [HASH_T2],
   prompt: "Project +400MW ERCOT 345kV substation queue delay reroute across Red Oak campus",
   storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/plate_branch_t3.webp`, sha256: "3".repeat(64),
   isBranch: true, scenarioPrompt: "Simulate +400MW ERCOT 345kV substation queue delay across Red Oak campus",
@@ -106,7 +106,7 @@ const NODE_B4 = makePlateNode(
     rebootstrappedFromParentWebp: false,
     projectNumbers: ["TABS2027003697", "TABS2027004200"],
     triggeringObservationIds: [],
-    sourceArtifactHashes: [HASH_T2],
+    rawCaptureHashes: [HASH_T2],
     prompt: "Project dual-feed 345kV transmission ring bus expansion north of Red Oak substation",
     storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/plate_branch_t4.webp`,
     sha256: "4".repeat(64),

@@ -13,7 +13,7 @@ import {
 import {
   createPainterTestObservations,
   createTestProject,
-  createTestSourceArtifact,
+  createTestRawCapture,
   GZIP_HTML_STUB,
 } from "./helpers/fixtures.ts";
 
@@ -122,11 +122,11 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
 
     const repository = createInMemoryGridlockRepository();
     const { milestoneObs } = createPainterTestObservations();
-    const artifact = createTestSourceArtifact(
-      milestoneObs.sourceArtifactHash,
+    const artifact = createTestRawCapture(
+      milestoneObs.rawCaptureHash,
       milestoneObs.projectNumber
     );
-    await repository.saveSourceArtifact(artifact, GZIP_HTML_STUB);
+    await repository.saveRawCapture(artifact, GZIP_HTML_STUB);
     await repository.upsertProject(
       createTestProject(milestoneObs.projectNumber, artifact.sha256)
     );

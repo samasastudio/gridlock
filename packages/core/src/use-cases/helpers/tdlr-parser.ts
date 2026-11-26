@@ -1,10 +1,10 @@
 import {
   ARTIFACT_BUCKET_URI,
   ProjectSchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   type ConnectorConfig,
   type Project,
-  type SourceArtifact,
+  type RawCapture,
 } from "../../interfaces/index.ts";
 import { sanitizeLocationAddressPii, sanitizeTextPii } from "./pii-sanitizer.ts";
 
@@ -156,7 +156,7 @@ function parseSquareFootage(raw: string): number {
   return match ? Number.parseFloat(match[1]!.replace(/,/g, "")) : Number.NaN;
 }
 
-export function buildSourceArtifact(params: {
+export function buildRawCapture(params: {
   sha256: string;
   connectorId: string;
   sourceUrl: string;
@@ -166,8 +166,8 @@ export function buildSourceArtifact(params: {
   folder: "artifacts" | "quarantine";
   capturedAt: string;
   expiresAt: string | null;
-}): SourceArtifact {
-  return SourceArtifactSchema.parse({
+}): RawCapture {
+  return RawCaptureSchema.parse({
     ...params,
     storageUri: `${ARTIFACT_BUCKET_URI}/${params.folder}/${params.sha256}.gz`,
     referencedByMilestone: params.folder === "quarantine" || params.expiresAt === null,
@@ -211,7 +211,7 @@ export function parseTdlrFilingHtml(
     currentStatus: sanitizeTextPii(getSingle(labels.currentStatus)),
     startDate: parseUsSlashDateToIso(getSingle(labels.startDate)),
     completionDate: parseUsSlashDateToIso(getSingle(labels.completionDate)),
-    latestSourceArtifactHash: meta.sha256,
+    latestRawCaptureHash: meta.sha256,
     updatedAt: meta.nowIso,
   });
 

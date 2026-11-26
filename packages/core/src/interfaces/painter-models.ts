@@ -29,7 +29,7 @@ export const VisualPlateSchema = z
     rebootstrappedFromParentWebp: z.boolean().default(false),
     projectNumbers: z.array(TdlrProjectNumberSchema),
     triggeringObservationIds: z.array(z.string().min(1)),
-    sourceArtifactHashes: z.array(Sha256HashSchema),
+    rawCaptureHashes: z.array(Sha256HashSchema),
     prompt: z.string().min(1),
     storageUri: z.string().startsWith("gs://"),
     mimeType: z.literal("image/webp"),
@@ -131,7 +131,7 @@ export const LineageNodeSchema = z
     plate: VisualPlateSchema,
     assetPath: z.string().startsWith("/api/plates/assets/").endsWith(".webp"),
     triggeringObservations: z.array(ObservationSchema),
-    sourceArtifacts: z.array(LineageSourceCitationSchema),
+    rawCaptures: z.array(LineageSourceCitationSchema),
   })
   .superRefine((node, ctx) => {
     const expectedPath = `/api/plates/assets/${encodeURIComponent(node.plate.plateId)}.webp`;
@@ -154,14 +154,14 @@ export const LineageNodeSchema = z
       });
     }
     if (
-      node.sourceArtifacts.some(
-        (art) => !node.plate.sourceArtifactHashes.includes(art.sha256)
+      node.rawCaptures.some(
+        (art) => !node.plate.rawCaptureHashes.includes(art.sha256)
       )
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["sourceArtifacts"],
-        message: "SourceArtifact sha256 not referenced by plate",
+        path: ["rawCaptures"],
+        message: "RawCapture sha256 not referenced by plate",
       });
     }
   });

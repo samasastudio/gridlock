@@ -5,7 +5,7 @@ import {
   LineageNodeSchema,
   ObservationSchema,
   PlateLineageResponseSchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   VisualPlateSchema,
   type GridlockRepository,
   type LineageEdge,
@@ -36,7 +36,7 @@ export type GetVisualPlateAssetResult =
 
 type LineageRepo = Pick<
   GridlockRepository,
-  "listVisualPlatesByLineage" | "listObservationsByProject" | "getSourceArtifactByHash"
+  "listVisualPlatesByLineage" | "listObservationsByProject" | "getRawCaptureByHash"
 >;
 
 const lineageErr = (message: string) => ({
@@ -54,7 +54,7 @@ export async function hydrateLineageNodes(
   plates: readonly VisualPlate[],
   repository: Pick<
     GridlockRepository,
-    "listObservationsByProject" | "getSourceArtifactByHash"
+    "listObservationsByProject" | "getRawCaptureByHash"
   >,
   now: Date
 ): Promise<
@@ -62,7 +62,7 @@ export async function hydrateLineageNodes(
   | { ok: false; error: "plate_lineage_error"; message: string }
 > {
   const uniqueProjects = Array.from(new Set(plates.flatMap((plate) => plate.projectNumbers)));
-  const uniqueHashes = Array.from(new Set(plates.flatMap((plate) => plate.sourceArtifactHashes)));
+  const uniqueHashes = Array.from(new Set(plates.flatMap((plate) => plate.rawCaptureHashes)));
 
   const [obsLists, rawArtifacts] = await Promise.all([
     Promise.all(
@@ -74,7 +74,7 @@ export async function hydrateLineageNodes(
     Promise.all(
       uniqueHashes.map(async (sha256) => ({
         sha256,
-        raw: await repository.getSourceArtifactByHash(sha256),
+        raw: await repository.getRawCaptureByHash(sha256),
       }))
     ),
   ]);
@@ -106,9 +106,9 @@ export async function hydrateLineageNodes(
 
   const parsedArts = rawArtifacts
     .filter((entry) => entry.raw !== null && entry.raw !== undefined)
-    .map(({ sha256, raw }) => ({ sha256, result: SourceArtifactSchema.safeParse(raw) }));
+    .map(({ sha256, raw }) => ({ sha256, result: RawCaptureSchema.safeParse(raw) }));
   if (parsedArts.some(({ sha256, result }) => !result.success || result.data.sha256 !== sha256)) {
-    return lineageErr("Stored SourceArtifact failed runtime schema validation");
+    return lineageErr("Stored RawCapture failed runtime schema validation");
   }
 
   const nowMs = now.getTime();
@@ -135,7 +135,7 @@ export async function hydrateLineageNodes(
       const obs = obsById.get(id);
       return obs && projectSet.has(obs.projectNumber) ? [obs] : [];
     });
-    const sourceArtifacts = Array.from(new Set(plate.sourceArtifactHashes)).flatMap((hash) => {
+    const rawCaptures = Array.from(new Set(plate.rawCaptureHashes)).flatMap((hash) => {
       const citation = citations.get(hash);
       return citation ? [citation] : [];
     });
@@ -143,7 +143,7 @@ export async function hydrateLineageNodes(
       plate,
       assetPath: `/api/plates/assets/${encodeURIComponent(plate.plateId)}.webp`,
       triggeringObservations,
-      sourceArtifacts,
+      rawCaptures,
     });
   });
 

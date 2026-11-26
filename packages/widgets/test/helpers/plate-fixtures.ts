@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import {
   ARTIFACT_BUCKET_URI, bootstrapCanvas, branchLineage, createCorridorBaseCanvasWebp, createGridlockHttpServer,
   createInMemoryGridlockRepository, getPlateLineage, ObservationSchema, paintMilestoneDelta,
-  PlateLineageResponseSchema, SourceArtifactSchema,
+  PlateLineageResponseSchema, RawCaptureSchema,
   type GeminiInteractionsClient, type GridlockHttpDeps, type PlateLineageResponse,
 } from "@samasastudio/gridlock-core";
 
@@ -24,7 +24,7 @@ export async function withTestPlatesServer(
 }
 
 function buildFixtureArtifact(sha256: string, expiresAt: string | null) {
-  return SourceArtifactSchema.parse({
+  return RawCaptureSchema.parse({
     sha256, connectorId: "tdlr-tabs",
     sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${sha256.slice(0, 8)}`,
     contentType: "text/html", rawByteLength: 512, compressedByteLength: 128,
@@ -38,22 +38,22 @@ export async function seedTestPlateLineage() {
   const [h1, h2, hAged] = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
   const gzBytes = Buffer.from("gridlock-fixture-gz");
 
-  await repository.saveSourceArtifact(buildFixtureArtifact(h1, "2027-01-25T14:00:00.000Z"), gzBytes);
-  await repository.saveSourceArtifact(buildFixtureArtifact(h2, "2027-01-25T14:00:00.000Z"), gzBytes);
+  await repository.saveRawCapture(buildFixtureArtifact(h1, "2027-01-25T14:00:00.000Z"), gzBytes);
+  await repository.saveRawCapture(buildFixtureArtifact(h2, "2027-01-25T14:00:00.000Z"), gzBytes);
 
   const obs1 = ObservationSchema.parse({
-    id: "obs_TABS2027003697_m1", projectNumber: "TABS2027003697", sourceArtifactHash: h1,
+    id: "obs_TABS2027003697_m1", projectNumber: "TABS2027003697", rawCaptureHash: h1,
     observedAt: "2026-10-27T14:00:00.000Z", status: "Project Registered",
     estimatedCostUsd: 125_000_000, squareFootage: 250_000,
     scopeOfWork: "250,000 sq ft hyperscale data center hall and 345kV substation yard", isMilestone: true,
   });
   const obs2 = ObservationSchema.parse({
-    ...obs1, id: "obs_TABS2027003697_m2", sourceArtifactHash: h2,
+    ...obs1, id: "obs_TABS2027003697_m2", rawCaptureHash: h2,
     observedAt: "2026-10-28T09:00:00.000Z", status: "Construction Started",
     scopeOfWork: "250,000 sq ft structural steel erection and chilled-water loop expansion",
   });
   const obsAged = ObservationSchema.parse({
-    id: "obs_TABS2027004200_m1", projectNumber: "TABS2027004200", sourceArtifactHash: hAged,
+    id: "obs_TABS2027004200_m1", projectNumber: "TABS2027004200", rawCaptureHash: hAged,
     observedAt: "2026-10-28T09:10:00.000Z", status: "Project Registered",
     estimatedCostUsd: 65_000_000, squareFootage: 140_000,
     scopeOfWork: "140,000 sq ft adjacent switchgear interconnect building", isMilestone: true,
@@ -83,7 +83,7 @@ export async function seedTestPlateLineage() {
 
   const t1 = await bootstrapCanvas({ observations: [obs1], now: new Date("2026-10-27T14:05:00.000Z") }, { repository, geminiClient });
   const t2 = await paintMilestoneDelta({ observations: [obs2, obsAged], now: new Date("2026-10-28T09:15:00.000Z") }, { repository, geminiClient });
-  await repository.saveSourceArtifact(buildFixtureArtifact(hAged, "2026-10-01T00:00:00.000Z"), gzBytes);
+  await repository.saveRawCapture(buildFixtureArtifact(hAged, "2026-10-01T00:00:00.000Z"), gzBytes);
   assert.equal(t1.status, "plate_painted");
   assert.equal(t2.status, "plate_painted");
 

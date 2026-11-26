@@ -11,7 +11,7 @@ export const GRIDLOCK_WIDGET_MANIFEST = {
 
 export function formatProjectCitationBadge(projectInput: Project): string {
   const project = ProjectSchema.parse(projectInput);
-  return `${project.projectNumber} · ${project.county} County · sha256:${project.latestSourceArtifactHash.slice(0, 12)}`;
+  return `${project.projectNumber} · ${project.county} County · sha256:${project.latestRawCaptureHash.slice(0, 12)}`;
 }
 
 export {

@@ -44,7 +44,7 @@ function makeStoryProject(
     project,
     citation: makeStoryCitation(
       project.projectNumber,
-      project.latestSourceArtifactHash,
+      project.latestRawCaptureHash,
       capturedAt,
       referencedByMilestone
     ),
@@ -58,7 +58,7 @@ function makeStoryObservation(
     observation,
     citation: makeStoryCitation(
       observation.projectNumber,
-      observation.sourceArtifactHash,
+      observation.rawCaptureHash,
       observation.observedAt,
       observation.isMilestone
     ),
@@ -82,7 +82,7 @@ export const STORY_COMPUTE_CAMPUS_PROJECT = makeStoryProject(
     currentStatus: "Under Construction",
     startDate: "2027-02-01",
     completionDate: "2028-08-01",
-    latestSourceArtifactHash: HASH_COMPUTE_LATEST,
+    latestRawCaptureHash: HASH_COMPUTE_LATEST,
     updatedAt: "2026-11-18T15:30:00.000Z",
   },
   "2026-11-18T15:28:12.000Z",
@@ -106,7 +106,7 @@ export const STORY_SUBSTATION_YARD_PROJECT = makeStoryProject(
     currentStatus: "Under Construction",
     startDate: "2027-01-15",
     completionDate: "2028-01-15",
-    latestSourceArtifactHash: HASH_SUBSTATION_LATEST,
+    latestRawCaptureHash: HASH_SUBSTATION_LATEST,
     updatedAt: "2026-11-12T09:30:00.000Z",
   },
   "2026-11-12T09:25:00.000Z",
@@ -129,7 +129,7 @@ export const STORY_LOGISTICS_SHELL_PROJECT = makeStoryProject(
     currentStatus: "Project Registered",
     startDate: "2027-03-01",
     completionDate: "2027-11-01",
-    latestSourceArtifactHash: HASH_LOGISTICS_LATEST,
+    latestRawCaptureHash: HASH_LOGISTICS_LATEST,
     updatedAt: "2026-11-19T09:15:00.000Z",
   },
   "2026-11-19T09:12:00.000Z",
@@ -140,7 +140,7 @@ export const STORY_INTERLEAVED_OBSERVATIONS: CitedObservation[] = [
   makeStoryObservation({
     id: "obs_tabs_3697_t1",
     projectNumber: "TABS2027003697",
-    sourceArtifactHash: HASH_COMPUTE_T1,
+    rawCaptureHash: HASH_COMPUTE_T1,
     observedAt: "2026-08-14T14:10:00.000Z",
     status: "Project Registered",
     estimatedCostUsd: 95_000_000,
@@ -152,7 +152,7 @@ export const STORY_INTERLEAVED_OBSERVATIONS: CitedObservation[] = [
   makeStoryObservation({
     id: "obs_tabs_4112_t1",
     projectNumber: "TABS2027004112",
-    sourceArtifactHash: HASH_SUBSTATION_T1,
+    rawCaptureHash: HASH_SUBSTATION_T1,
     observedAt: "2026-09-22T11:05:00.000Z",
     status: "Project Registered",
     estimatedCostUsd: 22_000_000,
@@ -164,7 +164,7 @@ export const STORY_INTERLEAVED_OBSERVATIONS: CitedObservation[] = [
   makeStoryObservation({
     id: "obs_tabs_3697_t2",
     projectNumber: "TABS2027003697",
-    sourceArtifactHash: HASH_COMPUTE_LATEST,
+    rawCaptureHash: HASH_COMPUTE_LATEST,
     observedAt: "2026-10-19T16:40:00.000Z",
     status: "Under Construction",
     estimatedCostUsd: 148_000_000,
@@ -176,7 +176,7 @@ export const STORY_INTERLEAVED_OBSERVATIONS: CitedObservation[] = [
   makeStoryObservation({
     id: "obs_tabs_4112_t2",
     projectNumber: "TABS2027004112",
-    sourceArtifactHash: HASH_SUBSTATION_LATEST,
+    rawCaptureHash: HASH_SUBSTATION_LATEST,
     observedAt: "2026-11-12T09:25:00.000Z",
     status: "Under Construction",
     estimatedCostUsd: 52_000_000,

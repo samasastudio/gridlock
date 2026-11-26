@@ -14,7 +14,7 @@ import {
 } from "../src/index.ts";
 import {
   createTestProject,
-  createTestSourceArtifact,
+  createTestRawCapture,
   FROZEN_TABS_2027003697_HTML,
   GZIP_HTML_STUB,
 } from "./helpers/fixtures.ts";
@@ -72,7 +72,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
     assert.equal(node.citedProject.project.estimatedCostUsd, 100_000_000);
     assert.equal(node.citedProject.project.squareFootage, 251_815);
     assert.equal(
-      node.citedProject.project.latestSourceArtifactHash,
+      node.citedProject.project.latestRawCaptureHash,
       expectedSha256
     );
     assert.equal(node.citedProject.citation.sha256, expectedSha256);
@@ -110,7 +110,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
       {
         repository: {
           getProjectByNumber: unexpectedCall,
-          getSourceArtifactByHash: unexpectedCall,
+          getRawCaptureByHash: unexpectedCall,
           listObservationsByProject: unexpectedCall,
           listVisualPlatesByLineage: unexpectedCall,
           getActiveConnectorConfig: unexpectedCall,
@@ -130,8 +130,8 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
     const repository = createInMemoryGridlockRepository();
     const sha256 = "b".repeat(64);
 
-    await repository.saveSourceArtifact(
-      createTestSourceArtifact(sha256, "TABS2027004242"),
+    await repository.saveRawCapture(
+      createTestRawCapture(sha256, "TABS2027004242"),
       GZIP_HTML_STUB
     );
 
@@ -252,7 +252,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
     }
   });
 
-  test("fails closed on missing Project, invalid or quarantined Source Artifact provenance, and corrupted storage", async () => {
+  test("fails closed on missing Project, invalid or quarantined Raw Capture provenance, and corrupted storage", async () => {
     const repository = createInMemoryGridlockRepository();
     const missingProjectRes = await hydrateInvestigationWorkspace(
       {
@@ -311,7 +311,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
     ];
 
     for (const override of provenanceFailureArtifacts) {
-      const artifact = createTestSourceArtifact(baseHash, "TABS2027008888", {
+      const artifact = createTestRawCapture(baseHash, "TABS2027008888", {
         sourceUrl: override.sourceUrl,
         storageUri: override.storageUri,
         expiresAt: override.expiresAt,
@@ -323,7 +323,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
           repository: {
             ...repository,
             getProjectByNumber: async () => baseProject,
-            getSourceArtifactByHash: async () => artifact,
+            getRawCaptureByHash: async () => artifact,
           },
         },
         { now: NOW }
@@ -343,7 +343,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
             ...repository,
             getProjectByNumber: async () =>
               badProject as unknown as typeof baseProject,
-            getSourceArtifactByHash: async () => null,
+            getRawCaptureByHash: async () => null,
           },
         },
         { now: NOW }
@@ -353,7 +353,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
     }
 
     for (const badArtifact of [
-      createTestSourceArtifact("d".repeat(64), "TABS2027008888"),
+      createTestRawCapture("d".repeat(64), "TABS2027008888"),
       { sha256: baseHash, rawByteLength: -1 },
     ]) {
       const corruptArtifactRes = await hydrateInvestigationWorkspace(
@@ -362,7 +362,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
           repository: {
             ...repository,
             getProjectByNumber: async () => baseProject,
-            getSourceArtifactByHash: async () => badArtifact as never,
+            getRawCaptureByHash: async () => badArtifact as never,
           },
         },
         { now: NOW }
