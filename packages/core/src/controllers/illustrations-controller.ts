@@ -79,7 +79,7 @@ export async function handleGetFrameTimeline(
   const { timeline_id } = parsedQuery.data;
   const result = await getFrameTimeline(
     {
-      ...(timeline_id !== undefined ? { lineageId: timeline_id } : {}),
+      ...(timeline_id !== undefined ? { timelineId: timeline_id } : {}),
       ...(deps.now ? { now: deps.now() } : {}),
     },
     { repository: deps.repository }

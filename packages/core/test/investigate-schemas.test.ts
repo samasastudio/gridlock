@@ -72,7 +72,7 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
     const validTimelineNode = {
       plate: {
         plateId: "plate_canonical_1",
-        lineageId: DEFAULT_TIMELINE_ID,
+        timelineId: DEFAULT_TIMELINE_ID,
         turnNumber: 1,
         model: "gemini-3-pro-image",
         interactionId: "ix_canonical_1",
@@ -102,7 +102,7 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
       component: "FrameTimelineScrubber" as const,
       initialPlateId: "plate_canonical_1",
       timeline: {
-        lineageId: DEFAULT_TIMELINE_ID,
+        timelineId: DEFAULT_TIMELINE_ID,
         activeCanonicalPlateId: "plate_canonical_1",
         nodes: [validTimelineNode],
         edges: [],

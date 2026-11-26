@@ -22,7 +22,7 @@ import {
 import { isWebpBuffer } from "./helpers/webp-codec.ts";
 
 export interface GetFrameTimelineQuery {
-  lineageId?: string;
+  timelineId?: string;
   now?: Date;
 }
 
@@ -160,17 +160,17 @@ export async function getFrameTimeline(
   query: GetFrameTimelineQuery,
   deps: { repository: TimelineRepo }
 ): Promise<GetFrameTimelineResult> {
-  const lineageId = query.lineageId ?? DEFAULT_TIMELINE_ID;
+  const timelineId = query.timelineId ?? DEFAULT_TIMELINE_ID;
   const now = query.now ?? new Date();
   try {
-    const rawPlates = await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
+    const rawPlates = await deps.repository.listGeneratedIllustrationsByTimeline(timelineId);
     if (!Array.isArray(rawPlates)) {
       return lineageErr("Stored GeneratedIllustration list failed runtime schema validation");
     }
 
     const parsedPlates = rawPlates.map((plate) => GeneratedIllustrationSchema.safeParse(plate));
     if (
-      parsedPlates.some((result) => !result.success || result.data.lineageId !== lineageId)
+      parsedPlates.some((result) => !result.success || result.data.timelineId !== timelineId)
     ) {
       return lineageErr("Stored GeneratedIllustration record failed runtime schema validation");
     }
@@ -181,7 +181,7 @@ export async function getFrameTimeline(
       .sort(compareIllustrationsChronologically);
     if (activePlates.length === 0) {
       const empty = FrameTimelineResponseSchema.safeParse({
-        lineageId,
+        timelineId,
         activeCanonicalPlateId: null,
         nodes: [],
         edges: [],
@@ -218,7 +218,7 @@ export async function getFrameTimeline(
     });
 
     const validated = FrameTimelineResponseSchema.safeParse({
-      lineageId,
+      timelineId,
       activeCanonicalPlateId: selectActiveCanonicalIllustration(activePlates)?.plateId ?? null,
       nodes: hydrated.nodes,
       edges,

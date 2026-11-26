@@ -210,7 +210,7 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
           assert.equal(res.status, 200);
           assert.equal(res.headers.get("cache-control"), "no-store");
           assert.deepEqual(FrameTimelineResponseSchema.parse(await res.json()), {
-            lineageId: expectedId,
+            timelineId: expectedId,
             activeCanonicalPlateId: null,
             nodes: [],
             edges: [],
@@ -221,7 +221,7 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
 
     assert.throws(() =>
       FrameTimelineResponseSchema.parse({
-        lineageId: DEFAULT_TIMELINE_ID,
+        timelineId: DEFAULT_TIMELINE_ID,
         activeCanonicalPlateId: "ghost",
         nodes: [],
         edges: [],
@@ -230,8 +230,8 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
 
     const { obs1, t1, t2 } = await seedLineageGraph();
     assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, plateId: "plate/1" }).success, false);
-    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, lineageId: "austin/north" }).success, false);
-    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, lineageId: "austin north" }).success, false);
+    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, timelineId: "austin/north" }).success, false);
+    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, timelineId: "austin north" }).success, false);
     const t1NodeBase = {
       plate: t1,
       assetPath: `/api/illustrations/assets/${t1.plateId}.webp`,
@@ -254,7 +254,7 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
     );
     assert.equal(
       FrameTimelineResponseSchema.safeParse({
-        lineageId: DEFAULT_TIMELINE_ID,
+        timelineId: DEFAULT_TIMELINE_ID,
         activeCanonicalPlateId: t1.plateId,
         nodes: [t1NodeBase],
         edges: [
@@ -345,7 +345,7 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
           throw new Error("db down");
         }
         if (fault === "plate") {
-          return [{ ...t1, lineageId: "wrong" }] as never;
+          return [{ ...t1, timelineId: "wrong" }] as never;
         }
         return repository.listGeneratedIllustrationsByTimeline(id);
       },
@@ -729,7 +729,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
       {
         repository,
         geminiClient,
-        maxBranchesPerLineage: 2,
+        maxBranchesPerTimeline: 2,
         now: () => clock,
       },
       async (baseUrl) => {
@@ -788,7 +788,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
             JSON.stringify({
               interactionId: t1.interactionId,
               scenarioPrompt: "ok",
-              lineageId: "austin/north",
+              timelineId: "austin/north",
             }),
             "invalid_request_body",
           ],
@@ -796,7 +796,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
             JSON.stringify({
               interactionId: t1.interactionId,
               scenarioPrompt: "ok",
-              lineageId: "..",
+              timelineId: "..",
             }),
             "invalid_request_body",
           ],
@@ -814,7 +814,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
           {
             interactionId: t2.interactionId,
             scenarioPrompt: "ok",
-            lineageId: "other-corridor",
+            timelineId: "other-corridor",
           },
         ]) {
           await assertErr(
@@ -898,7 +898,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
     await withPlatesServer(
       {
         repository: proxyRepo,
-        maxBranchesPerLineage: 2,
+        maxBranchesPerTimeline: 2,
         now: () => clock,
       },
       async (baseUrl) => {
@@ -1060,7 +1060,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
       {
         repository,
         geminiClient,
-        maxBranchesPerLineage: 2,
+        maxBranchesPerTimeline: 2,
         now: () => clock,
       },
       async (baseUrl) => {
@@ -1095,7 +1095,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
       {
         repository,
         geminiClient,
-        maxBranchesPerLineage: 3,
+        maxBranchesPerTimeline: 3,
         now: () => clock,
       },
       async (baseUrl) => {
@@ -1111,7 +1111,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
             {
               parentInteractionId: t2.interactionId,
               scenarioPrompt: "Mixed direct branch",
-              maxBranchesPerLineage: 3,
+              maxBranchesPerTimeline: 3,
               now: clock,
             },
             { repository, geminiClient }
@@ -1172,7 +1172,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
       {
         repository: delayedRunRepo,
         geminiClient,
-        maxBranchesPerLineage: 3,
+        maxBranchesPerTimeline: 3,
         now: () => teleClock,
       },
       async (baseUrl) => {

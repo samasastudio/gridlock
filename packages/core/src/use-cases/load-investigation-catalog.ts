@@ -127,8 +127,8 @@ export async function loadOrchestrationGroundingCatalog(
     }
 
     const timelineResults = await Promise.all(
-      validatedTimelines.lineageIds.map((lineageId) =>
-        getFrameTimeline({ lineageId, now }, { repository })
+      validatedTimelines.timelineIds.map((timelineId) =>
+        getFrameTimeline({ timelineId, now }, { repository })
       )
     );
     const failedTimeline = timelineResults.find((result) => !result.ok);

@@ -19,14 +19,14 @@ const LINEAGE_ERROR_PREFIX = "Unable to load Plate Lineage:";
 
 interface PlateViewOptions {
   apiBaseUrl?: string;
-  lineageId?: string;
+  timelineId?: string;
   selectedPlateId?: string;
   initialPlateId?: string;
   onSelectPlate?: (plateId: string) => void;
   assetUrlOverrides?: Readonly<Record<string, string>>;
 }
 
-interface PlateWidgetBaseProps extends Omit<PlateViewOptions, "apiBaseUrl" | "lineageId"> {
+interface PlateWidgetBaseProps extends Omit<PlateViewOptions, "apiBaseUrl" | "timelineId"> {
   theme?: GridlockWidgetTheme;
   ref?: Ref<HTMLElement>;
 }
@@ -44,7 +44,7 @@ export type GridlockPlateWidgetProps =
     });
 
 function matchesLineageQuery(a: PlateLineageQuery, b: PlateLineageQuery): boolean {
-  return a.apiBaseUrl === b.apiBaseUrl && a.lineageId === b.lineageId;
+  return a.apiBaseUrl === b.apiBaseUrl && a.timelineId === b.timelineId;
 }
 
 function toSafeSnapshotPromise(promise: Promise<PlateLineageSnapshotResult>): Promise<PlateLineageSnapshotResult> {
@@ -79,7 +79,7 @@ function LoadedPlateDossierContent(props: {
   return (
     <>
       <header className="gridlock-repair-header">
-        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={effectiveLineage.lineageId} />
+        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={effectiveLineage.timelineId} />
         <div className="gridlock-header-controls">
           <DossierStatusBadge tone="healthy" label={frameCountLabel} />
         </div>
@@ -132,13 +132,13 @@ function PromisePlateBoundary(props: {
 }) {
   const result = use(props.snapshotPromise);
   if (!result.ok) {
-    return <DossierErrorShell baseId={props.baseId} title={LINEAGE_TITLE} connectorId={props.viewOptions.lineageId} errorPrefix={LINEAGE_ERROR_PREFIX} message={result.message} onRetry={props.onRetry} />;
+    return <DossierErrorShell baseId={props.baseId} title={LINEAGE_TITLE} connectorId={props.viewOptions.timelineId} errorPrefix={LINEAGE_ERROR_PREFIX} message={result.message} onRetry={props.onRetry} />;
   }
-  return <LoadedPlateDossierContent key={`${result.lineage.lineageId}::${props.viewOptions.initialPlateId ?? ""}::${props.viewOptions.apiBaseUrl ?? "::static"}`} baseId={props.baseId} lineage={result.lineage} viewOptions={props.viewOptions} />;
+  return <LoadedPlateDossierContent key={`${result.lineage.timelineId}::${props.viewOptions.initialPlateId ?? ""}::${props.viewOptions.apiBaseUrl ?? "::static"}`} baseId={props.baseId} lineage={result.lineage} viewOptions={props.viewOptions} />;
 }
 
 export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
-  const { lineage, apiBaseUrl, lineageId, snapshotPromise, onRetry, selectedPlateId, initialPlateId, onSelectPlate, assetUrlOverrides, theme = "inherit", ref } = props;
+  const { lineage, apiBaseUrl, timelineId, snapshotPromise, onRetry, selectedPlateId, initialPlateId, onSelectPlate, assetUrlOverrides, theme = "inherit", ref } = props;
   const baseId = useId();
   const retryAbortRef = useRef<AbortController | null>(null);
   const [effectEntry, setEffectEntry] = useState<{ query: PlateLineageQuery; promise: Promise<PlateLineageSnapshotResult> } | null>(null);
@@ -148,7 +148,7 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
   useEffect(() => {
     const effectController = !isStaticMode && apiBaseUrl !== undefined && !snapshotPromise ? new AbortController() : null;
     if (effectController && apiBaseUrl !== undefined) {
-      const query: PlateLineageQuery = { apiBaseUrl, lineageId };
+      const query: PlateLineageQuery = { apiBaseUrl, timelineId };
       setEffectEntry({ query, promise: fetchPlateLineageSnapshot({ ...query, signal: effectController.signal }) });
     }
     return () => {
@@ -157,7 +157,7 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
       retryAbortRef.current = null;
       setRetryEntry(null);
     };
-  }, [apiBaseUrl, isStaticMode, lineageId, snapshotPromise]);
+  }, [apiBaseUrl, isStaticMode, timelineId, snapshotPromise]);
 
   const handleRetry = () => {
     onRetry?.();
@@ -165,12 +165,12 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
     retryAbortRef.current?.abort();
     const controller = new AbortController();
     retryAbortRef.current = controller;
-    const query: PlateLineageQuery = { apiBaseUrl, lineageId };
+    const query: PlateLineageQuery = { apiBaseUrl, timelineId };
     setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchPlateLineageSnapshot({ ...query, signal: controller.signal }) });
   };
 
-  const viewOptions: PlateViewOptions = { apiBaseUrl, lineageId, selectedPlateId, initialPlateId, onSelectPlate, assetUrlOverrides };
-  const currentQuery = apiBaseUrl !== undefined ? { apiBaseUrl, lineageId } : null;
+  const viewOptions: PlateViewOptions = { apiBaseUrl, timelineId, selectedPlateId, initialPlateId, onSelectPlate, assetUrlOverrides };
+  const currentQuery = apiBaseUrl !== undefined ? { apiBaseUrl, timelineId } : null;
   const activeRetryPromise = currentQuery && retryEntry && retryEntry.sourcePromise === snapshotPromise && matchesLineageQuery(retryEntry.query, currentQuery) ? retryEntry.promise : null;
   const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesLineageQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
   const rawActivePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
@@ -178,7 +178,7 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
   const loadingShell = (
     <>
       <header className="gridlock-repair-header">
-        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={lineageId} />
+        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={timelineId} />
       </header>
       {LOADING_PLACEHOLDER_NODE}
     </>
@@ -191,9 +191,9 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
         {WIDGET_STYLESHEET_NODE}
         {parsedStatic ? (
           !parsedStatic.success ? (
-            <DossierErrorShell baseId={baseId} title={LINEAGE_TITLE} connectorId={lineageId} errorPrefix={LINEAGE_ERROR_PREFIX} message="Malformed Plate Lineage props" />
+            <DossierErrorShell baseId={baseId} title={LINEAGE_TITLE} connectorId={timelineId} errorPrefix={LINEAGE_ERROR_PREFIX} message="Malformed Plate Lineage props" />
           ) : (
-            <LoadedPlateDossierContent key={`${parsedStatic.data.lineageId}::${viewOptions.initialPlateId ?? ""}::${viewOptions.apiBaseUrl !== undefined ? "live" : "static"}`} baseId={baseId} lineage={parsedStatic.data} viewOptions={viewOptions} />
+            <LoadedPlateDossierContent key={`${parsedStatic.data.timelineId}::${viewOptions.initialPlateId ?? ""}::${viewOptions.apiBaseUrl !== undefined ? "live" : "static"}`} baseId={baseId} lineage={parsedStatic.data} viewOptions={viewOptions} />
           )
         ) : activePromise ? (
           <Suspense fallback={loadingShell}>

@@ -22,7 +22,7 @@ export interface BranchIllustrationDeps {
   geminiClient?: GeminiInteractionsClient;
   imageEncoder?: PainterImageEncoder;
   spanSink?: RunSpanSink;
-  maxBranchesPerLineage?: number;
+  maxBranchesPerTimeline?: number;
   now?: () => Date;
 }
 
@@ -95,10 +95,10 @@ export async function branchIllustration(
     }
 
     const validParent = parsedParent?.success ? parsedParent.data : null;
-    const lineageId =
-      input.lineageId ?? validParent?.lineageId ?? DEFAULT_TIMELINE_ID;
+    const timelineId =
+      input.timelineId ?? validParent?.timelineId ?? DEFAULT_TIMELINE_ID;
     const rawLineagePlates =
-      await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
+      await deps.repository.listGeneratedIllustrationsByTimeline(timelineId);
     if (!Array.isArray(rawLineagePlates)) {
       return branchErr(
         500,
@@ -112,7 +112,7 @@ export async function branchIllustration(
     );
     if (
       parsedLineage.some(
-        (result) => !result.success || result.data.lineageId !== lineageId
+        (result) => !result.success || result.data.timelineId !== timelineId
       )
     ) {
       return branchErr(
@@ -128,26 +128,26 @@ export async function branchIllustration(
     const now = deps.now ? deps.now() : new Date();
     if (
       !validParent ||
-      validParent.lineageId !== lineageId ||
+      validParent.timelineId !== timelineId ||
       !isGeneratedIllustrationActiveAt(validParent, now)
     ) {
       return branchErr(
         404,
         "parent_illustration_not_found",
-        `Unknown or expired parent interactionId "${input.interactionId}" for timeline "${lineageId}"`
+        `Unknown or expired parent interactionId "${input.interactionId}" for timeline "${timelineId}"`
       );
     }
 
     const maxBranches =
-      deps.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
+      deps.maxBranchesPerTimeline ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
     if (
-      countOccupiedBranchSlots(validLineagePlates, deps.repository, lineageId, now) >=
+      countOccupiedBranchSlots(validLineagePlates, deps.repository, timelineId, now) >=
       maxBranches
     ) {
       return branchErr(
         429,
         "branch_quota_exceeded",
-        `Branch quota exceeded for timeline "${lineageId}" (max ${maxBranches})`
+        `Branch quota exceeded for timeline "${timelineId}" (max ${maxBranches})`
       );
     }
 
@@ -177,9 +177,9 @@ export async function branchIllustration(
       {
         parentInteractionId: input.interactionId,
         scenarioPrompt: input.scenarioPrompt,
-        lineageId,
-        ...(deps.maxBranchesPerLineage !== undefined
-          ? { maxBranchesPerLineage: deps.maxBranchesPerLineage }
+        timelineId,
+        ...(deps.maxBranchesPerTimeline !== undefined
+          ? { maxBranchesPerTimeline: deps.maxBranchesPerTimeline }
           : {}),
         now,
       },
@@ -225,7 +225,7 @@ export async function branchIllustration(
     const validated = BranchIllustrationResponseSchema.safeParse({
       plate: painterResult.illustration,
       node: branchedNode.data,
-      lineageId: painterResult.lineageId,
+      timelineId: painterResult.timelineId,
       tokensUsed: painterResult.tokensUsed,
       rebootstrappedFromParentWebp: painterResult.rebootstrappedFromParentWebp,
     });

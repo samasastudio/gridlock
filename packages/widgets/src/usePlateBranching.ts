@@ -27,7 +27,7 @@ export interface UsePlateBranchingOptions {
 
 export function usePlateBranching(options: UsePlateBranchingOptions) {
   const { baseLineage, apiBaseUrl, selectedPlateId, initialPlateId, onSelectPlate } = options;
-  const queryKey = `${apiBaseUrl ?? "::static"}::${baseLineage.lineageId}`;
+  const queryKey = `${apiBaseUrl ?? "::static"}::${baseLineage.timelineId}`;
 
   const [internalPlateEntry, setInternalPlateEntry] = useState<{
     queryKey: string;
@@ -85,7 +85,7 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
         setIsSubmitting(false);
       }
     };
-  }, [apiBaseUrl, baseLineage.lineageId]);
+  }, [apiBaseUrl, baseLineage.timelineId]);
 
   const setIsComparing = (value: boolean) => {
     setIsComparingEntry({ queryKey, value });
@@ -118,7 +118,7 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
     }
 
     const targetQueryKey = queryKey;
-    const targetLineageId = baseLineage.lineageId;
+    const targetTimelineId = baseLineage.timelineId;
     const pinnedTarget =
       orderedNodes.find((node) => node.plate.interactionId === parentInteractionId) ??
       activeNode ??
@@ -134,7 +134,7 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
       apiBaseUrl,
       interactionId: parentInteractionId,
       scenarioPrompt,
-      lineageId: targetLineageId,
+      timelineId: targetTimelineId,
       signal: controller.signal,
     });
 
@@ -159,13 +159,13 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
     }
 
     if (
-      result.branch.lineageId !== targetLineageId ||
-      result.branch.node.plate.lineageId !== targetLineageId
+      result.branch.timelineId !== targetTimelineId ||
+      result.branch.node.plate.timelineId !== targetTimelineId
     ) {
       setBranchErrorEntry({
         queryKey: targetQueryKey,
         alert: {
-          message: "Scenario Branch response lineageId did not match active lineage",
+          message: "Scenario Branch response timelineId did not match active timeline",
         },
       });
       return;

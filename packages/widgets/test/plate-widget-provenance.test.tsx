@@ -95,7 +95,7 @@ describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #
       );
 
       const agedOutParentLineage = PlateLineageResponseSchema.parse({
-        lineageId: seeded.lineage.lineageId,
+        timelineId: seeded.lineage.timelineId,
         activeCanonicalPlateId: seeded.t1.plateId,
         nodes: [
           seeded.lineage.nodes.find((n) => n.plate.plateId === seeded.t1.plateId)!,

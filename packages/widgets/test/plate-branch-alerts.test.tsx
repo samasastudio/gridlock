@@ -21,15 +21,15 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
           ? null
           : seeded.repository.getGeneratedIllustrationByInteractionId(interactionId);
       },
-      async listGeneratedIllustrationsByTimeline(lineageId) {
+      async listGeneratedIllustrationsByTimeline(timelineId) {
         return sim.fail500
           ? ([{ broken: true }] as never)
-          : seeded.repository.listGeneratedIllustrationsByTimeline(lineageId);
+          : seeded.repository.listGeneratedIllustrationsByTimeline(timelineId);
       },
     };
 
     await withTestPlatesServer(
-      { repository, maxBranchesPerLineage: 2 },
+      { repository, maxBranchesPerTimeline: 2 },
       async (apiBaseUrl) => {
         await withWidgetDom(async ({ window: win, container, root }) => {
           await act(async () => {

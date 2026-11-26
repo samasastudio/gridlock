@@ -46,7 +46,7 @@ export interface PainterDeps {
 }
 
 export interface BootstrapCanvasInput {
-  lineageId?: string;
+  timelineId?: string;
   observations: readonly Observation[];
   baseCanvasWebp?: Buffer;
   prompt?: string;
@@ -54,7 +54,7 @@ export interface BootstrapCanvasInput {
 }
 
 export interface PaintMilestoneDeltaInput {
-  lineageId?: string;
+  timelineId?: string;
   observations: readonly Observation[];
   prompt?: string;
   now?: Date;
@@ -63,8 +63,8 @@ export interface PaintMilestoneDeltaInput {
 export interface BranchTimelineInput {
   parentInteractionId: string;
   scenarioPrompt: string;
-  lineageId?: string;
-  maxBranchesPerLineage?: number;
+  timelineId?: string;
+  maxBranchesPerTimeline?: number;
   now?: Date;
 }
 
@@ -84,7 +84,7 @@ function rejectBranchPrecondition(
 ): StatefulPainterResult {
   return {
     status: "painter_failed",
-    lineageId: ctx.lineageId,
+    timelineId: ctx.timelineId,
     reason,
     errorCode,
     tokensUsed: 0,
@@ -100,14 +100,14 @@ export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: Painter
   if (ctx.activeIllustration !== null) {
     return failClosedPainter(ctx, {
       stage: "painter_bootstrap",
-      reason: `Timeline "${ctx.lineageId}" is already bootstrapped (${ctx.activeIllustration.plateId})`,
+      reason: `Timeline "${ctx.timelineId}" is already bootstrapped (${ctx.activeIllustration.plateId})`,
       errorCode: "timeline_already_bootstrapped",
       tokensUsed: 0,
       observations: milestoneObservations,
     });
   }
 
-  const baseCanvas = input.baseCanvasWebp ?? createCorridorBaseCanvasWebp(ctx.lineageId);
+  const baseCanvas = input.baseCanvasWebp ?? createCorridorBaseCanvasWebp(ctx.timelineId);
   if (!isWebpBuffer(baseCanvas)) {
     return failClosedPainter(ctx, {
       stage: "painter_bootstrap",
@@ -118,7 +118,7 @@ export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: Painter
     });
   }
 
-  const prompt = input.prompt ?? synthesizeBootstrapPrompt(ctx.lineageId, milestoneObservations);
+  const prompt = input.prompt ?? synthesizeBootstrapPrompt(ctx.timelineId, milestoneObservations);
   const outcome = await tryCreatePainterInteraction(deps.geminiClient, {
     model: PAINTER_AGENT_MODEL,
     store: true,
@@ -149,14 +149,14 @@ export async function paintMilestoneDelta(
   if (!parentPlate) {
     return failClosedPainter(ctx, {
       stage: "painter_milestone_delta",
-      reason: `Canonical parent GeneratedIllustration not found for timeline "${ctx.lineageId}"`,
+      reason: `Canonical parent GeneratedIllustration not found for timeline "${ctx.timelineId}"`,
       errorCode: "parent_not_found",
       tokensUsed: 0,
       observations: milestoneObservations,
     });
   }
 
-  const prompt = input.prompt ?? synthesizeMilestoneDeltaPrompt(ctx.lineageId, parentPlate, milestoneObservations);
+  const prompt = input.prompt ?? synthesizeMilestoneDeltaPrompt(ctx.timelineId, parentPlate, milestoneObservations);
   const outcome = await requestChainedOrFallbackPainterInteraction({
     geminiClient: deps.geminiClient,
     repository: deps.repository,
@@ -179,12 +179,12 @@ export async function paintMilestoneDelta(
 export async function branchTimeline(input: BranchTimelineInput, deps: PainterDeps): Promise<StatefulPainterResult> {
   const trimmedScenario = input.scenarioPrompt.trim();
   const parentPlate = await deps.repository.getGeneratedIllustrationByInteractionId(input.parentInteractionId);
-  const lineageId = input.lineageId ?? parentPlate?.lineageId ?? DEFAULT_TIMELINE_ID;
-  const maxBranches = input.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
+  const timelineId = input.timelineId ?? parentPlate?.timelineId ?? DEFAULT_TIMELINE_ID;
+  const maxBranches = input.maxBranchesPerTimeline ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
 
-  const admission = await withTimelineBranchAdmission(deps.repository, lineageId, async (reserve) => {
+  const admission = await withTimelineBranchAdmission(deps.repository, timelineId, async (reserve) => {
     const { ctx, existingPlates } = await preparePainterTurn(
-      { lineageId, ...(input.now !== undefined ? { now: input.now } : {}) },
+      { timelineId, ...(input.now !== undefined ? { now: input.now } : {}) },
       deps
     );
     if (trimmedScenario.length === 0 || trimmedScenario.length > MAX_SCENARIO_PROMPT_LENGTH) {
@@ -197,23 +197,23 @@ export async function branchTimeline(input: BranchTimelineInput, deps: PainterDe
         ),
       };
     }
-    if (!parentPlate || parentPlate.lineageId !== lineageId || !isGeneratedIllustrationActiveAt(parentPlate, ctx.now)) {
+    if (!parentPlate || parentPlate.timelineId !== timelineId || !isGeneratedIllustrationActiveAt(parentPlate, ctx.now)) {
       return {
         admitted: false as const,
         result: rejectBranchPrecondition(
           ctx,
           "parent_not_found",
-          `Unknown or expired parent interactionId "${input.parentInteractionId}" for timeline "${lineageId}"`
+          `Unknown or expired parent interactionId "${input.parentInteractionId}" for timeline "${timelineId}"`
         ),
       };
     }
-    if (countOccupiedBranchSlots(existingPlates, deps.repository, lineageId, ctx.now) >= maxBranches) {
+    if (countOccupiedBranchSlots(existingPlates, deps.repository, timelineId, ctx.now) >= maxBranches) {
       return {
         admitted: false as const,
         result: rejectBranchPrecondition(
           ctx,
           "branch_quota_exceeded",
-          `Branch quota exceeded for timeline "${lineageId}" (max ${maxBranches})`
+          `Branch quota exceeded for timeline "${timelineId}" (max ${maxBranches})`
         ),
       };
     }

@@ -8,7 +8,7 @@ import {
 
 export interface PlateLineageQuery {
   apiBaseUrl: string;
-  lineageId?: string;
+  timelineId?: string;
 }
 
 export type PlateLineageSnapshotResult =
@@ -17,7 +17,7 @@ export type PlateLineageSnapshotResult =
 
 export function buildPlateLineageUrl(options: PlateLineageQuery): string {
   const base = options.apiBaseUrl.replace(/\/+$/, "");
-  const trimmedId = options.lineageId?.trim();
+  const trimmedId = options.timelineId?.trim();
   if (!trimmedId) return `${base}/api/illustrations/timeline`;
   const query = new URLSearchParams([["timeline_id", trimmedId]]).toString();
   return `${base}/api/illustrations/timeline?${query}`;
@@ -131,11 +131,11 @@ async function postBranchJson(
 export async function submitPlateBranch(
   options: SubmitPlateBranchOptions
 ): Promise<SubmitPlateBranchResult> {
-  const trimmedLineageId = options.lineageId?.trim();
+  const trimmedTimelineId = options.timelineId?.trim();
   const payload: BranchPlateRequest = {
     interactionId: options.interactionId.trim(),
     scenarioPrompt: options.scenarioPrompt.trim(),
-    ...(trimmedLineageId ? { lineageId: trimmedLineageId } : {}),
+    ...(trimmedTimelineId ? { timelineId: trimmedTimelineId } : {}),
   };
 
   const postResult = await postBranchJson(

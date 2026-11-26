@@ -39,12 +39,12 @@ function makeMilestoneObs(
 }
 
 function makePlateNode(
-  plate: Omit<GeneratedIllustration, "lineageId" | "model" | "mimeType" | "byteLength">,
+  plate: Omit<GeneratedIllustration, "timelineId" | "model" | "mimeType" | "byteLength">,
   triggeringObservations: Observation[],
   rawCaptures: LineageSourceCitation[]
 ): LineageNode {
   return {
-    plate: { ...plate, lineageId: DEFAULT_LINEAGE_ID, model: PAINTER_AGENT_MODEL, mimeType: "image/webp", byteLength: 129_782 },
+    plate: { ...plate, timelineId: DEFAULT_LINEAGE_ID, model: PAINTER_AGENT_MODEL, mimeType: "image/webp", byteLength: 129_782 },
     assetPath: `/api/illustrations/assets/${plate.plateId}.webp`,
     triggeringObservations,
     rawCaptures,
@@ -129,7 +129,7 @@ function makeEdge(parent: LineageNode, child: LineageNode): LineageEdge {
 }
 
 function makeLineage(activeCanonicalPlateId: string | null, nodes: LineageNode[], edges: LineageEdge[] = []) {
-  return PlateLineageResponseSchema.parse({ lineageId: DEFAULT_LINEAGE_ID, activeCanonicalPlateId, nodes, edges });
+  return PlateLineageResponseSchema.parse({ timelineId: DEFAULT_LINEAGE_ID, activeCanonicalPlateId, nodes, edges });
 }
 
 const EDGE_T1_T2 = makeEdge(NODE_T1, NODE_T2);

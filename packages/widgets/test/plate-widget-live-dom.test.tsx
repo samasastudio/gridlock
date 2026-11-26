@@ -8,17 +8,17 @@ import { waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
 import { seedTestPlateLineage, withTestPlatesServer } from "./helpers/plate-fixtures.ts";
 
 describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticket #34 Phase 2)", () => {
-  test("Live apiBaseUrl useEffect attaches ref, defaults to inherit theme, recovers in-place on Retry click, and resets on lineageId change", async () => {
+  test("Live apiBaseUrl useEffect attaches ref, defaults to inherit theme, recovers in-place on Retry click, and resets on timelineId change", async () => {
     const seeded = await seedTestPlateLineage();
     let force500 = true;
     let retryCount = 0;
 
     const flakyRepo: GridlockRepository = {
       ...seeded.repository,
-      async listGeneratedIllustrationsByTimeline(lineageId) {
+      async listGeneratedIllustrationsByTimeline(timelineId) {
         return force500
           ? ([{ broken: true }] as never)
-          : seeded.repository.listGeneratedIllustrationsByTimeline(lineageId);
+          : seeded.repository.listGeneratedIllustrationsByTimeline(timelineId);
       },
     };
 
@@ -61,7 +61,7 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
 
         await act(async () => {
           root.render(
-            <GridlockPlateWidget ref={sectionRef} apiBaseUrl={apiBaseUrl} lineageId="unknown-corridor" onRetry={onRetry} />
+            <GridlockPlateWidget ref={sectionRef} apiBaseUrl={apiBaseUrl} timelineId="unknown-corridor" onRetry={onRetry} />
           );
         });
         await waitForDom(() => container.querySelector('[data-empty-lineage="true"]') !== null);

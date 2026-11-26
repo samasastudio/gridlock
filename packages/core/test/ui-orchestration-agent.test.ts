@@ -495,7 +495,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
     const parsedPrompt = JSON.parse(promptText) as {
       catalog: {
         projects: Array<{ projectNumber: string }>;
-        timelines: Array<{ lineageId: string; plates: Array<{ plateId: string }> }>;
+        timelines: Array<{ timelineId: string; plates: Array<{ plateId: string }> }>;
         connectors: Array<{ connectorId: string; activeVersion: number; repairCount: number }>;
       };
     };
@@ -504,7 +504,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
       ["TABS2027001001", "TABS2027001002"]
     );
     assert.deepEqual(
-      parsedPrompt.catalog.timelines.map((t) => t.lineageId),
+      parsedPrompt.catalog.timelines.map((t) => t.timelineId),
       [DEFAULT_TIMELINE_ID]
     );
     assert.equal(parsedPrompt.catalog.timelines[0]?.plates.length, 2);
@@ -615,7 +615,7 @@ describe("runUiOrchestrationAgent (In-place workspace refinement)", () => {
             {
               nodeId: "scrubber-corridor",
               component: "FrameTimelineScrubber",
-              lineageId: DEFAULT_TIMELINE_ID,
+              timelineId: DEFAULT_TIMELINE_ID,
               initialPlateId: branchPlateId,
             },
             {

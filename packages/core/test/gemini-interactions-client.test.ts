@@ -133,7 +133,7 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
     await repository.appendObservation(milestoneObs);
 
     const boot = await bootstrapCanvas(
-      { lineageId: "texas-corridor-main", observations: [milestoneObs] },
+      { timelineId: "texas-corridor-main", observations: [milestoneObs] },
       { repository, geminiClient: client }
     );
     assert.equal(boot.status, "illustration_painted");

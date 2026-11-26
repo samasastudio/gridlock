@@ -20,7 +20,7 @@ export type EpistemicIllustrationLabel = z.infer<typeof EpistemicIllustrationLab
 export const GeneratedIllustrationSchema = z
   .object({
     plateId: SafeSegmentIdSchema,
-    lineageId: SafeSegmentIdSchema,
+    timelineId: SafeSegmentIdSchema,
     turnNumber: z.number().int().positive(),
     model: z.string().min(1),
     interactionId: z.string().min(1),
@@ -93,7 +93,7 @@ export type PainterErrorCode =
 export type StatefulPainterResult =
   | {
       status: "skipped_no_milestone";
-      lineageId: string;
+      timelineId: string;
       tokensUsed: 0;
       imageGenerationsAvoided: number;
       activeIllustration: GeneratedIllustration | null;
@@ -101,7 +101,7 @@ export type StatefulPainterResult =
   | {
       status: "illustration_painted";
       operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchTimeline";
-      lineageId: string;
+      timelineId: string;
       illustration: GeneratedIllustration;
       webpBuffer: Buffer;
       tokensUsed: number;
@@ -109,7 +109,7 @@ export type StatefulPainterResult =
     }
   | {
       status: "painter_failed";
-      lineageId: string;
+      timelineId: string;
       reason: string;
       errorCode: PainterErrorCode;
       tokensUsed: number;
@@ -180,7 +180,7 @@ export type FrameTimelineEdge = z.infer<typeof FrameTimelineEdgeSchema>;
 
 export const FrameTimelineResponseSchema = z
   .object({
-    lineageId: SafeSegmentIdSchema,
+    timelineId: SafeSegmentIdSchema,
     activeCanonicalPlateId: z.string().min(1).nullable(),
     nodes: z.array(FrameTimelineNodeSchema),
     edges: z.array(FrameTimelineEdgeSchema),
@@ -189,8 +189,8 @@ export const FrameTimelineResponseSchema = z
     const fail = (path: Array<string | number>, message: string) =>
       ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
 
-    if (data.nodes.some((node) => node.plate.lineageId !== data.lineageId)) {
-      fail(["nodes"], "All FrameTimelineNodes must match lineageId");
+    if (data.nodes.some((node) => node.plate.timelineId !== data.timelineId)) {
+      fail(["nodes"], "All FrameTimelineNodes must match timelineId");
     }
 
     const uniquePlateIds = new Set(data.nodes.map((node) => node.plate.plateId));
@@ -251,7 +251,7 @@ export const BranchIllustrationRequestSchema = z
   .object({
     interactionId: z.string().trim().min(1),
     scenarioPrompt: z.string().trim().min(1).max(MAX_SCENARIO_PROMPT_LENGTH),
-    lineageId: z.string().trim().max(128).pipe(SafeSegmentIdSchema).optional(),
+    timelineId: z.string().trim().max(128).pipe(SafeSegmentIdSchema).optional(),
   })
   .strict();
 
@@ -261,7 +261,7 @@ export const BranchIllustrationResponseSchema = z
   .object({
     plate: GeneratedIllustrationSchema,
     node: FrameTimelineNodeSchema,
-    lineageId: SafeSegmentIdSchema,
+    timelineId: SafeSegmentIdSchema,
     tokensUsed: z.number().int().nonnegative(),
     rebootstrappedFromParentWebp: z.boolean(),
   })
@@ -279,14 +279,14 @@ export const BranchIllustrationResponseSchema = z
     }
     if (
       data.node.plate.plateId !== data.plate.plateId ||
-      data.plate.lineageId !== data.lineageId ||
+      data.plate.timelineId !== data.timelineId ||
       data.plate.rebootstrappedFromParentWebp !== data.rebootstrappedFromParentWebp
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["node"],
         message:
-          "BranchIllustrationResponse node, lineageId, and rebootstrappedFromParentWebp must match illustration",
+          "BranchIllustrationResponse node, timelineId, and rebootstrappedFromParentWebp must match illustration",
       });
     }
   });

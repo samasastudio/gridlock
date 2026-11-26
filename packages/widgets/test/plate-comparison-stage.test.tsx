@@ -202,7 +202,7 @@ describe("PlateComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Pha
       await assertTurn1BaselineSplit(turn1Fork.lineage, turn1Fork.branchPlate.plateId);
 
       const agedHopLineage = PlateLineageResponseSchema.parse({
-        lineageId: seeded.lineage.lineageId,
+        timelineId: seeded.lineage.timelineId,
         activeCanonicalPlateId: seeded.t1.plateId,
         nodes: [t1Node, t2Node, b2Node],
         edges: [seeded.lineage.edges[0]!],

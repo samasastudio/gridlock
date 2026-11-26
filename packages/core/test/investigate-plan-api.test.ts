@@ -371,24 +371,24 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
         singleNodeLayout({
           nodeId: "scrubber-missing-timeline",
           component: "FrameTimelineScrubber",
-          lineageId: "fabricated-timeline",
+          timelineId: "fabricated-timeline",
         }),
         singleNodeLayout({
           nodeId: "scrubber-unknown-plate",
           component: "FrameTimelineScrubber",
-          lineageId: DEFAULT_TIMELINE_ID,
+          timelineId: DEFAULT_TIMELINE_ID,
           initialPlateId: "plate_unknown_999",
         }),
         singleNodeLayout({
           nodeId: "scrubber-expired-plate",
           component: "FrameTimelineScrubber",
-          lineageId: DEFAULT_TIMELINE_ID,
+          timelineId: DEFAULT_TIMELINE_ID,
           initialPlateId: "plate_expired_branch",
         }),
         singleNodeLayout({
           nodeId: "scrubber-quarantined",
           component: "FrameTimelineScrubber",
-          lineageId: "quarantined-timeline",
+          timelineId: "quarantined-timeline",
         }),
         singleNodeLayout({
           nodeId: "connector-missing",
@@ -398,7 +398,7 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
         singleNodeLayout({
           nodeId: "scrubber-bad-id",
           component: "FrameTimelineScrubber",
-          lineageId: "../bad/id",
+          timelineId: "../bad/id",
         }),
         singleNodeLayout({
           nodeId: "connector-bad-id",
@@ -487,7 +487,7 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
             {
               nodeId: "scrubber-corridor",
               component: "FrameTimelineScrubber",
-              lineageId: DEFAULT_TIMELINE_ID,
+              timelineId: DEFAULT_TIMELINE_ID,
               initialPlateId: branchPlateId,
             },
             {

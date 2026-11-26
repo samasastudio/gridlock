@@ -80,7 +80,7 @@ export function extractWorkspaceLookupKeys(
   const uniqueTimelineIds = Array.from(
     new Set(
       nodes.flatMap((node) =>
-        node.component === "FrameTimelineScrubber" ? [node.lineageId] : []
+        node.component === "FrameTimelineScrubber" ? [node.timelineId] : []
       )
     )
   );
@@ -138,7 +138,7 @@ function buildFrameTimelineScrubberNode(
   if (timeline.nodes.length === 0) {
     return stepFailure(
       "entity_not_found",
-      `Frame Timeline "${timeline.lineageId}" has no active illustrations`
+      `Frame Timeline "${timeline.timelineId}" has no active illustrations`
     );
   }
 
@@ -148,7 +148,7 @@ function buildFrameTimelineScrubberNode(
   ) {
     return stepFailure(
       "entity_not_found",
-      `Generated Illustration "${initialPlateId}" was not found in active timeline "${timeline.lineageId}"`
+      `Generated Illustration "${initialPlateId}" was not found in active timeline "${timeline.timelineId}"`
     );
   }
 
@@ -171,7 +171,7 @@ function buildFrameTimelineScrubberNode(
   if (unresolvableNode) {
     return stepFailure(
       "unresolvable_provenance",
-      `Generated Illustration "${unresolvableNode.plate.plateId}" in timeline "${timeline.lineageId}" lacks resolvable Raw Capture provenance`
+      `Generated Illustration "${unresolvableNode.plate.plateId}" in timeline "${timeline.timelineId}" lacks resolvable Raw Capture provenance`
     );
   }
 
@@ -242,7 +242,7 @@ export function hydrateWorkspaceNodes(
           ctx.citedByNumber
         );
       case "FrameTimelineScrubber": {
-        const timeline = ctx.timelineById.get(specNode.lineageId);
+        const timeline = ctx.timelineById.get(specNode.timelineId);
         return timeline
           ? buildFrameTimelineScrubberNode(
               specNode.nodeId,
@@ -251,7 +251,7 @@ export function hydrateWorkspaceNodes(
             )
           : stepFailure(
               "entity_not_found",
-              `Frame Timeline "${specNode.lineageId}" was not found`
+              `Frame Timeline "${specNode.timelineId}" was not found`
             );
       }
       case "ObservationTimeline":

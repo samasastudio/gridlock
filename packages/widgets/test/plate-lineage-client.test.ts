@@ -18,7 +18,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
   test("buildPlateLineageUrl, buildPlateAssetUrl, and fetchPlateLineageSnapshot handle same-origin, 200, 400, 500, malformed JSON, and AbortSignal", async () => {
     assert.equal(buildPlateLineageUrl({ apiBaseUrl: "" }), "/api/illustrations/timeline");
     assert.equal(
-      buildPlateLineageUrl({ apiBaseUrl: "https://api.example.com///", lineageId: " ercot-west " }),
+      buildPlateLineageUrl({ apiBaseUrl: "https://api.example.com///", timelineId: " ercot-west " }),
       "https://api.example.com/api/illustrations/timeline?timeline_id=ercot-west"
     );
     assert.equal(
@@ -50,7 +50,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
 
       const emptySnap = await fetchPlateLineageSnapshot({
         apiBaseUrl,
-        lineageId: "unknown-corridor",
+        timelineId: "unknown-corridor",
       });
       assert.equal(emptySnap.ok, true);
       if (emptySnap.ok) {
@@ -58,7 +58,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
         assert.equal(emptySnap.lineage.nodes.length, 0);
       }
 
-      const badQuery = await fetchPlateLineageSnapshot({ apiBaseUrl, lineageId: "bad/id" });
+      const badQuery = await fetchPlateLineageSnapshot({ apiBaseUrl, timelineId: "bad/id" });
       assert.equal(badQuery.ok, false);
       if (!badQuery.ok) {
         assert.equal(badQuery.statusCode, 400);
@@ -91,7 +91,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
     });
 
     const origFetch = globalThis.fetch;
-    globalThis.fetch = async () => Response.json({ lineageId: 42 });
+    globalThis.fetch = async () => Response.json({ timelineId: 42 });
     try {
       const malformed = await fetchPlateLineageSnapshot({ apiBaseUrl: "" });
       assert.deepEqual(malformed, { ok: false, message: "Malformed Plate Lineage payload" });
@@ -113,14 +113,14 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       {
         repository: seeded.repository,
         geminiClient: seeded.geminiClient,
-        maxBranchesPerLineage: 3,
+        maxBranchesPerTimeline: 3,
       },
       async (apiBaseUrl) => {
         const created = await submitPlateBranch({
           apiBaseUrl,
           interactionId: `  ${seeded.t2.interactionId}  `,
           scenarioPrompt: "  Simulate 345kV loop upgrade at Navarro County  ",
-          lineageId: "  texas-corridor-main  ",
+          timelineId: "  texas-corridor-main  ",
         });
         assert.equal(created.ok, true);
         if (created.ok) {
@@ -228,12 +228,12 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
         apiBaseUrl: "",
         interactionId: `  ${seeded.t2.interactionId}  `,
         scenarioPrompt: "  Malformed 201 response  ",
-        lineageId: "  texas-corridor-main  ",
+        timelineId: "  texas-corridor-main  ",
       });
       assert.deepEqual(JSON.parse(stubCapture.requestJson), {
         interactionId: seeded.t2.interactionId,
         scenarioPrompt: "Malformed 201 response",
-        lineageId: "texas-corridor-main",
+        timelineId: "texas-corridor-main",
       });
       assert.deepEqual(malformed, { ok: false, message: "Malformed Scenario Branch payload" });
 

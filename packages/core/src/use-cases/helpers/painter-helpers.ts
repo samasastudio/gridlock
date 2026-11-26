@@ -142,16 +142,16 @@ export function formatObservationsSummary(observations: readonly Observation[]):
     .join("; ");
 }
 
-export function synthesizeBootstrapPrompt(lineageId: string, observations: readonly Observation[]): string {
-  return `Bootstrap Atlas Dossier technical topographical illustration for corridor timeline "${lineageId}" incorporating initial milestone observations: ${formatObservationsSummary(observations)}`;
+export function synthesizeBootstrapPrompt(timelineId: string, observations: readonly Observation[]): string {
+  return `Bootstrap Atlas Dossier technical topographical illustration for corridor timeline "${timelineId}" incorporating initial milestone observations: ${formatObservationsSummary(observations)}`;
 }
 
 export function synthesizeMilestoneDeltaPrompt(
-  lineageId: string,
+  timelineId: string,
   parentPlate: GeneratedIllustration,
   observations: readonly Observation[]
 ): string {
-  return `Paint incremental milestone delta onto corridor timeline "${lineageId}" from parent illustration ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
+  return `Paint incremental milestone delta onto corridor timeline "${timelineId}" from parent illustration ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
 }
 
 export function isGeneratedIllustrationActiveAt(plate: GeneratedIllustration, now: Date): boolean {
@@ -203,7 +203,7 @@ export type GeneratedIllustrationTurnSpec = {
 
 export function buildGeneratedIllustrationRecord(
   params: GeneratedIllustrationTurnSpec & {
-    lineageId: string;
+    timelineId: string;
     interactionId: string;
     rebootstrappedFromParentWebp: boolean;
     webpBuffer: Buffer;
@@ -230,10 +230,10 @@ export function buildGeneratedIllustrationRecord(
         expiresAt: null,
         extra: {},
       };
-  const plateId = `${variant.prefix}_${params.lineageId}_t${turnNumber}_${interactionTag}_${params.sha256.slice(0, 8)}`;
+  const plateId = `${variant.prefix}_${params.timelineId}_t${turnNumber}_${interactionTag}_${params.sha256.slice(0, 8)}`;
   return GeneratedIllustrationSchema.parse({
     plateId,
-    lineageId: params.lineageId,
+    timelineId: params.timelineId,
     turnNumber,
     model: PAINTER_AGENT_MODEL,
     interactionId: params.interactionId,
@@ -244,7 +244,7 @@ export function buildGeneratedIllustrationRecord(
     triggeringObservationIds: params.observations.map((obs) => obs.id),
     rawCaptureHashes: Array.from(new Set(params.observations.map((obs) => obs.rawCaptureHash))),
     prompt: params.prompt,
-    storageUri: `${ARTIFACT_BUCKET_URI}/${variant.storageDir}/${params.lineageId}/${plateId}.webp`,
+    storageUri: `${ARTIFACT_BUCKET_URI}/${variant.storageDir}/${params.timelineId}/${plateId}.webp`,
     mimeType: "image/webp",
     byteLength: params.webpBuffer.byteLength,
     sha256: params.sha256,

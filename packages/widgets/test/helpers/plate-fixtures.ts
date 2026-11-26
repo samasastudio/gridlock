@@ -116,7 +116,7 @@ export function buildBranchOnlyLineage(
   const b2Node = lineage.nodes.find((node) => node.plate.plateId === b2PlateId)!;
 
   return PlateLineageResponseSchema.parse({
-    lineageId: lineage.lineageId,
+    timelineId: lineage.timelineId,
     activeCanonicalPlateId: null,
     nodes: [b1Node, b2Node],
     edges: lineage.edges.filter(
