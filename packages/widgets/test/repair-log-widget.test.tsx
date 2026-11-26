@@ -4,7 +4,7 @@ import { createRef } from "react";
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
-import { createGridlockHttpServer, createInMemoryGridlockRepository, DEFAULT_EFFICIENCY_LEDGER, DEFAULT_TDLR_CONNECTOR_CONFIG, type GridlockRepository } from "@samasastudio/gridlock-core";
+import { createGridlockHttpServer, createInMemoryGridlockRepository, DEFAULT_EFFICIENCY_SCORECARD, DEFAULT_TDLR_CONNECTOR_CONFIG, type GridlockRepository } from "@samasastudio/gridlock-core";
 import {
   buildRepairChangelogUrl,
   ConnectorStatusBadge,
@@ -47,11 +47,11 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.equal(EDITORIAL_EASE.length, 4);
   });
 
-  test("Happy Path & Zero-Anomaly State: renders 100% deterministic uptime when empty, derives static export connectorId, and renders Repair Changelog + Efficiency Ledger across diurnal/nocturnal/inherit tokens", () => {
+  test("Happy Path & Zero-Anomaly State: renders 100% deterministic uptime when empty, derives static export connectorId, and renders Repair Changelog + Efficiency Scorecard across diurnal/nocturnal/inherit tokens", () => {
     const emptyHtml = renderToStaticMarkup(
       <GridlockRepairLogWidget
         changelog={{ connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }}
-        efficiencyLedger={HealedWithAmortization.args.efficiencyLedger!}
+        efficiencyScorecard={HealedWithAmortization.args.efficiencyScorecard!}
         apiBaseUrl="https://api.example.com"
       />
     );
@@ -102,13 +102,13 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.doesNotMatch(loadingHtml, /<progress/);
 
     const malformedStaticHtml = renderToStaticMarkup(
-      <GridlockRepairLogWidget changelog={{ broken: true } as never} efficiencyLedger={DEFAULT_EFFICIENCY_LEDGER} />
+      <GridlockRepairLogWidget changelog={{ broken: true } as never} efficiencyScorecard={DEFAULT_EFFICIENCY_SCORECARD} />
     );
     assert.match(malformedStaticHtml, /role="alert"/);
     assert.doesNotMatch(malformedStaticHtml, /<button[^>]*>Retry<\/button>/);
 
     const sameOriginSnapshotHtml = await streamHtml(
-      <GridlockRepairLogWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, changelog: { connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }, efficiencyLedger: DEFAULT_EFFICIENCY_LEDGER })} />
+      <GridlockRepairLogWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, changelog: { connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }, efficiencyScorecard: DEFAULT_EFFICIENCY_SCORECARD })} />
     );
     assert.match(sameOriginSnapshotHtml, /href="\/api\/repairs\/changelog\?connector_id=ercot-gis&amp;format=md"/);
 
@@ -120,7 +120,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
 
     for (const status of ["selector_anomaly", "blocked_by_waf"] as const) {
       const degradedHtml = renderToStaticMarkup(
-        <GridlockRepairLogWidget changelog={{ connectorId: "tdlr-tabs", connectorStatus: status, activeVersion: 1, entries: [] }} efficiencyLedger={DEFAULT_EFFICIENCY_LEDGER} />
+        <GridlockRepairLogWidget changelog={{ connectorId: "tdlr-tabs", connectorStatus: status, activeVersion: 1, entries: [] }} efficiencyScorecard={DEFAULT_EFFICIENCY_SCORECARD} />
       );
       assert.match(degradedHtml, /role="alert"/);
       assert.match(degradedHtml, new RegExp(status));
@@ -128,13 +128,13 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     }
 
     const healedArgs = HealedWithAmortization.args;
-    if (!healedArgs.changelog || !healedArgs.efficiencyLedger) throw new Error("Expected static story args");
-    const baseRepo = createInMemoryGridlockRepository(DEFAULT_TDLR_CONNECTOR_CONFIG, healedArgs.efficiencyLedger);
+    if (!healedArgs.changelog || !healedArgs.efficiencyScorecard) throw new Error("Expected static story args");
+    const baseRepo = createInMemoryGridlockRepository(DEFAULT_TDLR_CONNECTOR_CONFIG, healedArgs.efficiencyScorecard);
     for (const entry of healedArgs.changelog.entries) {
       await baseRepo.promoteConnectorConfig(
         { ...DEFAULT_TDLR_CONNECTOR_CONFIG, version: entry.promotedVersion, detailContainerSelector: ".project-details, .tabs-project-details-v2" },
         entry,
-        { updatedLedger: healedArgs.efficiencyLedger }
+        { updatedScorecard: healedArgs.efficiencyScorecard }
       );
     }
 
@@ -158,7 +158,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       force500 = false;
       const limitedSnap = await fetchRepairLogSnapshot({ apiBaseUrl, limit: 1 });
       assert.equal(limitedSnap.ok && limitedSnap.changelog.entries.length, 1);
-      assert.equal(limitedSnap.ok && limitedSnap.efficiencyLedger.recentRuns.length, 9);
+      assert.equal(limitedSnap.ok && limitedSnap.efficiencyScorecard.recentRuns.length, 9);
       const recoveredHtml = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={Promise.resolve(limitedSnap)} />);
       assert.equal(Array.from(recoveredHtml.matchAll(/<rect[^>]*role="button"/g)).length, 1, "Unlisted v2 repair marker must not expose dead role=button");
       assert.match(recoveredHtml, /650,000/);
@@ -177,9 +177,9 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.equal(StoryComponent, GridlockRepairLogWidget);
     const namedStoryKeys = Object.keys(repairLogStories).filter((key) => key !== "default").sort();
     assert.deepEqual(namedStoryKeys, ["BlockedByWafDegraded", "HealedWithAmortization", "HealthyZeroAnomalies", "NocturnalTheme", "SelectorAnomalyDegraded"]);
-    assert.equal(HealthyZeroAnomalies.args.efficiencyLedger!.recentRuns.reduce((s, r) => s + r.naiveTokensAvoided, 0), HealthyZeroAnomalies.args.efficiencyLedger!.naiveTokensAvoided);
-    assert.equal(SelectorAnomalyDegraded.args.efficiencyLedger!.failedOrBlockedRunsCount, 1);
-    assert.equal(BlockedByWafDegraded.args.efficiencyLedger!.failedOrBlockedRunsCount, 2);
+    assert.equal(HealthyZeroAnomalies.args.efficiencyScorecard!.recentRuns.reduce((s, r) => s + r.naiveTokensAvoided, 0), HealthyZeroAnomalies.args.efficiencyScorecard!.naiveTokensAvoided);
+    assert.equal(SelectorAnomalyDegraded.args.efficiencyScorecard!.failedOrBlockedRunsCount, 1);
+    assert.equal(BlockedByWafDegraded.args.efficiencyScorecard!.failedOrBlockedRunsCount, 2);
     assert.match(renderToStaticMarkup(<StoryComponent {...HealthyZeroAnomalies.args} />), /316,000/);
     assert.match(renderToStaticMarkup(<StoryComponent {...HealedWithAmortization.args} />), /Inspect patch \(2 selectors\)/);
     assert.match(renderToStaticMarkup(<StoryComponent {...SelectorAnomalyDegraded.args} />), /selector_anomaly/);

@@ -1,13 +1,13 @@
 import { randomBytes } from "node:crypto";
 import {
-  EfficiencyLedgerSchema,
+  EfficiencyScorecardSchema,
   NAIVE_COST_PER_TOKEN_USD,
   RepairChangelogEntrySchema,
   RawCaptureSchema,
   RunRecordSchema,
   RunSpanSchema,
   type ConnectorConfig,
-  type EfficiencyLedger,
+  type EfficiencyScorecard,
   type ExecutionMode,
   type RepairChangelogEntry,
   type RawCapture,
@@ -119,12 +119,12 @@ export function buildRunRecord(params: {
   });
 }
 
-export function applyRunRecordToLedger(
-  current: EfficiencyLedger,
+export function applyRunRecordToScorecard(
+  current: EfficiencyScorecard,
   run: RunRecord,
   recentRuns: RunRecord[],
   deltas?: RunPainterDeltas
-): EfficiencyLedger {
+): EfficiencyScorecard {
   const isSuccessDet =
     run.execution_mode === "deterministic" &&
     (run.status === "ingested" || run.status === "unchanged_artifact");
@@ -172,7 +172,7 @@ export function applyRunRecordToLedger(
   const tokenReductionPercentage =
     tokenDenom === 0 ? 100 : Number(((naiveTokensAvoided / tokenDenom) * 100).toFixed(2));
 
-  return EfficiencyLedgerSchema.parse({
+  return EfficiencyScorecardSchema.parse({
     ...current,
     deterministicRunsCount,
     agenticRunsCount,
@@ -199,12 +199,12 @@ export function applyHealAmortization(params: {
   run: RunRecord;
   activeConfig: ConnectorConfig | undefined;
   repairChangelog: readonly RepairChangelogEntry[];
-  ledger: EfficiencyLedger;
+  scorecard: EfficiencyScorecard;
 }): {
   updatedChangelog: RepairChangelogEntry[];
-  updatedLedger: EfficiencyLedger;
+  updatedScorecard: EfficiencyScorecard;
 } {
-  const { run, activeConfig, repairChangelog, ledger } = params;
+  const { run, activeConfig, repairChangelog, scorecard } = params;
   const updatedChangelog = repairChangelog.map((entry) =>
     structuredClone(entry)
   );
@@ -217,7 +217,7 @@ export function applyHealAmortization(params: {
   ) {
     return {
       updatedChangelog,
-      updatedLedger: structuredClone(ledger),
+      updatedScorecard: structuredClone(scorecard),
     };
   }
 
@@ -233,7 +233,7 @@ export function applyHealAmortization(params: {
   if (targetIndex === -1) {
     return {
       updatedChangelog,
-      updatedLedger: structuredClone(ledger),
+      updatedScorecard: structuredClone(scorecard),
     };
   }
 
@@ -246,25 +246,29 @@ export function applyHealAmortization(params: {
         })
       : entry
   );
-  const updatedLedger = EfficiencyLedgerSchema.parse({
-    ...ledger,
+  const updatedScorecard = EfficiencyScorecardSchema.parse({
+    ...scorecard,
     subsequentDeterministicRunsServed:
-      ledger.subsequentDeterministicRunsServed + 1,
+      scorecard.subsequentDeterministicRunsServed + 1,
   });
-  return { updatedChangelog: nextChangelog, updatedLedger };
+  return { updatedChangelog: nextChangelog, updatedScorecard };
 }
 
 export function applyConnectorPromotion(params: {
   changelogEntry: RepairChangelogEntry;
   allChangelogEntries: readonly RepairChangelogEntry[];
   quarantinedArtifact: RawCapture | undefined;
-  ledger: EfficiencyLedger;
+  scorecard: EfficiencyScorecard;
 }): {
   promotedArtifact: RawCapture | undefined;
-  updatedLedger: EfficiencyLedger;
+  updatedScorecard: EfficiencyScorecard;
 } {
-  const { changelogEntry, allChangelogEntries, quarantinedArtifact, ledger } =
-    params;
+  const {
+    changelogEntry,
+    allChangelogEntries,
+    quarantinedArtifact,
+    scorecard,
+  } = params;
 
   const promotedArtifact = quarantinedArtifact
     ? RawCaptureSchema.parse({
@@ -283,11 +287,11 @@ export function applyConnectorPromotion(params: {
       ? Number((totalMttrMs / allChangelogEntries.length).toFixed(2))
       : 0;
 
-  const updatedLedger = EfficiencyLedgerSchema.parse({
-    ...ledger,
+  const updatedScorecard = EfficiencyScorecardSchema.parse({
+    ...scorecard,
     averageRepairMttrMs,
     updatedAt: changelogEntry.patchPromotedAt,
   });
 
-  return { promotedArtifact, updatedLedger };
+  return { promotedArtifact, updatedScorecard };
 }

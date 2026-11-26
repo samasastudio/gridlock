@@ -11,7 +11,7 @@ import {
 } from "./painter-models.ts";
 import { TdlrProjectNumberSchema } from "./primitives.ts";
 import { RepairChangelogResponseSchema } from "./repair-models.ts";
-import { EfficiencyLedgerSchema } from "./run-record-models.ts";
+import { EfficiencyScorecardSchema } from "./run-record-models.ts";
 
 export const SafeAstIdSchema = z
   .string()
@@ -216,11 +216,11 @@ export type VisualPlateScrubberNode = z.infer<
   typeof VisualPlateScrubberNodeSchema
 >;
 
-const CompactEfficiencyLedgerSchema = EfficiencyLedgerSchema.refine(
-  (ledger) => ledger.recentRuns.length <= CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
+const CompactEfficiencyScorecardSchema = EfficiencyScorecardSchema.refine(
+  (scorecard) => scorecard.recentRuns.length <= CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
   {
     path: ["recentRuns"],
-    message: `ConnectorHealthCard ledger.recentRuns must have <= ${CONNECTOR_HEALTH_RECENT_RUNS_LIMIT} entries`,
+    message: `ConnectorHealthCard scorecard.recentRuns must have <= ${CONNECTOR_HEALTH_RECENT_RUNS_LIMIT} entries`,
   }
 );
 
@@ -229,7 +229,7 @@ export const ConnectorHealthCardNodeSchema = z
     nodeId: SafeAstIdSchema,
     component: z.literal("ConnectorHealthCard"),
     changelog: RepairChangelogResponseSchema,
-    ledger: CompactEfficiencyLedgerSchema,
+    scorecard: CompactEfficiencyScorecardSchema,
   })
   .strict();
 

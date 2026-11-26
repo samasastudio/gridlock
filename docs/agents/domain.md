@@ -29,7 +29,7 @@ Consult this map before exploring so research and reviews open only the files fo
   - Adapters: `packages/core/src/adapters/` (`in-memory-repository.ts`, `http-loaders.ts`, `gemini-interactions-client.ts`, `sharp-image-encoder.ts`, `cloud-logging-sink.ts`)
   - HTTP server: `packages/core/src/controllers/` (`http-server.ts`, `http-utils.ts`, plus per-seam route controllers)
 - **Seam 1 (TDLR Ingestion, Discovery & Efficiency Scorecard)**:
-  - Core: `use-cases/ingest-tdlr-filing.ts`, `run-tdlr-discovery.ts`, `preflight-site-access.ts`, `record-run.ts`, `get-efficiency-scorecard.ts`; `helpers/tdlr-parser.ts`, `tdlr-discovery-filter.ts`, `site-access.ts`, `pii-sanitizer.ts`, `scorecard-math.ts`; `controllers/telemetry-controller.ts`
+  - Core: `use-cases/ingest-tdlr-filing.ts`, `run-tdlr-discovery.ts`, `preflight-site-access.ts`, `record-run.ts`, `get-efficiency-scorecard.ts`; `helpers/tdlr-parser.ts`, `tdlr-discovery-filter.ts`, `site-access.ts`, `pii-sanitizer.ts`, `scorecard-math.ts`; `controllers/efficiency-controller.ts`
 - **Seam 2 (Out-of-Band Repair Agent & Repair Changelog Widget)**:
   - Core: `use-cases/run-repair-agent.ts`, `get-repair-changelog.ts`; `helpers/sandbox-replay.ts`, `repair-changelog-markdown.ts`; `controllers/repairs-controller.ts`
   - Widgets: `GridlockRepairLogWidget.tsx`, `RepairLogSections.tsx`, `RepairLogTimeline.tsx`, `EfficiencyLineChart.tsx`, `efficiency-chart-series.ts`, `repair-log-client.ts`, `repair-log-styles.ts`

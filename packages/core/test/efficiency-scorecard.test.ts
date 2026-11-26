@@ -8,7 +8,7 @@ import {
   createCloudLoggingSpanSink,
   createGridlockHttpServer,
   createInMemoryGridlockRepository,
-  EfficiencyLedgerSchema,
+  EfficiencyScorecardSchema,
   ingestTdlrFiling,
   recordAgenticStageRun,
   runTdlrDiscoverySweep,
@@ -23,7 +23,7 @@ import {
   type MockPortalServerHarness,
 } from "./helpers/mock-portal-server.ts";
 
-describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
+describe("Efficiency Scorecard & Cloud Trace Spans (Ticket #4)", () => {
   let harness: MockPortalServerHarness;
   let baseUrl: string;
   let routeMap: Map<string, MockPortalRoute>;
@@ -88,25 +88,25 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     );
     assert.equal(secondResult.status, "unchanged_artifact");
 
-    // Verify EfficiencyLedger summary
-    const ledger = EfficiencyLedgerSchema.parse(
-      await repository.getEfficiencyLedger()
+    // Verify EfficiencyScorecard summary
+    const scorecard = EfficiencyScorecardSchema.parse(
+      await repository.getEfficiencyScorecard()
     );
-    assert.equal(ledger.deterministicRunsCount, 2);
-    assert.equal(ledger.agenticRunsCount, 0);
-    assert.equal(ledger.failedOrBlockedRunsCount, 0);
-    assert.equal(ledger.totalRunsCount, 2);
-    assert.equal(ledger.naiveTokensAvoided, expectedTokensPerRun * 2);
-    assert.equal(ledger.actualTokensUsed, 0);
-    assert.equal(ledger.deterministicExecutionRatio, 1);
-    assert.equal(ledger.deterministicExecutionPercentage, 100);
-    assert.equal(ledger.tokenReductionPercentage, 100);
+    assert.equal(scorecard.deterministicRunsCount, 2);
+    assert.equal(scorecard.agenticRunsCount, 0);
+    assert.equal(scorecard.failedOrBlockedRunsCount, 0);
+    assert.equal(scorecard.totalRunsCount, 2);
+    assert.equal(scorecard.naiveTokensAvoided, expectedTokensPerRun * 2);
+    assert.equal(scorecard.actualTokensUsed, 0);
+    assert.equal(scorecard.deterministicExecutionRatio, 1);
+    assert.equal(scorecard.deterministicExecutionPercentage, 100);
+    assert.equal(scorecard.tokenReductionPercentage, 100);
     assert.equal(
-      ledger.estimatedCostSavedUsd,
+      scorecard.estimatedCostSavedUsd,
       Number((expectedCostPerRun * 2).toFixed(8))
     );
-    assert.equal(ledger.expiresAt, null);
-    assert.equal(ledger.recentRuns.length, 2);
+    assert.equal(scorecard.expiresAt, null);
+    assert.equal(scorecard.recentRuns.length, 2);
 
     // Verify permanent run_records records (expiresAt: null)
     const runs = await repository.listRunRecords();
@@ -142,7 +142,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     assert.ok(typeof parsedCloudLog["logging.googleapis.com/spanId"] === "string");
   });
 
-  test("Sad Path & Agentic Spans: blocked_by_waf, selector_anomaly, and aborted runs record failure telemetry without inflating naiveTokensAvoided or deterministicRunsCount; agentic runs emit interactionId spans and update token reduction ratios", async () => {
+  test("Sad Path & Agentic Spans: blocked_by_waf, selector_anomaly, and aborted runs record failure run records without inflating naiveTokensAvoided or deterministicRunsCount; agentic runs emit interactionId spans and update token reduction ratios", async () => {
     const repository = createInMemoryGridlockRepository();
     const emittedSpans: RunSpan[] = [];
     const spanSink = (span: RunSpan) => {
@@ -205,12 +205,12 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
       /Simulated ECONNRESET/
     );
 
-    const ledgerAfterFailures = await repository.getEfficiencyLedger();
-    assert.equal(ledgerAfterFailures.deterministicRunsCount, 0);
-    assert.equal(ledgerAfterFailures.naiveTokensAvoided, 0);
-    assert.equal(ledgerAfterFailures.estimatedCostSavedUsd, 0);
-    assert.equal(ledgerAfterFailures.failedOrBlockedRunsCount, 3);
-    assert.equal(ledgerAfterFailures.totalRunsCount, 3);
+    const scorecardAfterFailures = await repository.getEfficiencyScorecard();
+    assert.equal(scorecardAfterFailures.deterministicRunsCount, 0);
+    assert.equal(scorecardAfterFailures.naiveTokensAvoided, 0);
+    assert.equal(scorecardAfterFailures.estimatedCostSavedUsd, 0);
+    assert.equal(scorecardAfterFailures.failedOrBlockedRunsCount, 3);
+    assert.equal(scorecardAfterFailures.totalRunsCount, 3);
 
     // 4. Record an agentic stage run with interactionId
     await recordAgenticStageRun(
@@ -234,14 +234,14 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     assert.equal(agenticSpan.naiveTokensAvoided, 0);
     assert.equal(agenticSpan.durationMs, 1250);
 
-    const ledgerAfterAgentic = await repository.getEfficiencyLedger();
-    assert.equal(ledgerAfterAgentic.agenticRunsCount, 1);
-    assert.equal(ledgerAfterAgentic.actualTokensUsed, 200);
-    assert.equal(ledgerAfterAgentic.deterministicRunsCount, 0);
-    assert.equal(ledgerAfterAgentic.deterministicExecutionPercentage, 0);
+    const scorecardAfterAgentic = await repository.getEfficiencyScorecard();
+    assert.equal(scorecardAfterAgentic.agenticRunsCount, 1);
+    assert.equal(scorecardAfterAgentic.actualTokensUsed, 200);
+    assert.equal(scorecardAfterAgentic.deterministicRunsCount, 0);
+    assert.equal(scorecardAfterAgentic.deterministicExecutionPercentage, 0);
   });
 
-  test("GET /api/telemetry/efficiency Happy & Sad Paths: returns validated EfficiencyLedger scorecard, filters/bounds recentRuns, and returns structured 400/500 JSON errors on invalid query params or corrupted telemetry documents without crashing", async () => {
+  test("GET /api/efficiency/scorecard Happy & Sad Paths: returns validated EfficiencyScorecard, filters/bounds recentRuns, and returns structured 400/500 JSON errors on invalid query params or corrupted scorecard documents without crashing", async () => {
     routeMap.set("/robots.txt", {
       status: 200,
       headers: { "content-type": "text/plain" },
@@ -286,23 +286,23 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
       { repository }
     );
 
-    let simulateCorruptedLedger = false;
+    let simulateCorruptedScorecard = false;
     const proxiedRepository = {
       ...repository,
-      async getEfficiencyLedger(options?: {
+      async getEfficiencyScorecard(options?: {
         limit?: number;
         executionMode?: "deterministic" | "agentic";
       }) {
-        if (simulateCorruptedLedger) {
+        if (simulateCorruptedScorecard) {
           return {
-            ledgerId: "telemetry_summary",
+            ledgerId: "efficiency_scorecard",
             deterministicRunsCount: -999,
             naiveTokensAvoided: "corrupted-not-a-number",
           } as unknown as Awaited<
-            ReturnType<typeof repository.getEfficiencyLedger>
+            ReturnType<typeof repository.getEfficiencyScorecard>
           >;
         }
-        return repository.getEfficiencyLedger(options);
+        return repository.getEfficiencyScorecard(options);
       },
     };
 
@@ -316,30 +316,33 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
 
     try {
-      // 1. Happy Path: GET /api/telemetry/efficiency
-      const res = await fetch(`${apiBaseUrl}/api/telemetry/efficiency`);
+      // 1. Happy Path: GET /api/efficiency/scorecard
+      const res = await fetch(`${apiBaseUrl}/api/efficiency/scorecard`);
       assert.equal(res.status, 200);
       const body = await res.json();
-      const ledger = EfficiencyLedgerSchema.parse(body);
-      assert.equal(ledger.deterministicRunsCount, 2);
-      assert.equal(ledger.agenticRunsCount, 1);
-      assert.equal(ledger.totalRunsCount, 3);
-      assert.equal(ledger.naiveTokensAvoided, expectedTokensPerRun * 2);
-      assert.equal(ledger.actualTokensUsed, 100);
-      assert.equal(ledger.deterministicExecutionPercentage, 66.67);
-      assert.ok(ledger.tokenReductionPercentage > 80);
-      assert.equal(ledger.recentRuns.length, 3);
+      const scorecard = EfficiencyScorecardSchema.parse(body);
+      assert.equal(scorecard.deterministicRunsCount, 2);
+      assert.equal(scorecard.agenticRunsCount, 1);
+      assert.equal(scorecard.totalRunsCount, 3);
+      assert.equal(scorecard.naiveTokensAvoided, expectedTokensPerRun * 2);
+      assert.equal(scorecard.actualTokensUsed, 100);
+      assert.equal(scorecard.deterministicExecutionPercentage, 66.67);
+      assert.ok(scorecard.tokenReductionPercentage > 80);
+      assert.equal(scorecard.recentRuns.length, 3);
 
       // 2. Happy Path: query params ?limit=1&execution_mode=deterministic
       const filteredRes = await fetch(
-        `${apiBaseUrl}/api/telemetry/efficiency?limit=1&execution_mode=deterministic`
+        `${apiBaseUrl}/api/efficiency/scorecard?limit=1&execution_mode=deterministic`
       );
       assert.equal(filteredRes.status, 200);
-      const filteredLedger = EfficiencyLedgerSchema.parse(
+      const filteredScorecard = EfficiencyScorecardSchema.parse(
         await filteredRes.json()
       );
-      assert.equal(filteredLedger.recentRuns.length, 1);
-      assert.equal(filteredLedger.recentRuns[0]?.execution_mode, "deterministic");
+      assert.equal(filteredScorecard.recentRuns.length, 1);
+      assert.equal(
+        filteredScorecard.recentRuns[0]?.execution_mode,
+        "deterministic"
+      );
 
       // 3. Sad Path: invalid query parameter (?limit=0, ?limit=abc, ?execution_mode=invalid, unknown param)
       for (const badQuery of [
@@ -350,7 +353,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
         "?unexpected=1",
       ]) {
         const badRes = await fetch(
-          `${apiBaseUrl}/api/telemetry/efficiency${badQuery}`
+          `${apiBaseUrl}/api/efficiency/scorecard${badQuery}`
         );
         assert.equal(badRes.status, 400, `Expected 400 for ${badQuery}`);
         const errBody = (await badRes.json()) as {
@@ -361,21 +364,21 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
         assert.ok(errBody.message.length > 0);
       }
 
-      // 4. Sad Path: corrupted telemetry document returns 500 JSON error without crashing server
-      simulateCorruptedLedger = true;
-      const corruptRes = await fetch(`${apiBaseUrl}/api/telemetry/efficiency`);
+      // 4. Sad Path: corrupted scorecard document returns 500 JSON error without crashing server
+      simulateCorruptedScorecard = true;
+      const corruptRes = await fetch(`${apiBaseUrl}/api/efficiency/scorecard`);
       assert.equal(corruptRes.status, 500);
       const corruptErr = (await corruptRes.json()) as {
         error: string;
         message: string;
       };
-      assert.equal(corruptErr.error, "telemetry_ledger_error");
+      assert.equal(corruptErr.error, "efficiency_scorecard_error");
 
       // 5. Server stays alive and serves valid response once corruption is cleared
-      simulateCorruptedLedger = false;
-      const recoveredRes = await fetch(`${apiBaseUrl}/api/telemetry/efficiency`);
+      simulateCorruptedScorecard = false;
+      const recoveredRes = await fetch(`${apiBaseUrl}/api/efficiency/scorecard`);
       assert.equal(recoveredRes.status, 200);
-      EfficiencyLedgerSchema.parse(await recoveredRes.json());
+      EfficiencyScorecardSchema.parse(await recoveredRes.json());
     } finally {
       await new Promise<void>((resolve, reject) =>
         apiServer.close((err) => (err ? reject(err) : resolve()))
@@ -383,7 +386,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     }
   });
 
-  test("Discovery sweep telemetry: blocked_by_waf during POST /TABS/Search/SearchProjects records failure telemetry with 0 tokens avoided; successful sweep accumulates exact counterfactual math across discovered filings", async () => {
+  test("Discovery sweep scorecard: blocked_by_waf during POST /TABS/Search/SearchProjects records failure run record with 0 tokens avoided; successful sweep accumulates exact counterfactual math across discovered filings", async () => {
     const repository = createInMemoryGridlockRepository();
     const emittedSpans: RunSpan[] = [];
     const spanSink = (span: RunSpan) => {
@@ -417,10 +420,10 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     );
     assert.equal(blockedSweep.status, "blocked_by_waf");
 
-    const ledgerAfterBlockedSweep = await repository.getEfficiencyLedger();
-    assert.equal(ledgerAfterBlockedSweep.deterministicRunsCount, 0);
-    assert.equal(ledgerAfterBlockedSweep.naiveTokensAvoided, 0);
-    assert.equal(ledgerAfterBlockedSweep.failedOrBlockedRunsCount, 1);
+    const scorecardAfterBlockedSweep = await repository.getEfficiencyScorecard();
+    assert.equal(scorecardAfterBlockedSweep.deterministicRunsCount, 0);
+    assert.equal(scorecardAfterBlockedSweep.naiveTokensAvoided, 0);
+    assert.equal(scorecardAfterBlockedSweep.failedOrBlockedRunsCount, 1);
     assert.equal(emittedSpans.at(-1)?.status, "blocked_by_waf");
 
     // Now allow discovery and ingest 1 filing
@@ -461,12 +464,12 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     assert.equal(okSweep.status, "completed");
 
     const rawByteLength = Buffer.byteLength(FROZEN_TABS_2027003697_HTML, "utf-8");
-    const ledgerAfterOkSweep = await repository.getEfficiencyLedger();
-    assert.equal(ledgerAfterOkSweep.deterministicRunsCount, 1);
-    assert.equal(ledgerAfterOkSweep.failedOrBlockedRunsCount, 1);
-    assert.equal(ledgerAfterOkSweep.totalRunsCount, 2);
+    const scorecardAfterOkSweep = await repository.getEfficiencyScorecard();
+    assert.equal(scorecardAfterOkSweep.deterministicRunsCount, 1);
+    assert.equal(scorecardAfterOkSweep.failedOrBlockedRunsCount, 1);
+    assert.equal(scorecardAfterOkSweep.totalRunsCount, 2);
     assert.equal(
-      ledgerAfterOkSweep.naiveTokensAvoided,
+      scorecardAfterOkSweep.naiveTokensAvoided,
       Math.ceil(rawByteLength / 4)
     );
     assert.equal(emittedSpans.at(-1)?.stage, "tdlr_discovery_sweep");
@@ -476,7 +479,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
       Math.ceil(rawByteLength / 4)
     );
 
-    // Aborted discovery sweep records aborted telemetry run without inflating counters
+    // Aborted discovery sweep records aborted run record without inflating counters
     await assert.rejects(
       () =>
         runTdlrDiscoverySweep(
@@ -499,9 +502,9 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
       /Simulated search socket hang up/
     );
 
-    const ledgerAfterAbortedSweep = await repository.getEfficiencyLedger();
-    assert.equal(ledgerAfterAbortedSweep.deterministicRunsCount, 1);
-    assert.equal(ledgerAfterAbortedSweep.failedOrBlockedRunsCount, 2);
+    const scorecardAfterAbortedSweep = await repository.getEfficiencyScorecard();
+    assert.equal(scorecardAfterAbortedSweep.deterministicRunsCount, 1);
+    assert.equal(scorecardAfterAbortedSweep.failedOrBlockedRunsCount, 2);
     assert.equal(emittedSpans.at(-1)?.stage, "tdlr_discovery_sweep");
     assert.equal(emittedSpans.at(-1)?.status, "aborted");
   });

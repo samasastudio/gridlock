@@ -72,7 +72,7 @@ export const RunRecordSchema = z.object({
 
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 
-export const EfficiencyLedgerSchema = z.object({
+export const EfficiencyScorecardSchema = z.object({
   ledgerId: z.string().min(1),
   deterministicRunsCount: z.number().int().nonnegative(),
   agenticRunsCount: z.number().int().nonnegative(),
@@ -96,4 +96,4 @@ export const EfficiencyLedgerSchema = z.object({
   recentRuns: z.array(RunRecordSchema),
 });
 
-export type EfficiencyLedger = z.infer<typeof EfficiencyLedgerSchema>;
+export type EfficiencyScorecard = z.infer<typeof EfficiencyScorecardSchema>;

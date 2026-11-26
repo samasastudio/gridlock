@@ -37,7 +37,7 @@ export interface HydrateInvestigationWorkspaceDeps {
     | "listVisualPlatesByLineage"
     | "getActiveConnectorConfig"
     | "listRepairChangelog"
-    | "getEfficiencyLedger"
+    | "getEfficiencyScorecard"
   >;
 }
 
@@ -203,9 +203,9 @@ export async function hydrateInvestigationWorkspace(
         result.ok ? [[connectorId, result.changelog] as const] : []
       )
     );
-    const compactLedger =
+    const compactScorecard =
       scorecardResult !== null && scorecardResult.ok
-        ? scorecardResult.ledger
+        ? scorecardResult.scorecard
         : null;
 
     const hydratedNodes = hydrateWorkspaceNodes(parsedSpec.data.nodes, {
@@ -214,7 +214,7 @@ export async function hydrateInvestigationWorkspace(
       artifactsByHash: artifactsResult.artifactsByHash,
       lineageById,
       changelogByConnector,
-      compactLedger,
+      compactScorecard,
       nowMs,
     });
     if (!hydratedNodes.ok) {

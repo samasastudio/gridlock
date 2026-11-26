@@ -4,7 +4,7 @@ import {
   type TdlrSearchFilter,
 } from "./filing-models.ts";
 import type { UiAstComponentType } from "./investigate-ast-models.ts";
-import type { EfficiencyLedger } from "./run-record-models.ts";
+import type { EfficiencyScorecard } from "./run-record-models.ts";
 
 export const GRIDLOCK_USER_AGENT =
   "GridlockCivicResearchBot/1.0 (+https://samasastudio.com; contact@samasastudio.com)";
@@ -48,8 +48,8 @@ export const DEFAULT_TDLR_SEARCH_FILTERS: readonly TdlrSearchFilter[] = [
   { field: "OwnerName", value: "Colovore" },
 ];
 
-export const DEFAULT_EFFICIENCY_LEDGER: EfficiencyLedger = {
-  ledgerId: "telemetry_summary",
+export const DEFAULT_EFFICIENCY_SCORECARD: EfficiencyScorecard = {
+  ledgerId: "efficiency_scorecard",
   deterministicRunsCount: 0,
   agenticRunsCount: 0,
   failedOrBlockedRunsCount: 0,

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
-import type { ConnectorStatus, EfficiencyLedger } from "@samasastudio/gridlock-core/schemas";
+import type { ConnectorStatus, EfficiencyScorecard } from "@samasastudio/gridlock-core/schemas";
 import {
   ALERT_TRIANGLE_ICON,
   DossierNumber,
@@ -91,30 +91,30 @@ function RepairLogErrorBanner(props: { message: string; errorPrefix?: string; on
   );
 }
 
-export function EfficiencyScorecardPanel(props: { ledger: EfficiencyLedger; children?: ReactNode }) {
-  const { children, ledger } = props;
+export function EfficiencyScorecardPanel(props: { scorecard: EfficiencyScorecard; children?: ReactNode }) {
+  const { children, scorecard } = props;
   return (
-    <section className="gridlock-scorecard-section" aria-label="Efficiency Ledger">
+    <section className="gridlock-scorecard-section" aria-label="Efficiency Scorecard">
       <dl className="gridlock-headline-stats">
         <motion.div className="gridlock-headline-stat" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.08, ease: EDITORIAL_EASE }}>
           <dt>Token Reduction</dt>
           <dd>
-            <strong className="gridlock-kpi-value"><DossierNumber value={ledger.tokenReductionPercentage} format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }} suffix="%" /></strong>
-            <span className="gridlock-kpi-sub">{ledger.deterministicRunsCount.toLocaleString("en-US")}/{ledger.totalRunsCount.toLocaleString("en-US")} deterministic runs</span>
+            <strong className="gridlock-kpi-value"><DossierNumber value={scorecard.tokenReductionPercentage} format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }} suffix="%" /></strong>
+            <span className="gridlock-kpi-sub">{scorecard.deterministicRunsCount.toLocaleString("en-US")}/{scorecard.totalRunsCount.toLocaleString("en-US")} deterministic runs</span>
           </dd>
         </motion.div>
         <motion.div className="gridlock-headline-stat" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.2, ease: EDITORIAL_EASE }}>
           <dt>Tokens Avoided</dt>
           <dd>
-            <strong className="gridlock-kpi-value"><DossierNumber value={ledger.naiveTokensAvoided} /></strong>
-            <span className="gridlock-kpi-sub">vs. {ledger.actualTokensUsed.toLocaleString("en-US")} actual LLM tokens</span>
+            <strong className="gridlock-kpi-value"><DossierNumber value={scorecard.naiveTokensAvoided} /></strong>
+            <span className="gridlock-kpi-sub">vs. {scorecard.actualTokensUsed.toLocaleString("en-US")} actual LLM tokens</span>
           </dd>
         </motion.div>
         <motion.div className="gridlock-headline-stat" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.32, ease: EDITORIAL_EASE }}>
           <dt>Civic Compute Saved</dt>
           <dd>
-            <strong className="gridlock-kpi-value"><DossierNumber value={ledger.estimatedCostSavedUsd} format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }} prefix="$" /></strong>
-            <span className="gridlock-kpi-sub">{ledger.subsequentDeterministicRunsServed.toLocaleString("en-US")} post-heal runs amortized</span>
+            <strong className="gridlock-kpi-value"><DossierNumber value={scorecard.estimatedCostSavedUsd} format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }} prefix="$" /></strong>
+            <span className="gridlock-kpi-sub">{scorecard.subsequentDeterministicRunsServed.toLocaleString("en-US")} post-heal runs amortized</span>
           </dd>
         </motion.div>
       </dl>

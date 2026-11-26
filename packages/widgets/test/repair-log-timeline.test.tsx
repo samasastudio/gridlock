@@ -75,7 +75,7 @@ describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive
       const snap = await fetchRepairLogSnapshot({ apiBaseUrl });
       assert.equal(snap.ok, true);
       const html = renderToStaticMarkup(
-        <GridlockRepairLogWidget changelog={snap.changelog} efficiencyLedger={snap.efficiencyLedger} apiBaseUrl={apiBaseUrl} />
+        <GridlockRepairLogWidget changelog={snap.changelog} efficiencyScorecard={snap.efficiencyScorecard} apiBaseUrl={apiBaseUrl} />
       );
       assert.match(html, /<rect[^>]*role="button"[^>]*aria-pressed="true"[^>]*aria-label="Inspect Out-of-Band Repair v1 → v2 \(2026-10-27\)"/);
       assert.match(html, /Copy Interaction ID inter_live_heal_v2/);

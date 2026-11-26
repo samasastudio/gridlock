@@ -9,7 +9,7 @@ import {
   applyHealAmortization,
   CandidateSelectorPatchSchema,
   createInMemoryGridlockRepository,
-  DEFAULT_EFFICIENCY_LEDGER,
+  DEFAULT_EFFICIENCY_SCORECARD,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   ingestTdlrFiling,
   REPAIR_AGENT_MODEL,
@@ -179,9 +179,9 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     assert.equal(changelog.length, 1);
     assert.equal(changelog[0]?.subsequentDeterministicRunsServed, 2);
 
-    const ledger = await repository.getEfficiencyLedger();
-    assert.equal(ledger.subsequentDeterministicRunsServed, 2);
-    assert.equal(ledger.averageRepairMttrMs, 2450);
+    const scorecard = await repository.getEfficiencyScorecard();
+    assert.equal(scorecard.subsequentDeterministicRunsServed, 2);
+    assert.equal(scorecard.averageRepairMttrMs, 2450);
   });
 
   test("Sad Path (Fail-Closed): rejects patches that fix the quarantined artifact but regress 1 historical fixture, malformed/unparseable JSON, or Gemini timeouts, leaving connector in selector_anomaly with zero promotion or unverified writes", async () => {
@@ -295,10 +295,10 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     assert.equal((await repository.listRepairChangelog("tdlr-tabs")).length, 0);
     assert.equal((await repository.listProjects()).length, 0);
 
-    const ledger = await repository.getEfficiencyLedger();
-    assert.equal(ledger.agenticRunsCount, 0);
-    assert.equal(ledger.failedOrBlockedRunsCount, 4); // 1 selector_anomaly + 3 rejected repairs
-    assert.equal(ledger.actualTokensUsed, 405); // 310 + 95 + 0
+    const scorecard = await repository.getEfficiencyScorecard();
+    assert.equal(scorecard.agenticRunsCount, 0);
+    assert.equal(scorecard.failedOrBlockedRunsCount, 4); // 1 selector_anomaly + 3 rejected repairs
+    assert.equal(scorecard.actualTokensUsed, 405); // 310 + 95 + 0
   });
 
   test("Clean Architecture Prefactor (Ticket #17): pure state transitions and repository lint guardrails pass on valid layout and fail on >400-line files, unapproved root directories, or upward layer imports", () => {
@@ -338,9 +338,9 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       changelogEntry: sampleEntry,
       allChangelogEntries: [sampleEntry],
       quarantinedArtifact: undefined,
-      ledger: DEFAULT_EFFICIENCY_LEDGER,
+      scorecard: DEFAULT_EFFICIENCY_SCORECARD,
     });
-    assert.equal(promoted.updatedLedger.averageRepairMttrMs, 2000);
+    assert.equal(promoted.updatedScorecard.averageRepairMttrMs, 2000);
 
     const amortized = applyHealAmortization({
       run: {
@@ -359,10 +359,10 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       },
       activeConfig: { ...DEFAULT_TDLR_CONNECTOR_CONFIG, version: 2 },
       repairChangelog: [sampleEntry],
-      ledger: promoted.updatedLedger,
+      scorecard: promoted.updatedScorecard,
     });
     assert.equal(amortized.updatedChangelog[0]?.subsequentDeterministicRunsServed, 1);
-    assert.equal(amortized.updatedLedger.subsequentDeterministicRunsServed, 1);
+    assert.equal(amortized.updatedScorecard.subsequentDeterministicRunsServed, 1);
 
     // 2. Sad Path: >400-line file, unapproved directory, and upward layer imports are rejected
     const oversizedContent = Array.from({ length: 405 }, () => "export const x = 1;").join("\n");
@@ -596,10 +596,10 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       evaluateSourceFileLintRules(
         "packages/widgets/src/CleanWidget.tsx",
         [
-          'import { EfficiencyLedgerSchema, type EfficiencyLedger } from "@samasastudio/gridlock-core/schemas";',
+          'import { EfficiencyScorecardSchema, type EfficiencyScorecard } from "@samasastudio/gridlock-core/schemas";',
           'import type { GridlockRepository } from "@samasastudio/gridlock-core";',
           'import { type RepairChangelogResponse } from "@samasastudio/gridlock-core";',
-          "export const ok = EfficiencyLedgerSchema;",
+          "export const ok = EfficiencyScorecardSchema;",
         ].join("\n")
       ),
       []
@@ -608,7 +608,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
       "packages/widgets/src/BrokenWidget.tsx",
       [
         'import { readFileSync } from "node:fs";',
-        'import { EfficiencyLedgerSchema } from "@samasastudio/gridlock-core";',
+        'import { EfficiencyScorecardSchema } from "@samasastudio/gridlock-core";',
         'const lazyCore = await import("../../core/src/index.ts");',
       ].join("\n")
     );

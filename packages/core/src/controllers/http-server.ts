@@ -19,7 +19,7 @@ import {
   matchPlateAssetId,
 } from "./plates-controller.ts";
 import { handleGetRepairChangelog } from "./repairs-controller.ts";
-import { handleGetEfficiencyTelemetry } from "./telemetry-controller.ts";
+import { handleGetEfficiencyScorecard } from "./efficiency-controller.ts";
 
 export type GridlockHttpDeps = {
   repository: GridlockRepository;
@@ -60,8 +60,8 @@ export async function handleGridlockHttpRequest(
 
   const { pathname } = parsedUrl;
 
-  if (pathname === "/api/telemetry/efficiency") {
-    await handleGetEfficiencyTelemetry(req, res, parsedUrl, deps);
+  if (pathname === "/api/efficiency/scorecard") {
+    await handleGetEfficiencyScorecard(req, res, parsedUrl, deps);
     return;
   }
 

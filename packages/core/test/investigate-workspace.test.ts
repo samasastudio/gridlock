@@ -115,7 +115,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
           listVisualPlatesByLineage: unexpectedCall,
           getActiveConnectorConfig: unexpectedCall,
           listRepairChangelog: unexpectedCall,
-          getEfficiencyLedger: unexpectedCall,
+          getEfficiencyScorecard: unexpectedCall,
         },
       },
       { now: NOW }

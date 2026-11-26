@@ -33,13 +33,13 @@ export {
 } from "./filing-models.ts";
 
 export {
-  EfficiencyLedgerSchema,
+  EfficiencyScorecardSchema,
   ExecutionModeSchema,
   RunRecordSchema,
   RunRecordStatusSchema,
   RunSpanSchema,
   RunStageSchema,
-  type EfficiencyLedger,
+  type EfficiencyScorecard,
   type ExecutionMode,
   type RunRecord,
   type RunRecordStatus,
@@ -143,7 +143,7 @@ export {
   CANONICAL_MILESTONE_LABEL,
   CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
   DEFAULT_DAILY_LOOKBACK_MS,
-  DEFAULT_EFFICIENCY_LEDGER,
+  DEFAULT_EFFICIENCY_SCORECARD,
   DEFAULT_GCP_PROJECT_ID,
   DEFAULT_LINEAGE_ID,
   DEFAULT_MAX_BRANCHES_PER_LINEAGE,

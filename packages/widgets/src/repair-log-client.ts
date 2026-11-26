@@ -1,7 +1,7 @@
 import {
-  EfficiencyLedgerSchema,
+  EfficiencyScorecardSchema,
   RepairChangelogResponseSchema,
-  type EfficiencyLedger,
+  type EfficiencyScorecard,
   type RepairChangelogResponse,
 } from "@samasastudio/gridlock-core/schemas";
 
@@ -13,7 +13,7 @@ export interface RepairLogQuery {
 }
 
 export type RepairLogSnapshotResult =
-  | { ok: true; changelog: RepairChangelogResponse; efficiencyLedger: EfficiencyLedger }
+  | { ok: true; changelog: RepairChangelogResponse; efficiencyScorecard: EfficiencyScorecard }
   | { ok: false; message: string; statusCode?: number };
 
 function buildEndpointUrl(
@@ -50,25 +50,25 @@ export async function fetchRepairLogSnapshot(
   options: RepairLogQuery & { signal?: AbortSignal }
 ): Promise<RepairLogSnapshotResult> {
   try {
-    const [changelogRes, ledgerRes] = await Promise.all([
+    const [changelogRes, scorecardRes] = await Promise.all([
       globalThis.fetch(buildRepairChangelogUrl(options), { signal: options.signal }),
-      globalThis.fetch(buildEndpointUrl(options.apiBaseUrl, "/api/telemetry/efficiency", { limit: options.runsLimit }), {
+      globalThis.fetch(buildEndpointUrl(options.apiBaseUrl, "/api/efficiency/scorecard", { limit: options.runsLimit }), {
         signal: options.signal,
       }),
     ]);
     if (!changelogRes.ok) {
       return { ok: false, statusCode: changelogRes.status, message: await readErrorMessage(changelogRes, `Repair Changelog HTTP ${changelogRes.status}`) };
     }
-    if (!ledgerRes.ok) {
-      return { ok: false, statusCode: ledgerRes.status, message: await readErrorMessage(ledgerRes, `Efficiency Ledger HTTP ${ledgerRes.status}`) };
+    if (!scorecardRes.ok) {
+      return { ok: false, statusCode: scorecardRes.status, message: await readErrorMessage(scorecardRes, `Efficiency Scorecard HTTP ${scorecardRes.status}`) };
     }
-    const [rawChangelog, rawLedger] = await Promise.all([changelogRes.json(), ledgerRes.json()]);
+    const [rawChangelog, rawScorecard] = await Promise.all([changelogRes.json(), scorecardRes.json()]);
     const parsedChangelog = RepairChangelogResponseSchema.safeParse(rawChangelog);
-    const parsedLedger = EfficiencyLedgerSchema.safeParse(rawLedger);
-    if (!parsedChangelog.success || !parsedLedger.success) {
-      return { ok: false, message: "Malformed Repair Changelog or Efficiency Ledger payload" };
+    const parsedScorecard = EfficiencyScorecardSchema.safeParse(rawScorecard);
+    if (!parsedChangelog.success || !parsedScorecard.success) {
+      return { ok: false, message: "Malformed Repair Changelog or Efficiency Scorecard payload" };
     }
-    return { ok: true, changelog: parsedChangelog.data, efficiencyLedger: parsedLedger.data };
+    return { ok: true, changelog: parsedChangelog.data, efficiencyScorecard: parsedScorecard.data };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Network error loading Repair Changelog" };
   }
