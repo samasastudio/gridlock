@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
-import { BranchPlateRequestSchema } from "../interfaces/index.ts";
-import { branchPlate } from "../use-cases/branch-plate.ts";
+import { BranchIllustrationRequestSchema } from "../interfaces/index.ts";
+import { branchIllustration } from "../use-cases/branch-illustration.ts";
 import {
-  getPlateLineage,
-  getVisualPlateAsset,
-} from "../use-cases/get-plate-lineage.ts";
+  getFrameTimeline,
+  getGeneratedIllustrationAsset,
+} from "../use-cases/get-frame-timeline.ts";
 import type { GridlockHttpDeps } from "./http-server.ts";
 import {
   parseSingleValueSearchParams,
@@ -15,13 +15,13 @@ import {
   sendWebp,
 } from "./http-utils.ts";
 
-const ASSET_PREFIX = "/api/plates/assets/";
+const ASSET_PREFIX = "/api/illustrations/assets/";
 
 const EmptyQueryParamsSchema = z.object({}).strict();
 
-const LineageQueryParamsSchema = z
+const TimelineQueryParamsSchema = z
   .object({
-    lineage_id: z
+    timeline_id: z
       .string()
       .trim()
       .min(1)
@@ -31,7 +31,7 @@ const LineageQueryParamsSchema = z
   })
   .strict();
 
-export function matchPlateAssetId(pathname: string): string | null {
+export function matchIllustrationAssetId(pathname: string): string | null {
   if (!pathname.startsWith(ASSET_PREFIX)) {
     return null;
   }
@@ -52,20 +52,20 @@ export function matchPlateAssetId(pathname: string): string | null {
   }
 }
 
-export async function handleGetPlateLineage(
+export async function handleGetFrameTimeline(
   req: IncomingMessage,
   res: ServerResponse,
   parsedUrl: URL,
   deps: GridlockHttpDeps
 ): Promise<void> {
   if (req.method !== "GET") {
-    sendMethodNotAllowed(res, "GET", "Only GET is supported on /api/plates/lineage");
+    sendMethodNotAllowed(res, "GET", "Only GET is supported on /api/illustrations/timeline");
     return;
   }
 
   const parsedQuery = parseSingleValueSearchParams(
     parsedUrl.searchParams,
-    LineageQueryParamsSchema
+    TimelineQueryParamsSchema
   );
   if (!parsedQuery.ok) {
     sendJson(res, 400, {
@@ -76,10 +76,10 @@ export async function handleGetPlateLineage(
     return;
   }
 
-  const { lineage_id } = parsedQuery.data;
-  const result = await getPlateLineage(
+  const { timeline_id } = parsedQuery.data;
+  const result = await getFrameTimeline(
     {
-      ...(lineage_id !== undefined ? { lineageId: lineage_id } : {}),
+      ...(timeline_id !== undefined ? { lineageId: timeline_id } : {}),
       ...(deps.now ? { now: deps.now() } : {}),
     },
     { repository: deps.repository }
@@ -89,10 +89,10 @@ export async function handleGetPlateLineage(
     return;
   }
 
-  sendJson(res, 200, result.lineage);
+  sendJson(res, 200, result.timeline);
 }
 
-export async function handleGetPlateAsset(
+export async function handleGetIllustrationAsset(
   req: IncomingMessage,
   res: ServerResponse,
   parsedUrl: URL,
@@ -117,7 +117,7 @@ export async function handleGetPlateAsset(
     return;
   }
 
-  const result = await getVisualPlateAsset(
+  const result = await getGeneratedIllustrationAsset(
     {
       plateId,
       ...(deps.now ? { now: deps.now() } : {}),
@@ -125,7 +125,7 @@ export async function handleGetPlateAsset(
     { repository: deps.repository }
   );
   if (!result.ok) {
-    const statusCode = result.error === "plate_not_found" ? 404 : 500;
+    const statusCode = result.error === "illustration_not_found" ? 404 : 500;
     sendJson(res, statusCode, { error: result.error, message: result.message });
     return;
   }
@@ -133,14 +133,14 @@ export async function handleGetPlateAsset(
   sendWebp(res, result.webpBuffer, { immutable: !result.plate.isBranch });
 }
 
-export async function handlePostPlateBranch(
+export async function handlePostIllustrationBranch(
   req: IncomingMessage,
   res: ServerResponse,
   parsedUrl: URL,
   deps: GridlockHttpDeps
 ): Promise<void> {
   if (req.method !== "POST") {
-    sendMethodNotAllowed(res, "POST", "Only POST is supported on /api/plates/branch");
+    sendMethodNotAllowed(res, "POST", "Only POST is supported on /api/illustrations/branch");
     return;
   }
 
@@ -163,7 +163,7 @@ export async function handlePostPlateBranch(
     return;
   }
 
-  const parsedBody = BranchPlateRequestSchema.safeParse(bodyResult.value);
+  const parsedBody = BranchIllustrationRequestSchema.safeParse(bodyResult.value);
   if (!parsedBody.success) {
     const message = parsedBody.error.issues
       .map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`)
@@ -176,7 +176,7 @@ export async function handlePostPlateBranch(
     return;
   }
 
-  const outcome = await branchPlate(parsedBody.data, deps);
+  const outcome = await branchIllustration(parsedBody.data, deps);
   sendJson(
     res,
     outcome.status,

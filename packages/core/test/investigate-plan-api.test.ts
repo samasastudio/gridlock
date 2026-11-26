@@ -545,7 +545,7 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
     assert.equal(spans[1]?.attributes?.hasCurrentLayout, true);
   });
 
-  test("enforces 131072-byte streaming cutoff on /api/investigate/plan and preserves 16384-byte cutoff on /api/plates/branch", async () => {
+  test("enforces 131072-byte streaming cutoff on /api/investigate/plan and preserves 16384-byte cutoff on /api/illustrations/branch", async () => {
     const repository = await seedFilingOrchestrationRepository();
     const { geminiClient, recordedRequests } = createOrchestrationClientStub(
       async () => ({
@@ -574,7 +574,7 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
 
         const branchOutcome = await streamOversizedJsonPost(
           baseUrl,
-          "/api/plates/branch",
+          "/api/illustrations/branch",
           16_384,
           2
         );

@@ -7,7 +7,7 @@ import {
   type WorkspaceLayout,
 } from "../interfaces/index.ts";
 import { getEfficiencyScorecard } from "./get-efficiency-scorecard.ts";
-import { getPlateLineage } from "./get-plate-lineage.ts";
+import { getFrameTimeline } from "./get-frame-timeline.ts";
 import { getRepairChangelog } from "./get-repair-changelog.ts";
 import {
   buildCitedProjectsByNumber,
@@ -107,7 +107,7 @@ export async function hydrateInvestigationWorkspace(
       Promise.all(
         uniqueLineageIds.map(async (lineageId) => ({
           lineageId,
-          result: await getPlateLineage(
+          result: await getFrameTimeline(
             { lineageId, now },
             { repository: deps.repository }
           ),
@@ -195,7 +195,7 @@ export async function hydrateInvestigationWorkspace(
 
     const lineageById = new Map(
       lineageEntries.flatMap(({ lineageId, result }) =>
-        result.ok ? [[lineageId, result.lineage] as const] : []
+        result.ok ? [[lineageId, result.timeline] as const] : []
       )
     );
     const changelogByConnector = new Map(

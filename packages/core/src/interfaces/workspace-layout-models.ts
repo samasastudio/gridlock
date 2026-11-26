@@ -6,8 +6,8 @@ import {
 } from "./constants.ts";
 import { ObservationSchema, ProjectSchema } from "./filing-models.ts";
 import {
-  LineageSourceCitationSchema,
-  PlateLineageResponseSchema,
+  FrameTimelineResponseSchema,
+  TimelineSourceCitationSchema,
 } from "./painter-models.ts";
 import { TdlrProjectNumberSchema } from "./primitives.ts";
 import { RepairChangelogResponseSchema } from "./repair-models.ts";
@@ -19,7 +19,7 @@ export const SafeLayoutIdSchema = z
   .max(128)
   .regex(/^(?!\.\.?$)[^\s/]+$/, "Expected safe non-empty layout identifier");
 
-const HttpSourceCitationSchema = LineageSourceCitationSchema.refine(
+const HttpSourceCitationSchema = TimelineSourceCitationSchema.refine(
   (citation) => /^https?:\/\//i.test(citation.sourceUrl),
   {
     path: ["sourceUrl"],
@@ -158,7 +158,7 @@ export type MetricComparisonTableNode = z.infer<
   typeof MetricComparisonTableNodeSchema
 >;
 
-const NonEmptyPlateLineageSchema = PlateLineageResponseSchema.refine(
+const NonEmptyPlateLineageSchema = FrameTimelineResponseSchema.refine(
   (lineage) => lineage.nodes.length > 0,
   {
     path: ["nodes"],

@@ -104,7 +104,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
           assertFailureState({
             status: "429",
             prefix: "Scenario Branch quota reached (HTTP 429):",
-            detail: /Branch quota exceeded for lineage/,
+            detail: /Branch quota exceeded for timeline/,
             draft: validDraft,
             ariaInvalid: "false",
           });
@@ -127,7 +127,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
           assertFailureState({
             status: "500",
             prefix: "Stateful Painter unavailable (HTTP 500):",
-            detail: /Stored VisualPlate lineage record failed runtime schema validation/,
+            detail: /Stored GeneratedIllustration timeline record failed runtime schema validation/,
             draft: validDraft,
             ariaInvalid: "false",
           });

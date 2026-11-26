@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
-  branchLineage,
+  branchTimeline,
   CANONICAL_MILESTONE_LABEL,
   createCorridorBaseCanvasWebp,
   createInMemoryGridlockRepository,
@@ -269,7 +269,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
 
     const milestoneObsNext = ObservationSchema.parse({ ...milestoneObs, id: "obs_TABS2027003697_m2" });
     const sadCases: Array<{ lineageId: string; obs?: typeof milestoneObs; baseCanvasWebp?: Buffer; expectedCode: PainterErrorCode; expectedTokens: number }> = [
-      { lineageId: "texas-corridor-main", obs: milestoneObsNext, expectedCode: "lineage_already_bootstrapped", expectedTokens: 0 },
+      { lineageId: "texas-corridor-main", obs: milestoneObsNext, expectedCode: "timeline_already_bootstrapped", expectedTokens: 0 },
       { lineageId: "corridor-bad-canvas", baseCanvasWebp: fakeVp8lPayload, expectedCode: "invalid_base_canvas", expectedTokens: 0 },
       { lineageId: "corridor-incomplete", expectedCode: "interaction_failed", expectedTokens: 320 },
       { lineageId: "corridor-missing-id", expectedCode: "interaction_failed", expectedTokens: 150 },
@@ -454,7 +454,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(recordedRequests.length, callsBeforeMissingCache + 1);
   });
 
-  test("Part 4 (branchLineage Ephemeral Scenario Forking, Pixel+XMP Watermark, Chunk Preservation, Sibling Isolation & +90d TTL): stamps legible watermark glyphs, preserves extended WebP chunks, isolates sibling plateIds, and enforces TTL/quota without unbounded rejection run records", async () => {
+  test("Part 4 (branchTimeline Ephemeral Scenario Forking, Pixel+XMP Watermark, Chunk Preservation, Sibling Isolation & +90d TTL): stamps legible watermark glyphs, preserves extended WebP chunks, isolates sibling plateIds, and enforces TTL/quota without unbounded rejection run records", async () => {
     const repository = createInMemoryGridlockRepository();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const { milestoneObs: rootObs } = createPainterTestObservations();
@@ -552,7 +552,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
       usage: { total_tokens: 1250 },
     });
-    const branchResult = await branchLineage(
+    const branchResult = await branchTimeline(
       {
         parentInteractionId: "inter_branch_parent_root",
         scenarioPrompt: "Simulate ERCOT 450MW large-load interconnection curtailment in Ellis County",
@@ -561,7 +561,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       { repository, geminiClient }
     );
     assert.equal(branchResult.status, "illustration_painted");
-    assert.equal(branchResult.operation, "branchLineage");
+    assert.equal(branchResult.operation, "branchTimeline");
     const branchPlate = GeneratedIllustrationSchema.parse(branchResult.illustration);
     assert.equal(branchPlate.isBranch, true);
     assert.equal(branchPlate.turnNumber, 2);
@@ -583,7 +583,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
       usage: { total_tokens: 1180 },
     });
-    const siblingBranch = await branchLineage(
+    const siblingBranch = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Simulate Oncor 345kV double-circuit upgrade", now: branchNow },
       { repository, geminiClient }
     );
@@ -600,7 +600,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       output_image: { mime_type: "image/png", data: widePng.toString("base64") },
       usage: { total_tokens: 900 },
     });
-    const pngBranch = await branchLineage(
+    const pngBranch = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "PNG single-line watermark verification", now: branchNow },
       { repository, geminiClient }
     );
@@ -615,7 +615,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       output_image: { mime_type: "image/webp", data: opaqueCompressedWebp.toString("base64") },
       usage: { total_tokens: 910 },
     });
-    const opaqueBranch = await branchLineage(
+    const opaqueBranch = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Opaque compressed VP8L flag check", now: branchNow },
       { repository, geminiClient }
     );
@@ -641,7 +641,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       output_image: { mime_type: "image/webp", data: extendedLossyWebp.toString("base64") },
       usage: { total_tokens: 920 },
     });
-    const extendedBranch = await branchLineage(
+    const extendedBranch = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Extended VP8X ICCP+ALPH+VP8+EXIF check", now: branchNow },
       { repository, geminiClient }
     );
@@ -654,7 +654,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.deepEqual(outChunks[3]?.data, vp8LossyData);
     assert.deepEqual(outChunks[4]?.data, exifData);
 
-    // 3. Sad Path via public seams: corrupt VP8X rejected by bootstrapCanvas & branchLineage
+    // 3. Sad Path via public seams: corrupt VP8X rejected by bootstrapCanvas & branchTimeline
     const brokenVp8x = Buffer.from(branchResult.webpBuffer);
     brokenVp8x[20] = 0x00;
     const rejectedCanvas = await bootstrapCanvas(
@@ -670,7 +670,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       output_image: { mime_type: "image/webp", data: brokenVp8x.toString("base64") },
       usage: { total_tokens: 300 },
     });
-    const rejectedBranchImg = await branchLineage(
+    const rejectedBranchImg = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Corrupt VP8X output rejection", now: branchNow },
       { repository, geminiClient }
     );
@@ -682,29 +682,29 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     const agenticBeforePreconditions = (await repository.getEfficiencyScorecard()).agenticRunsCount;
     const callsBeforePreconditions = recordedRequests.length;
 
-    const emptyPrompt = await branchLineage({ parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "   ", now: branchNow }, { repository, geminiClient });
+    const emptyPrompt = await branchTimeline({ parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "   ", now: branchNow }, { repository, geminiClient });
     assert.equal(emptyPrompt.status, "painter_failed");
     assert.equal(emptyPrompt.errorCode, "invalid_scenario_prompt");
 
-    const oversizedPrompt = await branchLineage(
+    const oversizedPrompt = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "x".repeat(MAX_SCENARIO_PROMPT_LENGTH + 1), now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(oversizedPrompt.status, "painter_failed");
     assert.equal(oversizedPrompt.errorCode, "invalid_scenario_prompt");
 
-    const unknownParent = await branchLineage({ parentInteractionId: "inter_missing", scenarioPrompt: "Simulate upgrade", now: branchNow }, { repository, geminiClient });
+    const unknownParent = await branchTimeline({ parentInteractionId: "inter_missing", scenarioPrompt: "Simulate upgrade", now: branchNow }, { repository, geminiClient });
     assert.equal(unknownParent.status, "painter_failed");
     assert.equal(unknownParent.errorCode, "parent_not_found");
 
-    const crossLineage = await branchLineage(
+    const crossLineage = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", lineageId: "other-corridor", scenarioPrompt: "Cross lineage fork", now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(crossLineage.status, "painter_failed");
     assert.equal(crossLineage.errorCode, "parent_not_found");
 
-    const quotaExceeded = await branchLineage(
+    const quotaExceeded = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Exceeding active branch cap", maxBranchesPerLineage: 5, now: branchNow },
       { repository, geminiClient }
     );
@@ -712,7 +712,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(quotaExceeded.errorCode, "branch_quota_exceeded");
 
     const postExpiryNow = new Date(branchNow.getTime() + NINETY_DAYS_MS + 1_000);
-    const expiredParentFork = await branchLineage(
+    const expiredParentFork = await branchTimeline(
       { parentInteractionId: "inter_scenario_branch_01", scenarioPrompt: "Forking expired +90d branch", now: postExpiryNow },
       { repository, geminiClient }
     );
@@ -731,14 +731,14 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
       usage: { total_tokens: 1100 },
     });
-    const postExpiryBranch = await branchLineage(
+    const postExpiryBranch = await branchTimeline(
       { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Fresh branch after +90d TTL expiry", maxBranchesPerLineage: 1, now: postExpiryNow },
       { repository, geminiClient }
     );
     assert.equal(postExpiryBranch.status, "illustration_painted");
   });
 
-  test("Part 5 (branchLineage Serialized Slot Admission & Post-Save Scorecard Release): avoids double-counting slots during scorecard writes and prevents stale-snapshot over-admission", async () => {
+  test("Part 5 (branchTimeline Serialized Slot Admission & Post-Save Scorecard Release): avoids double-counting slots during scorecard writes and prevents stale-snapshot over-admission", async () => {
     const baseRepo = createInMemoryGridlockRepository();
     const { milestoneObs: obs } = createPainterTestObservations();
     await baseRepo.appendObservation(obs);
@@ -802,7 +802,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     };
 
     const nowRelease = new Date("2026-10-28T10:00:00.000Z");
-    const firstBranchPromise = branchLineage(
+    const firstBranchPromise = branchTimeline(
       {
         parentInteractionId: rootRelease.illustration.interactionId,
         scenarioPrompt: "Slot release branch 1",
@@ -813,7 +813,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     );
 
     await firstPlateSaved;
-    const secondBranchResult = await branchLineage(
+    const secondBranchResult = await branchTimeline(
       {
         parentInteractionId: rootRelease.illustration.interactionId,
         scenarioPrompt: "Slot release branch 2 during scorecard write",
@@ -848,7 +848,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     };
 
     const raceResults = await Promise.all([
-      branchLineage(
+      branchTimeline(
         {
           parentInteractionId: rootSerialize.illustration.interactionId,
           scenarioPrompt: "Serialized admission A",
@@ -857,7 +857,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
         },
         { repository: delayedReadRepo, geminiClient }
       ),
-      branchLineage(
+      branchTimeline(
         {
           parentInteractionId: rootSerialize.illustration.interactionId,
           scenarioPrompt: "Serialized admission B",

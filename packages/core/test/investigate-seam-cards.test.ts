@@ -4,13 +4,13 @@ import { describe, test } from "node:test";
 import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
-  branchLineage,
+  branchTimeline,
   CandidateSelectorPatchSchema,
   CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
   ConnectorHealthCardNodeSchema,
   createInMemoryGridlockRepository,
   DEFAULT_LINEAGE_ID,
-  getPlateLineage,
+  getFrameTimeline,
   hydrateInvestigationWorkspace,
   ingestTdlrFiling,
   MAX_SCENARIO_PROMPT_LENGTH,
@@ -171,7 +171,7 @@ async function seedFullFiveCardRepository(): Promise<{
   );
   assert.equal(bootstrapRes.status, "illustration_painted");
 
-  const branchRes = await branchLineage(
+  const branchRes = await branchTimeline(
     {
       lineageId: DEFAULT_LINEAGE_ID,
       parentInteractionId: bootstrapRes.illustration.interactionId,
@@ -302,7 +302,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       "*".repeat(MAX_SCENARIO_PROMPT_LENGTH - maxPromptPrefix.length);
     assert.equal(maxScenarioPrompt.length, MAX_SCENARIO_PROMPT_LENGTH);
 
-    const maxBranchRes = await branchLineage(
+    const maxBranchRes = await branchTimeline(
       {
         lineageId: DEFAULT_LINEAGE_ID,
         parentInteractionId: canonicalNode.plate.interactionId,
@@ -403,12 +403,12 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     const { repository, canonicalPlateId, branchPlateId } =
       await seedFullFiveCardRepository();
 
-    const unknownLineageCheck = await getPlateLineage(
+    const unknownLineageCheck = await getFrameTimeline(
       { lineageId: "unknown-corridor-lineage", now: NOW },
       { repository }
     );
     assert.equal(unknownLineageCheck.ok, true);
-    assert.deepEqual(unknownLineageCheck.lineage.nodes, []);
+    assert.deepEqual(unknownLineageCheck.timeline.nodes, []);
 
     const unknownLineageRes = await hydrateInvestigationWorkspace(
       {

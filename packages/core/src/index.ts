@@ -17,6 +17,9 @@ import type {
 
 export {
   ARTIFACT_BUCKET_URI,
+  BranchIllustrationRequestSchema,
+  BranchIllustrationResponseSchema,
+  // TODO(#82): Temporary aliases for packages/widgets until Slice 8 removes them.
   BranchPlateRequestSchema,
   BranchPlateResponseSchema,
   CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA,
@@ -32,13 +35,17 @@ export {
   DEFAULT_EFFICIENCY_SCORECARD,
   DEFAULT_GCP_PROJECT_ID,
   DEFAULT_LINEAGE_ID,
-  DEFAULT_MAX_BRANCHES_PER_LINEAGE,
+  DEFAULT_MAX_BRANCHES_PER_TIMELINE,
   DEFAULT_TDLR_BASE_URL,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   DEFAULT_TDLR_SEARCH_FILTERS,
+  DEFAULT_TIMELINE_ID,
   EfficiencyScorecardSchema,
   EpistemicIllustrationLabelSchema,
   ExecutionModeSchema,
+  FrameTimelineEdgeSchema,
+  FrameTimelineNodeSchema,
+  FrameTimelineResponseSchema,
   GRIDLOCK_USER_AGENT,
   GeneratedIllustrationSchema,
   InvestigatePlanRequestSchema,
@@ -80,6 +87,7 @@ export {
   TdlrFieldLabelsSchema,
   TdlrProjectNumberSchema,
   TdlrSearchRowSchema,
+  TimelineSourceCitationSchema,
   RunRecordSchema,
   RunRecordStatusSchema,
   RunSpanSchema,
@@ -140,10 +148,10 @@ export {
 } from "./use-cases/helpers/webp-codec.ts";
 
 export {
-  getPlateLineage,
-  type GetPlateLineageQuery,
-  type GetPlateLineageResult,
-} from "./use-cases/get-plate-lineage.ts";
+  getFrameTimeline,
+  type GetFrameTimelineQuery,
+  type GetFrameTimelineResult,
+} from "./use-cases/get-frame-timeline.ts";
 export {
   hydrateInvestigationWorkspace,
   type HydrateInvestigationWorkspaceDeps,
@@ -160,10 +168,10 @@ export {
 } from "./use-cases/record-run.ts";
 export {
   bootstrapCanvas,
-  branchLineage,
+  branchTimeline,
   paintMilestoneDelta,
   type BootstrapCanvasInput,
-  type BranchLineageInput,
+  type BranchTimelineInput,
   type PainterDeps,
   type PaintMilestoneDeltaInput,
 } from "./use-cases/run-painter-agent.ts";

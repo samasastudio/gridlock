@@ -44,7 +44,7 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
     assert.match(styleCss, /:where\(\.gridlock-plate-stage code\)\s*\{[^}]*font-size:\s*max\(0\.75rem,\s*0\.875em\)/);
     assert.match(styleCss, /:where\(\.gridlock-plate-stage :is\(button, a, \[role="button"\], \[tabindex="0"\], summary\)\):focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/);
     assert.match(styleCss, /:where\(\.gridlock-plate-stage \.gridlock-status-badge\)\s*\{\s*padding-block:\s*0\.25rem/);
-    assert.match(ssrHtml, new RegExp(`src="/api/plates/assets/${seeded.t2.plateId}\\.webp"`));
+    assert.match(ssrHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.plateId}\\.webp"`));
 
     const blankOverrideFallbackHtml = renderToStaticMarkup(
       <PlateFrameStage
@@ -66,7 +66,7 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
         assetUrlOverrides={{ [seeded.t2.plateId]: "   " }}
       />
     );
-    assert.match(blankOverrideSameOriginHtml, new RegExp(`src="/api/plates/assets/${seeded.t2.plateId}\\.webp"`));
+    assert.match(blankOverrideSameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.plateId}\\.webp"`));
 
     const omittedIdHtml = renderToStaticMarkup(<PlateFrameStage nodes={shuffled} onSelectPlate={() => {}} apiBaseUrl="" />);
     assert.match(omittedIdHtml, new RegExp(`data-plate-id="${seeded.t2.plateId}"`));
@@ -155,7 +155,7 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
           interactionId: "inter_plate_seed_sibling",
           createdAt: "2026-10-29T11:00:00.500Z",
         },
-        assetPath: "/api/plates/assets/plate_branch_t3_sibling.webp",
+        assetPath: "/api/illustrations/assets/plate_branch_t3_sibling.webp",
       };
       await act(async () => {
         root.render(<PlateFrameStage nodes={[siblingBranch, nodes[0]!, nodes[3]!, nodes[1]!, b1WholeSec]} onSelectPlate={() => {}} />);

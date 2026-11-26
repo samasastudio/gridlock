@@ -141,7 +141,7 @@ describe("PlateComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Pha
 
       assert.ok(multiHopCanonical.querySelector('[data-plate-fallback="true"]'));
       assert.equal(multiHopBranch.querySelector('[data-plate-fallback="true"]'), null);
-      assert.equal(multiHopBranch.querySelector("img")?.getAttribute("src"), `/api/plates/assets/${seeded.b2.plateId}.webp`);
+      assert.equal(multiHopBranch.querySelector("img")?.getAttribute("src"), `/api/illustrations/assets/${seeded.b2.plateId}.webp`);
 
       await act(async () => {
         getTabButtons()[0]!.click();

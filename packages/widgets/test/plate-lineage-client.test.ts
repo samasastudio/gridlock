@@ -16,22 +16,22 @@ import { seedTestPlateLineage, withTestPlatesServer } from "./helpers/plate-fixt
 
 describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
   test("buildPlateLineageUrl, buildPlateAssetUrl, and fetchPlateLineageSnapshot handle same-origin, 200, 400, 500, malformed JSON, and AbortSignal", async () => {
-    assert.equal(buildPlateLineageUrl({ apiBaseUrl: "" }), "/api/plates/lineage");
+    assert.equal(buildPlateLineageUrl({ apiBaseUrl: "" }), "/api/illustrations/timeline");
     assert.equal(
       buildPlateLineageUrl({ apiBaseUrl: "https://api.example.com///", lineageId: " ercot-west " }),
-      "https://api.example.com/api/plates/lineage?lineage_id=ercot-west"
+      "https://api.example.com/api/illustrations/timeline?timeline_id=ercot-west"
     );
     assert.equal(
-      buildPlateAssetUrl("", "/api/plates/assets/plate_1.webp"),
-      "/api/plates/assets/plate_1.webp"
+      buildPlateAssetUrl("", "/api/illustrations/assets/plate_1.webp"),
+      "/api/illustrations/assets/plate_1.webp"
     );
     assert.equal(
       buildPlateAssetUrl("", "//example.com/plate_1.webp"),
       "/example.com/plate_1.webp"
     );
     assert.equal(
-      buildPlateAssetUrl("https://api.example.com/", "api/plates/assets/plate_1.webp"),
-      "https://api.example.com/api/plates/assets/plate_1.webp"
+      buildPlateAssetUrl("https://api.example.com/", "api/illustrations/assets/plate_1.webp"),
+      "https://api.example.com/api/illustrations/assets/plate_1.webp"
     );
 
     const seeded = await seedTestPlateLineage();
@@ -62,7 +62,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       assert.equal(badQuery.ok, false);
       if (!badQuery.ok) {
         assert.equal(badQuery.statusCode, 400);
-        assert.match(badQuery.message, /lineage_id/i);
+        assert.match(badQuery.message, /timeline_id/i);
       }
 
       const abortController = new AbortController();
@@ -101,10 +101,10 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
   });
 
   test("buildPlateBranchUrl and submitPlateBranch handle 201, 400, 404, 429, 503, 500, malformed JSON, and AbortSignal", async () => {
-    assert.equal(buildPlateBranchUrl(""), "/api/plates/branch");
+    assert.equal(buildPlateBranchUrl(""), "/api/illustrations/branch");
     assert.equal(
       buildPlateBranchUrl("https://api.example.com///"),
-      "https://api.example.com/api/plates/branch"
+      "https://api.example.com/api/illustrations/branch"
     );
 
     const seeded = await seedTestPlateLineage();
@@ -164,7 +164,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
         assert.equal(missing404.ok, false);
         if (!missing404.ok) {
           assert.equal(missing404.statusCode, 404);
-          assert.equal(missing404.errorCode, "parent_plate_not_found");
+          assert.equal(missing404.errorCode, "parent_illustration_not_found");
         }
 
         const abortController = new AbortController();
@@ -213,7 +213,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       assert.equal(err500.ok, false);
       if (!err500.ok) {
         assert.equal(err500.statusCode, 500);
-        assert.equal(err500.errorCode, "plate_branch_error");
+        assert.equal(err500.errorCode, "illustration_branch_error");
       }
     });
 

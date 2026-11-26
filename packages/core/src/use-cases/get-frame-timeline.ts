@@ -1,18 +1,18 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import {
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
+  FrameTimelineNodeSchema,
+  FrameTimelineResponseSchema,
   GeneratedIllustrationSchema,
-  LineageNodeSchema,
   ObservationSchema,
-  PlateLineageResponseSchema,
   RawCaptureSchema,
+  type FrameTimelineEdge,
+  type FrameTimelineNode,
+  type FrameTimelineResponse,
   type GeneratedIllustration,
   type GridlockRepository,
-  type LineageEdge,
-  type LineageNode,
-  type LineageSourceCitation,
-  type PlateLineageResponse,
+  type TimelineSourceCitation,
 } from "../interfaces/index.ts";
 import {
   compareIllustrationsChronologically,
@@ -21,36 +21,36 @@ import {
 } from "./helpers/painter-helpers.ts";
 import { isWebpBuffer } from "./helpers/webp-codec.ts";
 
-export interface GetPlateLineageQuery {
+export interface GetFrameTimelineQuery {
   lineageId?: string;
   now?: Date;
 }
 
-export type GetPlateLineageResult =
-  | { ok: true; lineage: PlateLineageResponse }
-  | { ok: false; error: "plate_lineage_error"; message: string };
+export type GetFrameTimelineResult =
+  | { ok: true; timeline: FrameTimelineResponse }
+  | { ok: false; error: "frame_timeline_error"; message: string };
 
-export type GetVisualPlateAssetResult =
+export type GetGeneratedIllustrationAssetResult =
   | { ok: true; plate: GeneratedIllustration; webpBuffer: Buffer }
-  | { ok: false; error: "plate_not_found" | "plate_asset_error"; message: string };
+  | { ok: false; error: "illustration_not_found" | "illustration_asset_error"; message: string };
 
-type LineageRepo = Pick<
+type TimelineRepo = Pick<
   GridlockRepository,
   "listGeneratedIllustrationsByTimeline" | "listObservationsByProject" | "getRawCaptureByHash"
 >;
 
 const lineageErr = (message: string) => ({
   ok: false as const,
-  error: "plate_lineage_error" as const,
+  error: "frame_timeline_error" as const,
   message,
 });
 
 const assetErr = (
-  error: "plate_not_found" | "plate_asset_error",
+  error: "illustration_not_found" | "illustration_asset_error",
   message: string
-): GetVisualPlateAssetResult => ({ ok: false, error, message });
+): GetGeneratedIllustrationAssetResult => ({ ok: false, error, message });
 
-export async function hydrateLineageNodes(
+export async function hydrateTimelineNodes(
   plates: readonly GeneratedIllustration[],
   repository: Pick<
     GridlockRepository,
@@ -58,8 +58,8 @@ export async function hydrateLineageNodes(
   >,
   now: Date
 ): Promise<
-  | { ok: true; nodes: LineageNode[] }
-  | { ok: false; error: "plate_lineage_error"; message: string }
+  | { ok: true; nodes: FrameTimelineNode[] }
+  | { ok: false; error: "frame_timeline_error"; message: string }
 > {
   const uniqueProjects = Array.from(new Set(plates.flatMap((plate) => plate.projectNumbers)));
   const uniqueHashes = Array.from(new Set(plates.flatMap((plate) => plate.rawCaptureHashes)));
@@ -112,7 +112,7 @@ export async function hydrateLineageNodes(
   }
 
   const nowMs = now.getTime();
-  const citations = new Map<string, LineageSourceCitation>(
+  const citations = new Map<string, TimelineSourceCitation>(
     parsedArts.flatMap(({ result }) => {
       if (!result.success) {
         return [];
@@ -139,16 +139,16 @@ export async function hydrateLineageNodes(
       const citation = citations.get(hash);
       return citation ? [citation] : [];
     });
-    return LineageNodeSchema.safeParse({
+    return FrameTimelineNodeSchema.safeParse({
       plate,
-      assetPath: `/api/plates/assets/${encodeURIComponent(plate.plateId)}.webp`,
+      assetPath: `/api/illustrations/assets/${encodeURIComponent(plate.plateId)}.webp`,
       triggeringObservations,
       rawCaptures,
     });
   });
 
   if (parsedNodes.some((result) => !result.success)) {
-    return lineageErr("Hydrated LineageNode failed runtime schema validation");
+    return lineageErr("Hydrated FrameTimelineNode failed runtime schema validation");
   }
   return {
     ok: true,
@@ -156,23 +156,23 @@ export async function hydrateLineageNodes(
   };
 }
 
-export async function getPlateLineage(
-  query: GetPlateLineageQuery,
-  deps: { repository: LineageRepo }
-): Promise<GetPlateLineageResult> {
-  const lineageId = query.lineageId ?? DEFAULT_LINEAGE_ID;
+export async function getFrameTimeline(
+  query: GetFrameTimelineQuery,
+  deps: { repository: TimelineRepo }
+): Promise<GetFrameTimelineResult> {
+  const lineageId = query.lineageId ?? DEFAULT_TIMELINE_ID;
   const now = query.now ?? new Date();
   try {
     const rawPlates = await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
     if (!Array.isArray(rawPlates)) {
-      return lineageErr("Stored VisualPlate list failed runtime schema validation");
+      return lineageErr("Stored GeneratedIllustration list failed runtime schema validation");
     }
 
     const parsedPlates = rawPlates.map((plate) => GeneratedIllustrationSchema.safeParse(plate));
     if (
       parsedPlates.some((result) => !result.success || result.data.lineageId !== lineageId)
     ) {
-      return lineageErr("Stored VisualPlate record failed runtime schema validation");
+      return lineageErr("Stored GeneratedIllustration record failed runtime schema validation");
     }
 
     const activePlates = parsedPlates
@@ -180,18 +180,18 @@ export async function getPlateLineage(
       .filter((plate) => isGeneratedIllustrationActiveAt(plate, now))
       .sort(compareIllustrationsChronologically);
     if (activePlates.length === 0) {
-      const empty = PlateLineageResponseSchema.safeParse({
+      const empty = FrameTimelineResponseSchema.safeParse({
         lineageId,
         activeCanonicalPlateId: null,
         nodes: [],
         edges: [],
       });
       return empty.success
-        ? { ok: true, lineage: empty.data }
-        : lineageErr("Invalid lineage response envelope");
+        ? { ok: true, timeline: empty.data }
+        : lineageErr("Invalid frame timeline response envelope");
     }
 
-    const hydrated = await hydrateLineageNodes(activePlates, deps.repository, now);
+    const hydrated = await hydrateTimelineNodes(activePlates, deps.repository, now);
     if (!hydrated.ok) {
       return hydrated;
     }
@@ -199,7 +199,7 @@ export async function getPlateLineage(
     const byInteraction = new Map(
       activePlates.map((plate) => [plate.interactionId, plate])
     );
-    const edges: LineageEdge[] = activePlates.flatMap((child) => {
+    const edges: FrameTimelineEdge[] = activePlates.flatMap((child) => {
       const parent = child.parentInteractionId
         ? byInteraction.get(child.parentInteractionId)
         : undefined;
@@ -217,52 +217,52 @@ export async function getPlateLineage(
       ];
     });
 
-    const validated = PlateLineageResponseSchema.safeParse({
+    const validated = FrameTimelineResponseSchema.safeParse({
       lineageId,
       activeCanonicalPlateId: selectActiveCanonicalIllustration(activePlates)?.plateId ?? null,
       nodes: hydrated.nodes,
       edges,
     });
     return validated.success
-      ? { ok: true, lineage: validated.data }
-      : lineageErr("Lineage response failed runtime schema validation");
+      ? { ok: true, timeline: validated.data }
+      : lineageErr("Frame timeline response failed runtime schema validation");
   } catch (error) {
     return lineageErr(
-      error instanceof Error ? error.message : "Failed to read VisualPlate lineage"
+      error instanceof Error ? error.message : "Failed to read GeneratedIllustration timeline"
     );
   }
 }
 
-export async function getVisualPlateAsset(
+export async function getGeneratedIllustrationAsset(
   input: { plateId: string; now?: Date },
   deps: { repository: Pick<GridlockRepository, "getGeneratedIllustrationById" | "readGeneratedIllustrationWebp"> }
-): Promise<GetVisualPlateAssetResult> {
+): Promise<GetGeneratedIllustrationAssetResult> {
   const now = input.now ?? new Date();
   try {
     const plateCandidate = await deps.repository.getGeneratedIllustrationById(input.plateId);
     if (plateCandidate === null || plateCandidate === undefined) {
-      return assetErr("plate_not_found", `VisualPlate "${input.plateId}" not found`);
+      return assetErr("illustration_not_found", `GeneratedIllustration "${input.plateId}" not found`);
     }
 
     const parsedPlate = GeneratedIllustrationSchema.safeParse(plateCandidate);
     if (!parsedPlate.success || parsedPlate.data.plateId !== input.plateId) {
       return assetErr(
-        "plate_asset_error",
-        "Stored VisualPlate metadata failed runtime schema validation"
+        "illustration_asset_error",
+        "Stored GeneratedIllustration metadata failed runtime schema validation"
       );
     }
     if (!isGeneratedIllustrationActiveAt(parsedPlate.data, now)) {
       return assetErr(
-        "plate_not_found",
-        `VisualPlate asset "${input.plateId}" not found or expired`
+        "illustration_not_found",
+        `GeneratedIllustration asset "${input.plateId}" not found or expired`
       );
     }
 
     const webpCandidate = await deps.repository.readGeneratedIllustrationWebp(input.plateId);
     if (webpCandidate === null || webpCandidate === undefined) {
       return assetErr(
-        "plate_not_found",
-        `VisualPlate asset "${input.plateId}" not found or expired`
+        "illustration_not_found",
+        `GeneratedIllustration asset "${input.plateId}" not found or expired`
       );
     }
 
@@ -276,16 +276,16 @@ export async function getVisualPlateAsset(
       actualSha === parsedPlate.data.sha256;
     if (!isIntegrityValid) {
       return assetErr(
-        "plate_asset_error",
-        "Stored VisualPlate WebP asset failed integrity verification"
+        "illustration_asset_error",
+        "Stored GeneratedIllustration WebP asset failed integrity verification"
       );
     }
 
     return { ok: true, plate: parsedPlate.data, webpBuffer: webpCandidate };
   } catch (error) {
     return assetErr(
-      "plate_asset_error",
-      error instanceof Error ? error.message : "Failed to read VisualPlate asset"
+      "illustration_asset_error",
+      error instanceof Error ? error.message : "Failed to read GeneratedIllustration asset"
     );
   }
 }

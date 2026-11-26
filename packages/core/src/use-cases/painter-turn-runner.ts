@@ -1,5 +1,5 @@
 import {
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
   PAINTER_AGENT_MODEL,
   SCENARIO_BRANCH_WATERMARK,
   RawCaptureSchema,
@@ -58,7 +58,7 @@ export async function preparePainterTurn(
   deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: RunSpanSink }
 ): Promise<{ ctx: PainterTurnContext; existingPlates: GeneratedIllustration[] }> {
   const startedWallMs = Date.now();
-  const lineageId = input.lineageId ?? DEFAULT_LINEAGE_ID;
+  const lineageId = input.lineageId ?? DEFAULT_TIMELINE_ID;
   const now = input.now ?? new Date();
   const existingPlates = await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
   const activeIllustration = selectActiveCanonicalIllustration(existingPlates);
@@ -233,7 +233,7 @@ async function pinMilestoneRawCaptures(repository: GridlockRepository, hashes: r
 export async function finalizePaintedIllustrationTurn(
   ctx: PainterTurnContext,
   params: GeneratedIllustrationTurnSpec & {
-    operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchLineage";
+    operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchTimeline";
     stage: PainterStage;
     turn: PainterCompletedTurn;
   }

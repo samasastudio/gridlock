@@ -18,9 +18,9 @@ export type PlateLineageSnapshotResult =
 export function buildPlateLineageUrl(options: PlateLineageQuery): string {
   const base = options.apiBaseUrl.replace(/\/+$/, "");
   const trimmedId = options.lineageId?.trim();
-  if (!trimmedId) return `${base}/api/plates/lineage`;
-  const query = new URLSearchParams([["lineage_id", trimmedId]]).toString();
-  return `${base}/api/plates/lineage?${query}`;
+  if (!trimmedId) return `${base}/api/illustrations/timeline`;
+  const query = new URLSearchParams([["timeline_id", trimmedId]]).toString();
+  return `${base}/api/illustrations/timeline?${query}`;
 }
 
 export function buildPlateAssetUrl(apiBaseUrl: string, assetPath: string): string {
@@ -75,7 +75,7 @@ export type SubmitPlateBranchResult =
 
 export function buildPlateBranchUrl(apiBaseUrl: string): string {
   const base = apiBaseUrl.replace(/\/+$/, "");
-  return `${base}/api/plates/branch`;
+  return `${base}/api/illustrations/branch`;
 }
 
 async function parseJsonBody(

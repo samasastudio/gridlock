@@ -92,7 +92,7 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
         createdAt: "2026-10-27T15:00:00.000Z",
         expiresAt: null,
       },
-      assetPath: "/api/plates/assets/plate_canonical_1.webp",
+      assetPath: "/api/illustrations/assets/plate_canonical_1.webp",
       triggeringObservations: [milestoneObs],
       rawCaptures: [citationA],
     };

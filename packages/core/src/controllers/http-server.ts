@@ -13,11 +13,11 @@ import type {
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
 import { handlePostInvestigatePlan } from "./investigate-controller.ts";
 import {
-  handleGetPlateAsset,
-  handleGetPlateLineage,
-  handlePostPlateBranch,
-  matchPlateAssetId,
-} from "./plates-controller.ts";
+  handleGetFrameTimeline,
+  handleGetIllustrationAsset,
+  handlePostIllustrationBranch,
+  matchIllustrationAssetId,
+} from "./illustrations-controller.ts";
 import { handleGetRepairChangelog } from "./repairs-controller.ts";
 import { handleGetEfficiencyScorecard } from "./efficiency-controller.ts";
 
@@ -70,13 +70,13 @@ export async function handleGridlockHttpRequest(
     return;
   }
 
-  if (pathname === "/api/plates/lineage") {
-    await handleGetPlateLineage(req, res, parsedUrl, deps);
+  if (pathname === "/api/illustrations/timeline") {
+    await handleGetFrameTimeline(req, res, parsedUrl, deps);
     return;
   }
 
-  if (pathname === "/api/plates/branch") {
-    await handlePostPlateBranch(req, res, parsedUrl, deps);
+  if (pathname === "/api/illustrations/branch") {
+    await handlePostIllustrationBranch(req, res, parsedUrl, deps);
     return;
   }
 
@@ -85,9 +85,9 @@ export async function handleGridlockHttpRequest(
     return;
   }
 
-  const assetPlateId = matchPlateAssetId(pathname);
+  const assetPlateId = matchIllustrationAssetId(pathname);
   if (assetPlateId !== null) {
-    await handleGetPlateAsset(req, res, parsedUrl, assetPlateId, deps);
+    await handleGetIllustrationAsset(req, res, parsedUrl, assetPlateId, deps);
     return;
   }
 

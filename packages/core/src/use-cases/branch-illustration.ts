@@ -1,23 +1,23 @@
 import {
-  BranchPlateResponseSchema,
-  DEFAULT_LINEAGE_ID,
-  DEFAULT_MAX_BRANCHES_PER_LINEAGE,
+  BranchIllustrationResponseSchema,
+  DEFAULT_MAX_BRANCHES_PER_TIMELINE,
+  DEFAULT_TIMELINE_ID,
+  FrameTimelineNodeSchema,
   GeneratedIllustrationSchema,
-  LineageNodeSchema,
-  type BranchPlateRequest,
-  type BranchPlateResponse,
+  type BranchIllustrationRequest,
+  type BranchIllustrationResponse,
   type GeminiInteractionsClient,
   type GridlockRepository,
   type PainterErrorCode,
   type PainterImageEncoder,
   type RunSpanSink,
 } from "../interfaces/index.ts";
-import { hydrateLineageNodes } from "./get-plate-lineage.ts";
+import { hydrateTimelineNodes } from "./get-frame-timeline.ts";
 import { isGeneratedIllustrationActiveAt } from "./helpers/painter-helpers.ts";
-import { countOccupiedBranchSlots } from "./lineage-branch-slots.ts";
-import { branchLineage } from "./run-painter-agent.ts";
+import { countOccupiedBranchSlots } from "./timeline-branch-slots.ts";
+import { branchTimeline } from "./run-painter-agent.ts";
 
-export interface BranchPlateDeps {
+export interface BranchIllustrationDeps {
   repository: GridlockRepository;
   geminiClient?: GeminiInteractionsClient;
   imageEncoder?: PainterImageEncoder;
@@ -28,14 +28,14 @@ export interface BranchPlateDeps {
 
 type BranchPlateError =
   | "invalid_request_body"
-  | "parent_plate_not_found"
+  | "parent_illustration_not_found"
   | "branch_quota_exceeded"
   | "painter_unavailable"
   | "painter_upstream_error"
-  | "plate_branch_error";
+  | "illustration_branch_error";
 
-export type BranchPlateResult =
-  | { ok: true; status: 201; response: BranchPlateResponse }
+export type BranchIllustrationResult =
+  | { ok: true; status: 201; response: BranchIllustrationResponse }
   | {
       ok: false;
       status: 400 | 404 | 429 | 500 | 502 | 503;
@@ -47,12 +47,12 @@ const branchErr = (
   status: 400 | 404 | 429 | 500 | 502 | 503,
   error: BranchPlateError,
   message: string
-): BranchPlateResult => ({ ok: false, status, error, message });
+): BranchIllustrationResult => ({ ok: false, status, error, message });
 
 function mapPainterFailure(
   errorCode: PainterErrorCode,
   reason: string
-): BranchPlateResult {
+): BranchIllustrationResult {
   if (
     errorCode === "interaction_failed" ||
     errorCode === "corrupt_or_empty_image"
@@ -60,7 +60,7 @@ function mapPainterFailure(
     return branchErr(502, "painter_upstream_error", reason);
   }
   if (errorCode === "parent_not_found") {
-    return branchErr(404, "parent_plate_not_found", reason);
+    return branchErr(404, "parent_illustration_not_found", reason);
   }
   if (errorCode === "branch_quota_exceeded") {
     return branchErr(429, "branch_quota_exceeded", reason);
@@ -68,13 +68,13 @@ function mapPainterFailure(
   if (errorCode === "invalid_scenario_prompt") {
     return branchErr(400, "invalid_request_body", reason);
   }
-  return branchErr(500, "plate_branch_error", reason);
+  return branchErr(500, "illustration_branch_error", reason);
 }
 
-export async function branchPlate(
-  input: BranchPlateRequest,
-  deps: BranchPlateDeps
-): Promise<BranchPlateResult> {
+export async function branchIllustration(
+  input: BranchIllustrationRequest,
+  deps: BranchIllustrationDeps
+): Promise<BranchIllustrationResult> {
   try {
     const parentCandidate =
       await deps.repository.getGeneratedIllustrationByInteractionId(input.interactionId);
@@ -89,21 +89,21 @@ export async function branchPlate(
     ) {
       return branchErr(
         500,
-        "plate_branch_error",
-        "Stored parent VisualPlate failed runtime schema validation"
+        "illustration_branch_error",
+        "Stored parent GeneratedIllustration failed runtime schema validation"
       );
     }
 
     const validParent = parsedParent?.success ? parsedParent.data : null;
     const lineageId =
-      input.lineageId ?? validParent?.lineageId ?? DEFAULT_LINEAGE_ID;
+      input.lineageId ?? validParent?.lineageId ?? DEFAULT_TIMELINE_ID;
     const rawLineagePlates =
       await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
     if (!Array.isArray(rawLineagePlates)) {
       return branchErr(
         500,
-        "plate_branch_error",
-        "Stored VisualPlate lineage list failed runtime schema validation"
+        "illustration_branch_error",
+        "Stored GeneratedIllustration timeline list failed runtime schema validation"
       );
     }
 
@@ -117,8 +117,8 @@ export async function branchPlate(
     ) {
       return branchErr(
         500,
-        "plate_branch_error",
-        "Stored VisualPlate lineage record failed runtime schema validation"
+        "illustration_branch_error",
+        "Stored GeneratedIllustration timeline record failed runtime schema validation"
       );
     }
 
@@ -133,13 +133,13 @@ export async function branchPlate(
     ) {
       return branchErr(
         404,
-        "parent_plate_not_found",
-        `Unknown or expired parent interactionId "${input.interactionId}" for lineage "${lineageId}"`
+        "parent_illustration_not_found",
+        `Unknown or expired parent interactionId "${input.interactionId}" for timeline "${lineageId}"`
       );
     }
 
     const maxBranches =
-      deps.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_LINEAGE;
+      deps.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
     if (
       countOccupiedBranchSlots(validLineagePlates, deps.repository, lineageId, now) >=
       maxBranches
@@ -147,11 +147,11 @@ export async function branchPlate(
       return branchErr(
         429,
         "branch_quota_exceeded",
-        `Branch quota exceeded for lineage "${lineageId}" (max ${maxBranches})`
+        `Branch quota exceeded for timeline "${lineageId}" (max ${maxBranches})`
       );
     }
 
-    const parentHydrated = await hydrateLineageNodes(
+    const parentHydrated = await hydrateTimelineNodes(
       [validParent],
       deps.repository,
       now
@@ -159,9 +159,9 @@ export async function branchPlate(
     if (!parentHydrated.ok || !parentHydrated.nodes[0]) {
       return branchErr(
         500,
-        "plate_branch_error",
+        "illustration_branch_error",
         parentHydrated.ok
-          ? "Failed to hydrate parent LineageNode"
+          ? "Failed to hydrate parent FrameTimelineNode"
           : parentHydrated.message
       );
     }
@@ -173,7 +173,7 @@ export async function branchPlate(
       );
     }
 
-    const painterResult = await branchLineage(
+    const painterResult = await branchTimeline(
       {
         parentInteractionId: input.interactionId,
         scenarioPrompt: input.scenarioPrompt,
@@ -198,15 +198,15 @@ export async function branchPlate(
     if (painterResult.status !== "illustration_painted") {
       return branchErr(
         500,
-        "plate_branch_error",
+        "illustration_branch_error",
         "Unexpected Stateful Painter Agent branch state"
       );
     }
 
     const parentNode = parentHydrated.nodes[0];
-    const branchedNode = LineageNodeSchema.safeParse({
+    const branchedNode = FrameTimelineNodeSchema.safeParse({
       plate: painterResult.illustration,
-      assetPath: `/api/plates/assets/${encodeURIComponent(painterResult.illustration.plateId)}.webp`,
+      assetPath: `/api/illustrations/assets/${encodeURIComponent(painterResult.illustration.plateId)}.webp`,
       triggeringObservations: parentNode.triggeringObservations.filter((obs) =>
         painterResult.illustration.triggeringObservationIds.includes(obs.id)
       ),
@@ -217,12 +217,12 @@ export async function branchPlate(
     if (!branchedNode.success) {
       return branchErr(
         500,
-        "plate_branch_error",
-        "Failed to hydrate branched LineageNode"
+        "illustration_branch_error",
+        "Failed to hydrate branched FrameTimelineNode"
       );
     }
 
-    const validated = BranchPlateResponseSchema.safeParse({
+    const validated = BranchIllustrationResponseSchema.safeParse({
       plate: painterResult.illustration,
       node: branchedNode.data,
       lineageId: painterResult.lineageId,
@@ -232,8 +232,8 @@ export async function branchPlate(
     if (!validated.success) {
       return branchErr(
         500,
-        "plate_branch_error",
-        "Branched VisualPlate response failed runtime schema validation"
+        "illustration_branch_error",
+        "Branched GeneratedIllustration response failed runtime schema validation"
       );
     }
 
@@ -241,8 +241,8 @@ export async function branchPlate(
   } catch (error) {
     return branchErr(
       500,
-      "plate_branch_error",
-      error instanceof Error ? error.message : "Failed to branch VisualPlate"
+      "illustration_branch_error",
+      error instanceof Error ? error.message : "Failed to branch GeneratedIllustration"
     );
   }
 }

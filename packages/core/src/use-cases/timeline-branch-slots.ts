@@ -81,7 +81,7 @@ export function countOccupiedBranchSlots(
   return activeBranchIds.size + unpersistedCount;
 }
 
-export function withLineageBranchAdmission<T>(
+export function withTimelineBranchAdmission<T>(
   repo: GridlockRepository,
   lineageId: string,
   admit: (reserve: () => BranchSlotHandle) => Promise<T>
