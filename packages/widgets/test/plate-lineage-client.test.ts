@@ -80,7 +80,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
 
     const corruptRepo: GridlockRepository = {
       ...createInMemoryGridlockRepository(),
-      async listVisualPlatesByLineage() {
+      async listGeneratedIllustrationsByTimeline() {
         return [{ broken: true }] as never;
       },
     };
@@ -200,7 +200,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
 
     const corruptRepo: GridlockRepository = {
       ...createInMemoryGridlockRepository(),
-      async getVisualPlateByInteractionId() {
+      async getGeneratedIllustrationByInteractionId() {
         return { broken: true } as never;
       },
     };

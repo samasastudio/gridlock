@@ -16,15 +16,15 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
 
     const repository: GridlockRepository = {
       ...seeded.repository,
-      async getVisualPlateByInteractionId(interactionId) {
+      async getGeneratedIllustrationByInteractionId(interactionId) {
         return sim.missingParent
           ? null
-          : seeded.repository.getVisualPlateByInteractionId(interactionId);
+          : seeded.repository.getGeneratedIllustrationByInteractionId(interactionId);
       },
-      async listVisualPlatesByLineage(lineageId) {
+      async listGeneratedIllustrationsByTimeline(lineageId) {
         return sim.fail500
           ? ([{ broken: true }] as never)
-          : seeded.repository.listVisualPlatesByLineage(lineageId);
+          : seeded.repository.listGeneratedIllustrationsByTimeline(lineageId);
       },
     };
 

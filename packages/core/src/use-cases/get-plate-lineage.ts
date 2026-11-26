@@ -2,22 +2,22 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import {
   DEFAULT_LINEAGE_ID,
+  GeneratedIllustrationSchema,
   LineageNodeSchema,
   ObservationSchema,
   PlateLineageResponseSchema,
   RawCaptureSchema,
-  VisualPlateSchema,
+  type GeneratedIllustration,
   type GridlockRepository,
   type LineageEdge,
   type LineageNode,
   type LineageSourceCitation,
   type PlateLineageResponse,
-  type VisualPlate,
 } from "../interfaces/index.ts";
 import {
-  comparePlatesChronologically,
-  isVisualPlateActiveAt,
-  selectActiveCanonicalPlate,
+  compareIllustrationsChronologically,
+  isGeneratedIllustrationActiveAt,
+  selectActiveCanonicalIllustration,
 } from "./helpers/painter-helpers.ts";
 import { isWebpBuffer } from "./helpers/webp-codec.ts";
 
@@ -31,12 +31,12 @@ export type GetPlateLineageResult =
   | { ok: false; error: "plate_lineage_error"; message: string };
 
 export type GetVisualPlateAssetResult =
-  | { ok: true; plate: VisualPlate; webpBuffer: Buffer }
+  | { ok: true; plate: GeneratedIllustration; webpBuffer: Buffer }
   | { ok: false; error: "plate_not_found" | "plate_asset_error"; message: string };
 
 type LineageRepo = Pick<
   GridlockRepository,
-  "listVisualPlatesByLineage" | "listObservationsByProject" | "getRawCaptureByHash"
+  "listGeneratedIllustrationsByTimeline" | "listObservationsByProject" | "getRawCaptureByHash"
 >;
 
 const lineageErr = (message: string) => ({
@@ -51,7 +51,7 @@ const assetErr = (
 ): GetVisualPlateAssetResult => ({ ok: false, error, message });
 
 export async function hydrateLineageNodes(
-  plates: readonly VisualPlate[],
+  plates: readonly GeneratedIllustration[],
   repository: Pick<
     GridlockRepository,
     "listObservationsByProject" | "getRawCaptureByHash"
@@ -163,12 +163,12 @@ export async function getPlateLineage(
   const lineageId = query.lineageId ?? DEFAULT_LINEAGE_ID;
   const now = query.now ?? new Date();
   try {
-    const rawPlates = await deps.repository.listVisualPlatesByLineage(lineageId);
+    const rawPlates = await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
     if (!Array.isArray(rawPlates)) {
       return lineageErr("Stored VisualPlate list failed runtime schema validation");
     }
 
-    const parsedPlates = rawPlates.map((plate) => VisualPlateSchema.safeParse(plate));
+    const parsedPlates = rawPlates.map((plate) => GeneratedIllustrationSchema.safeParse(plate));
     if (
       parsedPlates.some((result) => !result.success || result.data.lineageId !== lineageId)
     ) {
@@ -177,8 +177,8 @@ export async function getPlateLineage(
 
     const activePlates = parsedPlates
       .flatMap((result) => (result.success ? [result.data] : []))
-      .filter((plate) => isVisualPlateActiveAt(plate, now))
-      .sort(comparePlatesChronologically);
+      .filter((plate) => isGeneratedIllustrationActiveAt(plate, now))
+      .sort(compareIllustrationsChronologically);
     if (activePlates.length === 0) {
       const empty = PlateLineageResponseSchema.safeParse({
         lineageId,
@@ -219,7 +219,7 @@ export async function getPlateLineage(
 
     const validated = PlateLineageResponseSchema.safeParse({
       lineageId,
-      activeCanonicalPlateId: selectActiveCanonicalPlate(activePlates)?.plateId ?? null,
+      activeCanonicalPlateId: selectActiveCanonicalIllustration(activePlates)?.plateId ?? null,
       nodes: hydrated.nodes,
       edges,
     });
@@ -235,30 +235,30 @@ export async function getPlateLineage(
 
 export async function getVisualPlateAsset(
   input: { plateId: string; now?: Date },
-  deps: { repository: Pick<GridlockRepository, "getVisualPlateById" | "readVisualPlateWebp"> }
+  deps: { repository: Pick<GridlockRepository, "getGeneratedIllustrationById" | "readGeneratedIllustrationWebp"> }
 ): Promise<GetVisualPlateAssetResult> {
   const now = input.now ?? new Date();
   try {
-    const plateCandidate = await deps.repository.getVisualPlateById(input.plateId);
+    const plateCandidate = await deps.repository.getGeneratedIllustrationById(input.plateId);
     if (plateCandidate === null || plateCandidate === undefined) {
       return assetErr("plate_not_found", `VisualPlate "${input.plateId}" not found`);
     }
 
-    const parsedPlate = VisualPlateSchema.safeParse(plateCandidate);
+    const parsedPlate = GeneratedIllustrationSchema.safeParse(plateCandidate);
     if (!parsedPlate.success || parsedPlate.data.plateId !== input.plateId) {
       return assetErr(
         "plate_asset_error",
         "Stored VisualPlate metadata failed runtime schema validation"
       );
     }
-    if (!isVisualPlateActiveAt(parsedPlate.data, now)) {
+    if (!isGeneratedIllustrationActiveAt(parsedPlate.data, now)) {
       return assetErr(
         "plate_not_found",
         `VisualPlate asset "${input.plateId}" not found or expired`
       );
     }
 
-    const webpCandidate = await deps.repository.readVisualPlateWebp(input.plateId);
+    const webpCandidate = await deps.repository.readGeneratedIllustrationWebp(input.plateId);
     if (webpCandidate === null || webpCandidate === undefined) {
       return assetErr(
         "plate_not_found",

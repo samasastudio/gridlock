@@ -148,18 +148,18 @@ export function applyRunRecordToScorecard(
 
   const avoidedAdded = isSuccessDet ? Math.max(0, deltas?.imageGenerationsAvoidedDelta ?? 0) : 0;
   const cacheHitsAdded = !isFailedOrBlocked
-    ? Math.max(0, deltas?.visualPlateCacheHitsDelta ?? 0)
+    ? Math.max(0, deltas?.illustrationCacheHitsDelta ?? 0)
     : 0;
   const uncachedAdded =
     isSuccessAgentic && run.stage.startsWith("painter_") && cacheHitsAdded === 0 ? 1 : 0;
 
   const imageGenerationsAvoided = current.imageGenerationsAvoided + avoidedAdded;
-  const visualPlateCacheHits = current.visualPlateCacheHits + cacheHitsAdded;
+  const illustrationCacheHits = current.illustrationCacheHits + cacheHitsAdded;
   const uncachedImageGenerationsCount =
     (current.uncachedImageGenerationsCount ?? 0) + uncachedAdded;
-  const avoidedOrCached = imageGenerationsAvoided + visualPlateCacheHits;
+  const avoidedOrCached = imageGenerationsAvoided + illustrationCacheHits;
   const painterDemand = avoidedOrCached + uncachedImageGenerationsCount;
-  const visualPlateCacheEfficiencyPercentage =
+  const illustrationCacheEfficiencyPercentage =
     painterDemand === 0
       ? 100
       : Number(((avoidedOrCached / painterDemand) * 100).toFixed(2));
@@ -186,9 +186,9 @@ export function applyRunRecordToScorecard(
     estimatedCostSavedUsd,
     actualCostUsd,
     imageGenerationsAvoided,
-    visualPlateCacheHits,
+    illustrationCacheHits,
     uncachedImageGenerationsCount,
-    visualPlateCacheEfficiencyPercentage,
+    illustrationCacheEfficiencyPercentage,
     updatedAt: run.recordedAt,
     expiresAt: null,
     recentRuns,

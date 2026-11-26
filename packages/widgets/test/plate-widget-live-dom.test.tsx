@@ -15,10 +15,10 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
 
     const flakyRepo: GridlockRepository = {
       ...seeded.repository,
-      async listVisualPlatesByLineage(lineageId) {
+      async listGeneratedIllustrationsByTimeline(lineageId) {
         return force500
           ? ([{ broken: true }] as never)
-          : seeded.repository.listVisualPlatesByLineage(lineageId);
+          : seeded.repository.listGeneratedIllustrationsByTimeline(lineageId);
       },
     };
 

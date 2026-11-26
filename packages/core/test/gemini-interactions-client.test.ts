@@ -136,7 +136,7 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
       { lineageId: "texas-corridor-main", observations: [milestoneObs] },
       { repository, geminiClient: client }
     );
-    assert.equal(boot.status, "plate_painted");
+    assert.equal(boot.status, "illustration_painted");
     assert.deepEqual(seenPayloads[2]?.response_format, { type: "image" });
     const bootInput = seenPayloads[2]?.input as Array<{
       type?: string;

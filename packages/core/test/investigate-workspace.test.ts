@@ -112,7 +112,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           getProjectByNumber: unexpectedCall,
           getRawCaptureByHash: unexpectedCall,
           listObservationsByProject: unexpectedCall,
-          listVisualPlatesByLineage: unexpectedCall,
+          listGeneratedIllustrationsByTimeline: unexpectedCall,
           getActiveConnectorConfig: unexpectedCall,
           listRepairChangelog: unexpectedCall,
           getEfficiencyScorecard: unexpectedCall,

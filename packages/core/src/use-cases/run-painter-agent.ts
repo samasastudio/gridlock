@@ -6,17 +6,17 @@ import {
   NINETY_DAYS_MS,
   PAINTER_AGENT_MODEL,
   type GeminiInteractionsClient,
+  type GeneratedIllustration,
   type GridlockRepository,
   type Observation,
   type PainterErrorCode,
   type PainterImageEncoder,
   type StatefulPainterResult,
   type RunSpanSink,
-  type VisualPlate,
 } from "../interfaces/index.ts";
 import {
   buildWebpMultimodalInput,
-  isVisualPlateActiveAt,
+  isGeneratedIllustrationActiveAt,
   synthesizeBootstrapPrompt,
   synthesizeMilestoneDeltaPrompt,
   synthesizeScenarioBranchPrompt,
@@ -31,7 +31,7 @@ import {
   evaluatePainterMilestoneGate,
   failClosedInteraction,
   failClosedPainter,
-  finalizePaintedPlateTurn,
+  finalizePaintedIllustrationTurn,
   preparePainterTurn,
   requestChainedOrFallbackPainterInteraction,
   tryCreatePainterInteraction,
@@ -68,7 +68,7 @@ export interface BranchLineageInput {
   now?: Date;
 }
 
-async function loadObservationsForPlate(repository: GridlockRepository, plate: VisualPlate): Promise<Observation[]> {
+async function loadObservationsForPlate(repository: GridlockRepository, plate: GeneratedIllustration): Promise<Observation[]> {
   const lists = await Promise.all(plate.projectNumbers.map((pn) => repository.listObservationsByProject(pn)));
   const byId = new Map(lists.flat().map((obs) => [obs.id, obs]));
   return plate.triggeringObservationIds.flatMap((id) => {
@@ -88,7 +88,7 @@ function rejectBranchPrecondition(
     reason,
     errorCode,
     tokensUsed: 0,
-    activePlate: ctx.activePlate,
+    activeIllustration: ctx.activeIllustration,
   };
 }
 
@@ -97,10 +97,10 @@ export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: Painter
   if (!gate.shouldPaint) return gate.result;
 
   const { ctx, milestoneObservations } = gate;
-  if (ctx.activePlate !== null) {
+  if (ctx.activeIllustration !== null) {
     return failClosedPainter(ctx, {
       stage: "painter_bootstrap",
-      reason: `Lineage "${ctx.lineageId}" is already bootstrapped (${ctx.activePlate.plateId})`,
+      reason: `Lineage "${ctx.lineageId}" is already bootstrapped (${ctx.activeIllustration.plateId})`,
       errorCode: "lineage_already_bootstrapped",
       tokensUsed: 0,
       observations: milestoneObservations,
@@ -126,7 +126,7 @@ export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: Painter
   });
   if (!outcome.ok) return failClosedInteraction(ctx, "painter_bootstrap", outcome, milestoneObservations);
 
-  return finalizePaintedPlateTurn(ctx, {
+  return finalizePaintedIllustrationTurn(ctx, {
     operation: "bootstrapCanvas",
     stage: "painter_bootstrap",
     turn: outcome.turn,
@@ -145,11 +145,11 @@ export async function paintMilestoneDelta(
   if (!gate.shouldPaint) return gate.result;
 
   const { ctx, milestoneObservations } = gate;
-  const parentPlate = ctx.activePlate;
+  const parentPlate = ctx.activeIllustration;
   if (!parentPlate) {
     return failClosedPainter(ctx, {
       stage: "painter_milestone_delta",
-      reason: `Canonical parent VisualPlate not found for lineage "${ctx.lineageId}"`,
+      reason: `Canonical parent GeneratedIllustration not found for lineage "${ctx.lineageId}"`,
       errorCode: "parent_not_found",
       tokensUsed: 0,
       observations: milestoneObservations,
@@ -165,7 +165,7 @@ export async function paintMilestoneDelta(
   });
   if (!outcome.ok) return failClosedInteraction(ctx, "painter_milestone_delta", outcome, milestoneObservations);
 
-  return finalizePaintedPlateTurn(ctx, {
+  return finalizePaintedIllustrationTurn(ctx, {
     operation: "paintMilestoneDelta",
     stage: "painter_milestone_delta",
     turn: outcome.turn,
@@ -178,7 +178,7 @@ export async function paintMilestoneDelta(
 
 export async function branchLineage(input: BranchLineageInput, deps: PainterDeps): Promise<StatefulPainterResult> {
   const trimmedScenario = input.scenarioPrompt.trim();
-  const parentPlate = await deps.repository.getVisualPlateByInteractionId(input.parentInteractionId);
+  const parentPlate = await deps.repository.getGeneratedIllustrationByInteractionId(input.parentInteractionId);
   const lineageId = input.lineageId ?? parentPlate?.lineageId ?? DEFAULT_LINEAGE_ID;
   const maxBranches = input.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_LINEAGE;
 
@@ -197,7 +197,7 @@ export async function branchLineage(input: BranchLineageInput, deps: PainterDeps
         ),
       };
     }
-    if (!parentPlate || parentPlate.lineageId !== lineageId || !isVisualPlateActiveAt(parentPlate, ctx.now)) {
+    if (!parentPlate || parentPlate.lineageId !== lineageId || !isGeneratedIllustrationActiveAt(parentPlate, ctx.now)) {
       return {
         admitted: false as const,
         result: rejectBranchPrecondition(
@@ -232,14 +232,14 @@ export async function branchLineage(input: BranchLineageInput, deps: PainterDeps
     });
     if (!outcome.ok) {
       await admission.slot.release();
-      return failClosedInteraction(admission.ctx, "painter_branch_lineage", outcome, parentObservations);
+      return failClosedInteraction(admission.ctx, "painter_branch_timeline", outcome, parentObservations);
     }
 
-    return await finalizePaintedPlateTurn(
+    return await finalizePaintedIllustrationTurn(
       { ...admission.ctx, repository: wrapRepositoryWithBranchSlot(deps.repository, admission.slot) },
       {
         operation: "branchLineage",
-        stage: "painter_branch_lineage",
+        stage: "painter_branch_timeline",
         turn: outcome.turn,
         parentPlate: admission.validParent,
         observations: parentObservations,

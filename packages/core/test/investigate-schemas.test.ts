@@ -82,7 +82,7 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
         triggeringObservationIds: [milestoneObs.id],
         rawCaptureHashes: [hashA],
         prompt: "Corridor baseline",
-        storageUri: `${ARTIFACT_BUCKET_URI}/plates/plate_canonical_1.webp`,
+        storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/plate_canonical_1.webp`,
         mimeType: "image/webp" as const,
         byteLength: 512,
         sha256: hashA,

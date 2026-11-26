@@ -4,17 +4,18 @@ import {
   DEFAULT_EFFICIENCY_SCORECARD,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   EfficiencyScorecardSchema,
+  GeneratedIllustrationSchema,
   ObservationSchema,
   ProjectSchema,
   RepairChangelogEntrySchema,
   RawCaptureSchema,
   RunRecordSchema,
   UnknownConnectorError,
-  VisualPlateSchema,
   type ConnectorConfig,
   type ConnectorPromotionStateUpdate,
   type ConnectorStatus,
   type EfficiencyScorecard,
+  type GeneratedIllustration,
   type GridlockRepository,
   type Observation,
   type Project,
@@ -23,7 +24,6 @@ import {
   type ScorecardQueryOptions,
   type RunRecord,
   type RunStateUpdate,
-  type VisualPlate,
 } from "../interfaces/index.ts";
 
 export function createInMemoryGridlockRepository(
@@ -35,8 +35,8 @@ export function createInMemoryGridlockRepository(
   ]);
   const artifacts = new Map<string, RawCapture>();
   const artifactBlobs = new Map<string, Buffer>();
-  const visualPlates = new Map<string, VisualPlate>();
-  const visualPlateWebpBlobs = new Map<string, Buffer>();
+  const generatedIllustrations = new Map<string, GeneratedIllustration>();
+  const illustrationWebpBlobs = new Map<string, Buffer>();
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
   const runRecords: RunRecord[] = [
@@ -194,33 +194,33 @@ export function createInMemoryGridlockRepository(
         .map((entry) => structuredClone(entry));
     },
 
-    async saveVisualPlate(
-      plate: VisualPlate,
+    async saveGeneratedIllustration(
+      plate: GeneratedIllustration,
       webpBuffer: Buffer
     ): Promise<void> {
-      const validated = VisualPlateSchema.parse(plate);
-      visualPlates.set(validated.plateId, structuredClone(validated));
-      visualPlateWebpBlobs.set(validated.plateId, Buffer.from(webpBuffer));
+      const validated = GeneratedIllustrationSchema.parse(plate);
+      generatedIllustrations.set(validated.plateId, structuredClone(validated));
+      illustrationWebpBlobs.set(validated.plateId, Buffer.from(webpBuffer));
     },
 
-    async getVisualPlateById(plateId: string): Promise<VisualPlate | null> {
-      const found = visualPlates.get(plateId);
+    async getGeneratedIllustrationById(plateId: string): Promise<GeneratedIllustration | null> {
+      const found = generatedIllustrations.get(plateId);
       return found ? structuredClone(found) : null;
     },
 
-    async getVisualPlateByInteractionId(
+    async getGeneratedIllustrationByInteractionId(
       interactionId: string
-    ): Promise<VisualPlate | null> {
-      const found = Array.from(visualPlates.values()).find(
+    ): Promise<GeneratedIllustration | null> {
+      const found = Array.from(generatedIllustrations.values()).find(
         (plate) => plate.interactionId === interactionId
       );
       return found ? structuredClone(found) : null;
     },
 
-    async listVisualPlatesByLineage(
+    async listGeneratedIllustrationsByTimeline(
       lineageId?: string
-    ): Promise<VisualPlate[]> {
-      return Array.from(visualPlates.values())
+    ): Promise<GeneratedIllustration[]> {
+      return Array.from(generatedIllustrations.values())
         .filter((plate) => (lineageId ? plate.lineageId === lineageId : true))
         .sort((a, b) =>
           a.turnNumber !== b.turnNumber
@@ -230,8 +230,8 @@ export function createInMemoryGridlockRepository(
         .map((plate) => structuredClone(plate));
     },
 
-    async readVisualPlateWebp(plateId: string): Promise<Buffer | null> {
-      const blob = visualPlateWebpBlobs.get(plateId);
+    async readGeneratedIllustrationWebp(plateId: string): Promise<Buffer | null> {
+      const blob = illustrationWebpBlobs.get(plateId);
       return blob ? Buffer.from(blob) : null;
     },
   };

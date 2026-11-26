@@ -13,11 +13,11 @@ import type {
   RunSpan,
 } from "./run-record-models.ts";
 import type { RepairChangelogEntry } from "./repair-models.ts";
-import type { VisualPlate } from "./painter-models.ts";
+import type { GeneratedIllustration } from "./painter-models.ts";
 
 export interface RunPainterDeltas {
   imageGenerationsAvoidedDelta?: number;
-  visualPlateCacheHitsDelta?: number;
+  illustrationCacheHitsDelta?: number;
 }
 
 export interface RunStateUpdate {
@@ -69,13 +69,13 @@ export interface GridlockRepository {
     stateUpdate: ConnectorPromotionStateUpdate
   ): Promise<void>;
   listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
-  saveVisualPlate(plate: VisualPlate, webpBuffer: Buffer): Promise<void>;
-  getVisualPlateById(plateId: string): Promise<VisualPlate | null>;
-  getVisualPlateByInteractionId(
+  saveGeneratedIllustration(illustration: GeneratedIllustration, webpBuffer: Buffer): Promise<void>;
+  getGeneratedIllustrationById(plateId: string): Promise<GeneratedIllustration | null>;
+  getGeneratedIllustrationByInteractionId(
     interactionId: string
-  ): Promise<VisualPlate | null>;
-  listVisualPlatesByLineage(lineageId?: string): Promise<VisualPlate[]>;
-  readVisualPlateWebp(plateId: string): Promise<Buffer | null>;
+  ): Promise<GeneratedIllustration | null>;
+  listGeneratedIllustrationsByTimeline(lineageId?: string): Promise<GeneratedIllustration[]>;
+  readGeneratedIllustrationWebp(plateId: string): Promise<Buffer | null>;
 }
 
 export interface PageLoaderResponse {

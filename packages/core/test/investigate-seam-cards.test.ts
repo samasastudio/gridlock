@@ -169,19 +169,19 @@ async function seedFullFiveCardRepository(): Promise<{
     },
     { repository, geminiClient }
   );
-  assert.equal(bootstrapRes.status, "plate_painted");
+  assert.equal(bootstrapRes.status, "illustration_painted");
 
   const branchRes = await branchLineage(
     {
       lineageId: DEFAULT_LINEAGE_ID,
-      parentInteractionId: bootstrapRes.plate.interactionId,
+      parentInteractionId: bootstrapRes.illustration.interactionId,
       scenarioPrompt:
         "Add *300MW* switchyard\nfor corridor_lead@example.com <marquee>",
       now: new Date("2026-10-27T15:10:00.000Z"),
     },
     { repository, geminiClient }
   );
-  assert.equal(branchRes.status, "plate_painted");
+  assert.equal(branchRes.status, "illustration_painted");
 
   for (let idx = 0; idx < 15; idx += 1) {
     const start = new Date(NOW.getTime() - (20 - idx) * 1_000);
@@ -204,8 +204,8 @@ async function seedFullFiveCardRepository(): Promise<{
 
   return {
     repository,
-    canonicalPlateId: bootstrapRes.plate.plateId,
-    branchPlateId: branchRes.plate.plateId,
+    canonicalPlateId: bootstrapRes.illustration.plateId,
+    branchPlateId: branchRes.illustration.plateId,
   };
 }
 
@@ -328,7 +328,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         },
       }
     );
-    assert.equal(maxBranchRes.status, "plate_painted");
+    assert.equal(maxBranchRes.status, "illustration_painted");
 
     const maxScrubberRes = await hydrateInvestigationWorkspace(
       {
@@ -337,7 +337,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
             nodeId: "max-prompt-scrubber",
             component: "VisualPlateScrubber",
             lineageId: DEFAULT_LINEAGE_ID,
-            initialPlateId: maxBranchRes.plate.plateId,
+            initialPlateId: maxBranchRes.illustration.plateId,
           },
         ],
       },
@@ -350,7 +350,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       maxScrubberNode && maxScrubberNode.component === "VisualPlateScrubber"
     );
     const hydratedMaxBranch = maxScrubberNode.lineage.nodes.find(
-      (n) => n.plate.plateId === maxBranchRes.plate.plateId
+      (n) => n.plate.plateId === maxBranchRes.illustration.plateId
     );
     assert.ok(hydratedMaxBranch?.plate.scenarioPrompt);
     assert.ok(
@@ -426,7 +426,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     assert.equal(unknownLineageRes.ok, false);
     assert.equal(unknownLineageRes.error, "entity_not_found");
 
-    const allPlates = await repository.listVisualPlatesByLineage(
+    const allPlates = await repository.listGeneratedIllustrationsByTimeline(
       DEFAULT_LINEAGE_ID
     );
     const branchOnlyPlates = allPlates.filter((plate) => plate.isBranch);
@@ -447,7 +447,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       {
         repository: {
           ...repository,
-          listVisualPlatesByLineage: async () => branchOnlyPlates,
+          listGeneratedIllustrationsByTimeline: async () => branchOnlyPlates,
         },
       },
       { now: futureAfterBranchTtl }
@@ -531,7 +531,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         {
           repository: {
             ...repository,
-            listVisualPlatesByLineage: async () => branchOnlyPlates,
+            listGeneratedIllustrationsByTimeline: async () => branchOnlyPlates,
             getRawCaptureByHash: async (sha256) =>
               sha256 === canonicalArtifactHash
                 ? overrideArtifact
@@ -578,7 +578,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       {
         repository: {
           ...repository,
-          listVisualPlatesByLineage: async () => [
+          listGeneratedIllustrationsByTimeline: async () => [
             { ...canonicalPlate, rawCaptureHashes: [] },
           ],
         },
@@ -649,7 +649,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       {
         repository: {
           ...repository,
-          listVisualPlatesByLineage: async () =>
+          listGeneratedIllustrationsByTimeline: async () =>
             [{ plateId: "corrupt", lineageId: DEFAULT_LINEAGE_ID }] as never,
         },
       },

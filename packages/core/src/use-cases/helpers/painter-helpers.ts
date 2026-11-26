@@ -3,13 +3,13 @@ import { createHash } from "node:crypto";
 import {
   ARTIFACT_BUCKET_URI,
   CANONICAL_MILESTONE_LABEL,
+  GeneratedIllustrationSchema,
   PAINTER_AGENT_MODEL,
   SCENARIO_BRANCH_WATERMARK,
-  VisualPlateSchema,
   type GeminiInteractionResponse,
+  type GeneratedIllustration,
   type Observation,
   type RunStage,
-  type VisualPlate,
 } from "../../interfaces/index.ts";
 import { applyScenarioBranchWatermarkToWebp } from "./webp-codec.ts";
 
@@ -109,7 +109,7 @@ export function isExpiredOrRejectedPreviousInteraction(failure: PainterInteracti
 
 export function evaluateMilestoneObservations(
   observations: readonly Observation[],
-  existingPlates: readonly VisualPlate[]
+  existingPlates: readonly GeneratedIllustration[]
 ): Observation[] {
   const alreadyPaintedIds = new Set(
     existingPlates
@@ -120,18 +120,18 @@ export function evaluateMilestoneObservations(
   return observations.filter((obs) => obs.isMilestone && !alreadyPaintedIds.has(obs.id));
 }
 
-export function comparePlatesChronologically(a: VisualPlate, b: VisualPlate): number {
+export function compareIllustrationsChronologically(a: GeneratedIllustration, b: GeneratedIllustration): number {
   return a.turnNumber !== b.turnNumber
     ? a.turnNumber - b.turnNumber
     : a.createdAt.localeCompare(b.createdAt);
 }
 
-export function selectActiveCanonicalPlate(existingPlates: readonly VisualPlate[]): VisualPlate | null {
+export function selectActiveCanonicalIllustration(existingPlates: readonly GeneratedIllustration[]): GeneratedIllustration | null {
   return existingPlates
     .filter((plate) => !plate.isBranch)
-    .reduce<VisualPlate | null>(
+    .reduce<GeneratedIllustration | null>(
       (latest, candidate) =>
-        latest === null || comparePlatesChronologically(latest, candidate) <= 0 ? candidate : latest,
+        latest === null || compareIllustrationsChronologically(latest, candidate) <= 0 ? candidate : latest,
       null
     );
 }
@@ -143,22 +143,22 @@ export function formatObservationsSummary(observations: readonly Observation[]):
 }
 
 export function synthesizeBootstrapPrompt(lineageId: string, observations: readonly Observation[]): string {
-  return `Bootstrap Atlas Dossier technical topographical plate for corridor lineage "${lineageId}" incorporating initial milestone observations: ${formatObservationsSummary(observations)}`;
+  return `Bootstrap Atlas Dossier technical topographical illustration for corridor lineage "${lineageId}" incorporating initial milestone observations: ${formatObservationsSummary(observations)}`;
 }
 
 export function synthesizeMilestoneDeltaPrompt(
   lineageId: string,
-  parentPlate: VisualPlate,
+  parentPlate: GeneratedIllustration,
   observations: readonly Observation[]
 ): string {
-  return `Paint incremental milestone delta onto corridor lineage "${lineageId}" from parent plate ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
+  return `Paint incremental milestone delta onto corridor lineage "${lineageId}" from parent illustration ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
 }
 
-export function isVisualPlateActiveAt(plate: VisualPlate, now: Date): boolean {
+export function isGeneratedIllustrationActiveAt(plate: GeneratedIllustration, now: Date): boolean {
   return plate.expiresAt === null || Date.parse(plate.expiresAt) > now.getTime();
 }
 
-export function prepareFinalPlateWebp(
+export function prepareFinalIllustrationWebp(
   encoded: { webpBuffer: Buffer; sha256: string },
   isBranch: boolean
 ): { webpBuffer: Buffer; sha256: string; pinCanonicalArtifacts: boolean } {
@@ -188,12 +188,12 @@ export function prepareFinalPlateWebp(
   };
 }
 
-export function synthesizeScenarioBranchPrompt(parentPlate: VisualPlate, scenarioPrompt: string): string {
-  return `Fork speculative scenario branch from parent plate ${parentPlate.plateId} (interaction ${parentPlate.interactionId}) with watermark "${SCENARIO_BRANCH_WATERMARK}", preserving parent camera angle, topography, and Atlas Dossier typography: ${scenarioPrompt}`;
+export function synthesizeScenarioBranchPrompt(parentPlate: GeneratedIllustration, scenarioPrompt: string): string {
+  return `Fork speculative scenario branch from parent illustration ${parentPlate.plateId} (interaction ${parentPlate.interactionId}) with watermark "${SCENARIO_BRANCH_WATERMARK}", preserving parent camera angle, topography, and Atlas Dossier typography: ${scenarioPrompt}`;
 }
 
-export type VisualPlateTurnSpec = {
-  parentPlate: VisualPlate | null;
+export type GeneratedIllustrationTurnSpec = {
+  parentPlate: GeneratedIllustration | null;
   observations: readonly Observation[];
   prompt: string;
 } & (
@@ -201,8 +201,8 @@ export type VisualPlateTurnSpec = {
   | { isBranch: true; scenarioPrompt: string; expiresAt: string }
 );
 
-export function buildVisualPlateRecord(
-  params: VisualPlateTurnSpec & {
+export function buildGeneratedIllustrationRecord(
+  params: GeneratedIllustrationTurnSpec & {
     lineageId: string;
     interactionId: string;
     rebootstrappedFromParentWebp: boolean;
@@ -210,7 +210,7 @@ export function buildVisualPlateRecord(
     sha256: string;
     createdAt: string;
   }
-): VisualPlate {
+): GeneratedIllustration {
   const turnNumber = params.parentPlate ? params.parentPlate.turnNumber + 1 : 1;
   const interactionTag = createHash("sha256").update(params.interactionId).digest("hex").slice(0, 8);
   const variant = params.isBranch
@@ -224,14 +224,14 @@ export function buildVisualPlateRecord(
       }
     : {
         prefix: "plate",
-        storageDir: "plates",
+        storageDir: "illustrations",
         epistemicLabel: CANONICAL_MILESTONE_LABEL,
         watermarkText: null,
         expiresAt: null,
         extra: {},
       };
   const plateId = `${variant.prefix}_${params.lineageId}_t${turnNumber}_${interactionTag}_${params.sha256.slice(0, 8)}`;
-  return VisualPlateSchema.parse({
+  return GeneratedIllustrationSchema.parse({
     plateId,
     lineageId: params.lineageId,
     turnNumber,

@@ -119,7 +119,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
       { lineageId: "texas-corridor-main", observations: [milestoneObs] },
       { repository, geminiClient, imageEncoder: sharpImageEncoder }
     );
-    assert.equal(boot.status, "plate_painted");
+    assert.equal(boot.status, "illustration_painted");
     assert.deepEqual(capturedSdkRequests[0]?.response_format, {
       type: "image",
     });
@@ -268,7 +268,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
       );
       assert.equal(
         turn1.status,
-        "plate_painted",
+        "illustration_painted",
         turn1.status === "painter_failed"
           ? `${turn1.errorCode}: ${turn1.reason}`
           : undefined
@@ -281,15 +281,15 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
       );
       assert.equal(
         turn2.status,
-        "plate_painted",
+        "illustration_painted",
         turn2.status === "painter_failed"
           ? `${turn2.errorCode}: ${turn2.reason}`
           : undefined
       );
       assert.equal(isWebpBuffer(turn2.webpBuffer), true);
-      assert.equal(turn2.plate.turnNumber, 2);
+      assert.equal(turn2.illustration.turnNumber, 2);
       assert.equal(turn2.rebootstrappedFromParentWebp, false);
-      assert.equal(turn2.plate.parentInteractionId, turn1.plate.interactionId);
+      assert.equal(turn2.illustration.parentInteractionId, turn1.illustration.interactionId);
 
       const flashJson = await geminiClient.interactions.create({
         model: REPAIR_AGENT_MODEL,

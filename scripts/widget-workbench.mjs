@@ -183,7 +183,7 @@ async function seedWorkbenchPlateLineage(repo) {
     { observations: [obs1], now: new Date(anchorMs - 4 * DAY_MS + 300_000) },
     { repository: repo, geminiClient }
   );
-  if (t1Result.status !== "plate_painted") {
+  if (t1Result.status !== "illustration_painted") {
     throw new Error(`Failed to bootstrap workbench Turn 1: ${t1Result.status}`);
   }
 
@@ -191,7 +191,7 @@ async function seedWorkbenchPlateLineage(repo) {
     { observations: [obs2, obs3], now: new Date(anchorMs - 3 * DAY_MS + 300_000) },
     { repository: repo, geminiClient }
   );
-  if (t2Result.status !== "plate_painted") {
+  if (t2Result.status !== "illustration_painted") {
     throw new Error(`Failed to paint workbench Turn 2: ${t2Result.status}`);
   }
 
@@ -202,13 +202,13 @@ async function seedWorkbenchPlateLineage(repo) {
 
   const b1Result = await branchLineage(
     {
-      parentInteractionId: t2Result.plate.interactionId,
+      parentInteractionId: t2Result.illustration.interactionId,
       scenarioPrompt: "Simulate +400MW ERCOT 345kV substation queue delay across Red Oak campus",
       now: new Date(anchorMs - DAY_MS),
     },
     { repository: repo, geminiClient }
   );
-  if (b1Result.status !== "plate_painted") {
+  if (b1Result.status !== "illustration_painted") {
     throw new Error(`Failed to branch workbench Turn 3: ${b1Result.status}`);
   }
 
@@ -225,10 +225,10 @@ const repository = {
       ? [{ malformedSimulatedCorruption: true }]
       : baseRepo.listRepairChangelog(connectorId);
   },
-  async listVisualPlatesByLineage(lineageId) {
+  async listGeneratedIllustrationsByTimeline(lineageId) {
     return force500
       ? [{ malformedSimulatedCorruption: true }]
-      : baseRepo.listVisualPlatesByLineage(lineageId);
+      : baseRepo.listGeneratedIllustrationsByTimeline(lineageId);
   },
 };
 

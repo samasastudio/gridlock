@@ -53,7 +53,7 @@ export async function loadOrchestrationGroundingCatalog(
   try {
     const [rawProjects, rawAllPlates, rawChangelogEntries, scorecardResult] = await Promise.all([
       repository.listProjects(),
-      repository.listVisualPlatesByLineage(),
+      repository.listGeneratedIllustrationsByTimeline(),
       repository.listRepairChangelog(),
       getEfficiencyScorecard({ limit: CONNECTOR_HEALTH_RECENT_RUNS_LIMIT }, { repository }),
     ]);

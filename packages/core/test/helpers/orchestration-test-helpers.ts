@@ -11,20 +11,20 @@ import {
   createGridlockHttpServer,
   createInMemoryGridlockRepository,
   DEFAULT_LINEAGE_ID,
+  GeneratedIllustrationSchema,
   ingestTdlrFiling,
   ObservationSchema,
   PAINTER_AGENT_MODEL,
   runOutOfBandRepairAgent,
   SCENARIO_BRANCH_WATERMARK,
-  VisualPlateSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
+  type GeneratedIllustration,
   type GridlockHttpDeps,
   type GridlockRepository,
   type Observation,
   type OrchestrationLayoutSpec,
-  type VisualPlate,
 } from "../../src/index.ts";
 import {
   createFixtureWebpBuffer,
@@ -191,9 +191,9 @@ export async function seedFilingOrchestrationRepository(): Promise<GridlockRepos
 
 async function saveTestVisualPlate(
   repository: GridlockRepository,
-  overrides: Partial<VisualPlate> &
+  overrides: Partial<GeneratedIllustration> &
     Pick<
-      VisualPlate,
+      GeneratedIllustration,
       | "plateId"
       | "lineageId"
       | "projectNumbers"
@@ -204,15 +204,15 @@ async function saveTestVisualPlate(
 ): Promise<void> {
   const webpBuf = createFixtureWebpBuffer(overrides.plateId);
   const isBranch = overrides.isBranch ?? false;
-  await repository.saveVisualPlate(
-    VisualPlateSchema.parse({
+  await repository.saveGeneratedIllustration(
+    GeneratedIllustrationSchema.parse({
       turnNumber: 1,
       model: PAINTER_AGENT_MODEL,
       interactionId: `ix_${overrides.plateId}`,
       parentInteractionId: null,
       parentPlateId: null,
       prompt: `Fixture prompt ${overrides.plateId}`,
-      storageUri: `${ARTIFACT_BUCKET_URI}/plates/${overrides.plateId}.webp`,
+      storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/${overrides.plateId}.webp`,
       mimeType: "image/webp",
       byteLength: webpBuf.byteLength,
       isBranch,
@@ -321,31 +321,31 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
     },
     { repository, geminiClient: painterClient }
   );
-  assert.equal(bootstrapRes.status, "plate_painted");
-  if (bootstrapRes.status !== "plate_painted") {
-    throw new Error("Expected plate_painted for bootstrapCanvas");
+  assert.equal(bootstrapRes.status, "illustration_painted");
+  if (bootstrapRes.status !== "illustration_painted") {
+    throw new Error("Expected illustration_painted for bootstrapCanvas");
   }
 
   const branchRes = await branchLineage(
     {
       lineageId: DEFAULT_LINEAGE_ID,
-      parentInteractionId: bootstrapRes.plate.interactionId,
+      parentInteractionId: bootstrapRes.illustration.interactionId,
       scenarioPrompt: "Add 300MW switchyard for corridor_lead@example.com",
       now: new Date("2026-10-27T15:10:00.000Z"),
     },
     { repository, geminiClient: painterClient }
   );
-  assert.equal(branchRes.status, "plate_painted");
-  if (branchRes.status !== "plate_painted") {
-    throw new Error("Expected plate_painted for branchLineage");
+  assert.equal(branchRes.status, "illustration_painted");
+  if (branchRes.status !== "illustration_painted") {
+    throw new Error("Expected illustration_painted for branchLineage");
   }
 
   await saveTestVisualPlate(repository, {
     plateId: "plate_expired_branch",
     lineageId: DEFAULT_LINEAGE_ID,
     turnNumber: 2,
-    parentInteractionId: bootstrapRes.plate.interactionId,
-    parentPlateId: bootstrapRes.plate.plateId,
+    parentInteractionId: bootstrapRes.illustration.interactionId,
+    parentPlateId: bootstrapRes.illustration.plateId,
     projectNumbers: ["TABS2027001001"],
     triggeringObservationIds: ["obs_1001_m1"],
     rawCaptureHashes: [HASH_ACTIVE_A],
@@ -392,7 +392,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
   return {
     repository,
     canonicalArtifactHash: HASH_ACTIVE_A,
-    branchPlateId: branchRes.plate.plateId,
+    branchPlateId: branchRes.illustration.plateId,
   };
 }
 
