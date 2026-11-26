@@ -1,6 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 import {
@@ -14,6 +16,7 @@ import {
   MAX_PR_CHANGED_LINES,
   MAX_TSX_LINES,
   NON_LINTABLE_GLOSSARY_WORDS,
+  checkPullRequestDiffSize,
   evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   evaluateUnusedModuleExports,
@@ -233,6 +236,42 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
     assert.equal(over.length, 1);
     assert.ok(over[0]?.includes("801 changed lines"));
     assert.ok(over[0]?.includes("<= 800-line budget"));
+  });
+
+  test("checkPullRequestDiffSize uses rename detection (-M20%) so renamed files count only edited lines", () => {
+    const tempRepo = mkdtempSync(join(tmpdir(), "gridlock-pr-size-"));
+    try {
+      const runGit = (args: string[]) =>
+        execFileSync("git", args, { cwd: tempRepo, encoding: "utf-8" });
+      runGit(["init", "-q"]);
+      runGit(["config", "user.email", "test@gridlock.local"]);
+      runGit(["config", "user.name", "Gridlock Test"]);
+
+      const originalLines = Array.from(
+        { length: 40 },
+        (_, i) => `export const value_${i} = ${i < 24 ? `"old_name_${i}"` : i};`
+      );
+      writeFileSync(join(tempRepo, "old-module.ts"), `${originalLines.join("\n")}\n`, "utf-8");
+      runGit(["add", "old-module.ts"]);
+      runGit(["commit", "-q", "-m", "base"]);
+      const baseSha = runGit(["rev-parse", "HEAD"]).trim();
+
+      const renamedLines = originalLines.map((line) => line.replace("old_name_", "new_name_"));
+      runGit(["mv", "old-module.ts", "new-module.ts"]);
+      writeFileSync(join(tempRepo, "new-module.ts"), `${renamedLines.join("\n")}\n`, "utf-8");
+      runGit(["add", "new-module.ts"]);
+      runGit(["commit", "-q", "-m", "rename with edits"]);
+
+      const result = checkPullRequestDiffSize(tempRepo, {
+        baseRef: baseSha,
+        headRef: "HEAD",
+      });
+      assert.deepEqual(result.violations, []);
+      assert.equal(result.insertions, 24);
+      assert.equal(result.deletions, 24);
+    } finally {
+      rmSync(tempRepo, { recursive: true, force: true });
+    }
   });
 
   test("evaluateSourceFileLintRules enforces 400-line core and 280-line widget component budgets while keeping inward layer checks", () => {
