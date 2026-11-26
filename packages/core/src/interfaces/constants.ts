@@ -36,6 +36,7 @@ export const MAX_INVESTIGATE_QUERY_LENGTH = 1_000;
 export const MAX_INVESTIGATE_BODY_BYTES = 131_072;
 export const MAX_ORCHESTRATION_CATALOG_PROJECTS = 50;
 export const CONNECTOR_HEALTH_RECENT_RUNS_LIMIT = 10;
+export const RECENT_RUN_RECORDS_LIMIT = 50;
 
 export const DEFAULT_TDLR_SEARCH_FILTERS: readonly TdlrSearchFilter[] = [
   { field: "ProjectName", value: "Data Center" },

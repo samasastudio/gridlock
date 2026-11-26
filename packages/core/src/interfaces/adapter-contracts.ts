@@ -20,15 +20,40 @@ export interface RunPainterDeltas {
   illustrationCacheHitsDelta?: number;
 }
 
-export interface RunStateUpdate {
-  updatedScorecard: EfficiencyScorecard;
-  updatedChangelog?: readonly RepairChangelogEntry[];
+export interface RecordRunTransitionContext {
+  readonly currentScorecard: EfficiencyScorecard;
+  readonly recentRuns: readonly RunRecord[];
+  readonly activeConfig: ConnectorConfig | null;
+  readonly matchingChangelogEntry: RepairChangelogEntry | null;
 }
 
-export interface ConnectorPromotionStateUpdate {
-  updatedScorecard: EfficiencyScorecard;
-  promotedArtifact?: RawCapture;
+export interface RecordRunTransitionResult {
+  readonly updatedScorecard: EfficiencyScorecard;
+  readonly updatedChangelogEntry?: RepairChangelogEntry | null;
 }
+
+export type RecordRunTransition = (
+  context: RecordRunTransitionContext
+) => RecordRunTransitionResult;
+
+export interface ConnectorPromotionTransitionContext {
+  readonly currentScorecard: EfficiencyScorecard;
+  readonly existingChangelog: readonly RepairChangelogEntry[];
+  readonly quarantinedArtifact: RawCapture | null;
+}
+
+export interface ConnectorPromotionTransitionResult {
+  readonly updatedScorecard: EfficiencyScorecard;
+  readonly promotedArtifact?: RawCapture | null;
+}
+
+export type ConnectorPromotionTransition = (
+  context: ConnectorPromotionTransitionContext
+) => ConnectorPromotionTransitionResult;
+
+export type RawCaptureMetadataTransition = (
+  existing: RawCapture
+) => RawCapture | null;
 
 export interface ScorecardQueryOptions {
   limit?: number;
@@ -47,6 +72,10 @@ export interface GridlockRepository {
     artifact: RawCapture,
     gzipBuffer: Buffer
   ): Promise<void>;
+  updateRawCaptureMetadata(
+    sha256: string,
+    transition: RawCaptureMetadataTransition
+  ): Promise<RawCapture | null>;
   readArtifactGzip(sha256: string): Promise<Buffer | null>;
   getProjectByNumber(projectNumber: string): Promise<Project | null>;
   upsertProject(project: Project): Promise<void>;
@@ -55,7 +84,7 @@ export interface GridlockRepository {
   listProjects(): Promise<Project[]>;
   recordRunRecord(
     run: RunRecord,
-    stateUpdate: RunStateUpdate
+    transition: RecordRunTransition
   ): Promise<EfficiencyScorecard>;
   getEfficiencyScorecard(
     options?: ScorecardQueryOptions
@@ -66,7 +95,7 @@ export interface GridlockRepository {
   promoteConnectorConfig(
     config: ConnectorConfig,
     changelogEntry: RepairChangelogEntry,
-    stateUpdate: ConnectorPromotionStateUpdate
+    transition: ConnectorPromotionTransition
   ): Promise<void>;
   listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
   saveGeneratedIllustration(illustration: GeneratedIllustration, webpBuffer: Buffer): Promise<void>;

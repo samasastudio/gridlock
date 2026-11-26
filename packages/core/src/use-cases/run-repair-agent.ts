@@ -231,22 +231,16 @@ export async function runOutOfBandRepairAgent(
     expiresAt: null,
   });
 
-  const existingChangelog = await deps.repository.listRepairChangelog();
-  const existingQuarantined = await deps.repository.getRawCaptureByHash(
-    changelogEntry.quarantinedArtifactHash
-  );
-  const currentScorecard = await deps.repository.getEfficiencyScorecard();
-  const promotion = applyConnectorPromotion({
-    changelogEntry,
-    allChangelogEntries: [...existingChangelog, changelogEntry],
-    quarantinedArtifact: existingQuarantined ?? undefined,
-    scorecard: currentScorecard,
-  });
-
   await deps.repository.promoteConnectorConfig(
     replay.candidateConfig,
     changelogEntry,
-    promotion
+    ({ currentScorecard, existingChangelog, quarantinedArtifact }) =>
+      applyConnectorPromotion({
+        changelogEntry,
+        allChangelogEntries: [...existingChangelog, changelogEntry],
+        quarantinedArtifact,
+        scorecard: currentScorecard,
+      })
   );
   await recordAgenticStageRun(
     {

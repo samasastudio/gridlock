@@ -197,67 +197,47 @@ export function applyRunRecordToScorecard(
 
 export function applyHealAmortization(params: {
   run: RunRecord;
-  activeConfig: ConnectorConfig | undefined;
-  repairChangelog: readonly RepairChangelogEntry[];
+  activeConfig: ConnectorConfig | null | undefined;
+  matchingEntry: RepairChangelogEntry | null | undefined;
   scorecard: EfficiencyScorecard;
 }): {
-  updatedChangelog: RepairChangelogEntry[];
+  updatedEntry: RepairChangelogEntry | null;
   updatedScorecard: EfficiencyScorecard;
 } {
-  const { run, activeConfig, repairChangelog, scorecard } = params;
-  const updatedChangelog = repairChangelog.map((entry) =>
-    structuredClone(entry)
-  );
+  const { run, activeConfig, matchingEntry, scorecard } = params;
 
   if (
     run.execution_mode !== "deterministic" ||
     (run.status !== "ingested" && run.status !== "unchanged_artifact") ||
     !run.connectorId ||
-    !activeConfig
+    !activeConfig ||
+    !matchingEntry ||
+    matchingEntry.connectorId !== run.connectorId ||
+    matchingEntry.promotedVersion !== activeConfig.version
   ) {
     return {
-      updatedChangelog,
+      updatedEntry: null,
       updatedScorecard: structuredClone(scorecard),
     };
   }
 
-  const targetIndex = updatedChangelog.reduce(
-    (foundIdx, entry, idx) =>
-      entry.connectorId === run.connectorId &&
-      entry.promotedVersion === activeConfig.version
-        ? idx
-        : foundIdx,
-    -1
-  );
-
-  if (targetIndex === -1) {
-    return {
-      updatedChangelog,
-      updatedScorecard: structuredClone(scorecard),
-    };
-  }
-
-  const nextChangelog = updatedChangelog.map((entry, idx) =>
-    idx === targetIndex
-      ? RepairChangelogEntrySchema.parse({
-          ...entry,
-          subsequentDeterministicRunsServed:
-            entry.subsequentDeterministicRunsServed + 1,
-        })
-      : entry
-  );
+  const updatedEntry = RepairChangelogEntrySchema.parse({
+    ...matchingEntry,
+    subsequentDeterministicRunsServed:
+      matchingEntry.subsequentDeterministicRunsServed + 1,
+  });
   const updatedScorecard = EfficiencyScorecardSchema.parse({
     ...scorecard,
     subsequentDeterministicRunsServed:
       scorecard.subsequentDeterministicRunsServed + 1,
   });
-  return { updatedChangelog: nextChangelog, updatedScorecard };
+  return { updatedEntry, updatedScorecard };
 }
 
 export function applyConnectorPromotion(params: {
   changelogEntry: RepairChangelogEntry;
   allChangelogEntries: readonly RepairChangelogEntry[];
-  quarantinedArtifact: RawCapture | undefined;
+  quarantinedArtifact: RawCapture | null | undefined;
   scorecard: EfficiencyScorecard;
 }): {
   promotedArtifact: RawCapture | undefined;
