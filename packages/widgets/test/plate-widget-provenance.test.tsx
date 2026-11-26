@@ -4,15 +4,15 @@ import { act } from "react";
 import { PlateLineageResponseSchema } from "@samasastudio/gridlock-core";
 import { GridlockPlateWidget } from "../src/index.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
-import { seedTestPlateLineage } from "./helpers/plate-fixtures.ts";
+import { seedTestFrameTimeline } from "./helpers/timeline-fixtures.ts";
 
 describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #34)", () => {
   test("Interactive DOM: copies SHA-256 citations, resets disclosures across scrubbing, walks 4-hop chain, jumps to ancestor, and flags TTL-aged parents", async () => {
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
 
     await withWidgetDom(async ({ window: win, container, root, getLastCopiedText }) => {
       await act(async () => {
-        root.render(<GridlockPlateWidget lineage={seeded.lineage} apiBaseUrl="" />);
+        root.render(<GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl="" />);
       });
 
       assert.equal(container.querySelector("section")?.getAttribute("data-gridlock-theme"), "inherit");
@@ -95,11 +95,11 @@ describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #
       );
 
       const agedOutParentLineage = PlateLineageResponseSchema.parse({
-        timelineId: seeded.lineage.timelineId,
+        timelineId: seeded.timeline.timelineId,
         activeCanonicalIllustrationId: seeded.t1.illustrationId,
         nodes: [
-          seeded.lineage.nodes.find((n) => n.plate.illustrationId === seeded.t1.illustrationId)!,
-          seeded.lineage.nodes.find((n) => n.plate.illustrationId === seeded.b2.illustrationId)!,
+          seeded.timeline.nodes.find((n) => n.plate.illustrationId === seeded.t1.illustrationId)!,
+          seeded.timeline.nodes.find((n) => n.plate.illustrationId === seeded.b2.illustrationId)!,
         ],
         edges: [],
       });

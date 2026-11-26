@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import type { FrameTimelineEdge, FrameTimelineNode } from "@samasastudio/gridlock-core/schemas";
 import { DossierStatusBadge, EDITORIAL_EASE, RELIEF_RETICLE_ICON } from "./DossierPrimitives.tsx";
-import { buildPlateAssetUrl } from "./plate-lineage-client.ts";
+import { buildIllustrationAssetUrl } from "./frame-timeline-client.ts";
 import { resolveCanonicalBaselineNode } from "./frame-timeline-model.ts";
 
 export interface TimelineComparisonStageProps {
@@ -27,7 +27,7 @@ function resolveNodeAssetSrc(
   }
 
   return apiBaseUrl !== undefined
-    ? buildPlateAssetUrl(apiBaseUrl, node.assetPath)
+    ? buildIllustrationAssetUrl(apiBaseUrl, node.assetPath)
     : undefined;
 }
 

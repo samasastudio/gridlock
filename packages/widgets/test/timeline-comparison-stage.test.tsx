@@ -4,70 +4,70 @@ import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   CANONICAL_MILESTONE_LABEL,
-  PlateLineageResponseSchema,
+  FrameTimelineResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
 } from "@samasastudio/gridlock-core";
-import { GridlockPlateWidget, PlateFrameStage } from "../src/index.ts";
+import { GridlockPlateWidget, TimelineFrameStage } from "../src/index.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 import {
-  buildBranchOnlyLineage,
-  seedTestPlateLineage,
-  seedTurn1ForkLineage,
-} from "./helpers/plate-fixtures.ts";
+  buildBranchOnlyTimeline,
+  seedTestFrameTimeline,
+  seedTurn1ForkTimeline,
+} from "./helpers/timeline-fixtures.ts";
 
 function extractRemFontSizes(html: string): number[] {
   const styleBlock = html.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
   return Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
 }
 
-describe("PlateComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Phase 1)", () => {
+describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Phase 1)", () => {
   test("SSR toggle visibility, branch-only omission, and diurnal/nocturnal >= 0.75rem typography floor", async () => {
-    const seeded = await seedTestPlateLineage();
-    const t1Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
-    const t2Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.t2.illustrationId)!;
-    const b2Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.b2.illustrationId)!;
+    const seeded = await seedTestFrameTimeline();
+    const t1Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
+    const t2Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.t2.illustrationId)!;
+    const b2Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.b2.illustrationId)!;
 
     const canonicalHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.lineage} selectedPlateId={seeded.t2.illustrationId} apiBaseUrl="" />
+      <GridlockPlateWidget lineage={seeded.timeline} selectedPlateId={seeded.t2.illustrationId} apiBaseUrl="" />
     );
     assert.doesNotMatch(canonicalHtml, /Compare with Canonical/);
     assert.doesNotMatch(canonicalHtml, /data-plate-comparison="split"/);
     assert.doesNotMatch(canonicalHtml, /data-comparison-slot=/);
 
-    const branchOnlyLineage = buildBranchOnlyLineage(
-      seeded.lineage,
+    const branchOnlyTimeline = buildBranchOnlyTimeline(
+      seeded.timeline,
       seeded.b1.illustrationId,
       seeded.b2.illustrationId
     );
 
     const branchOnlyWidgetHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={branchOnlyLineage} selectedPlateId={seeded.b1.illustrationId} apiBaseUrl="" />
+      <GridlockPlateWidget lineage={branchOnlyTimeline} selectedPlateId={seeded.b1.illustrationId} apiBaseUrl="" />
     );
     assert.match(branchOnlyWidgetHtml, new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`));
     assert.doesNotMatch(branchOnlyWidgetHtml, /Compare with Canonical/);
 
     const branchOnlyStageHtml = renderToStaticMarkup(
-      <PlateFrameStage nodes={branchOnlyLineage.nodes} activePlateId={seeded.b1.illustrationId} onSelectPlate={() => {}} apiBaseUrl="" />
+      <TimelineFrameStage nodes={branchOnlyTimeline.nodes} activeIllustrationId={seeded.b1.illustrationId} onSelectIllustration={() => {}} apiBaseUrl="" />
     );
     assert.match(branchOnlyStageHtml, new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`));
     assert.doesNotMatch(branchOnlyStageHtml, /Compare with Canonical/);
 
     const standaloneStageHtml = renderToStaticMarkup(
-      <PlateFrameStage nodes={seeded.lineage.nodes} activePlateId={seeded.b1.illustrationId} onSelectPlate={() => {}} apiBaseUrl="" />
+      <TimelineFrameStage nodes={seeded.timeline.nodes} activeIllustrationId={seeded.b1.illustrationId} onSelectIllustration={() => {}} apiBaseUrl="" />
     );
     assert.match(standaloneStageHtml, /Baseline · Turn 2/);
     assert.match(standaloneStageHtml, new RegExp(`<code>${seeded.t2.illustrationId}</code>`));
     assert.match(standaloneStageHtml, /aria-pressed="false"[^>]*>Compare with Canonical<\/button>/);
 
     const standaloneAgedStageHtml = renderToStaticMarkup(
-      <PlateFrameStage nodes={[t1Node, t2Node, b2Node]} activePlateId={seeded.b2.illustrationId} onSelectPlate={() => {}} apiBaseUrl="" />
+      <TimelineFrameStage nodes={[t1Node, t2Node, b2Node]} activeIllustrationId={seeded.b2.illustrationId} onSelectIllustration={() => {}} apiBaseUrl="" />
     );
     assert.match(standaloneAgedStageHtml, /Baseline · Turn 2/);
     assert.match(standaloneAgedStageHtml, new RegExp(`<code>${seeded.t2.illustrationId}</code>`));
     assert.match(standaloneAgedStageHtml, /aria-pressed="false"[^>]*>Compare with Canonical<\/button>/);
 
     const diurnalHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.lineage} selectedPlateId={seeded.b1.illustrationId} theme="diurnal" apiBaseUrl="" />
+      <GridlockPlateWidget lineage={seeded.timeline} selectedPlateId={seeded.b1.illustrationId} theme="diurnal" apiBaseUrl="" />
     );
     const diurnalRemSizes = extractRemFontSizes(diurnalHtml);
     assert.ok(diurnalRemSizes.length > 0 && diurnalRemSizes.every((size) => size >= 0.75));
@@ -77,7 +77,7 @@ describe("PlateComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Pha
     assert.match(diurnalHtml, /aria-pressed="false"[^>]*>Compare with Canonical<\/button>/);
 
     const nocturnalHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.lineage} selectedPlateId={seeded.b1.illustrationId} theme="nocturnal" apiBaseUrl="" />
+      <GridlockPlateWidget lineage={seeded.timeline} selectedPlateId={seeded.b1.illustrationId} theme="nocturnal" apiBaseUrl="" />
     );
     const nocturnalRemSizes = extractRemFontSizes(nocturnalHtml);
     assert.ok(nocturnalRemSizes.length > 0 && nocturnalRemSizes.every((size) => size >= 0.75));
@@ -86,14 +86,14 @@ describe("PlateComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Pha
   });
 
   test("Interactive 2-up split, multi-hop canonical walk, isolated pane fallback, and 90d TTL aged-hop fallback", async () => {
-    const seeded = await seedTestPlateLineage();
-    const t1Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
-    const t2Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.t2.illustrationId)!;
-    const b2Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.b2.illustrationId)!;
+    const seeded = await seedTestFrameTimeline();
+    const t1Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
+    const t2Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.t2.illustrationId)!;
+    const b2Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.b2.illustrationId)!;
 
     await withWidgetDom(async ({ window: win, container, root }) => {
       await act(async () => {
-        root.render(<GridlockPlateWidget lineage={seeded.lineage} initialIllustrationId={seeded.b1.illustrationId} apiBaseUrl="" />);
+        root.render(<GridlockPlateWidget lineage={seeded.timeline} initialIllustrationId={seeded.b1.illustrationId} apiBaseUrl="" />);
       });
 
       const getCompareToggle = () =>
@@ -163,18 +163,18 @@ describe("PlateComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Pha
       assert.equal(getCompareToggle()?.getAttribute("aria-pressed"), "false");
       assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
 
-      const turn1Fork = await seedTurn1ForkLineage(seeded);
-      assert.equal(turn1Fork.lineage.activeCanonicalIllustrationId, seeded.t2.illustrationId);
+      const turn1Fork = await seedTurn1ForkTimeline(seeded);
+      assert.equal(turn1Fork.timeline.activeCanonicalIllustrationId, seeded.t2.illustrationId);
 
       const assertTurn1BaselineSplit = async (
-        lineageFixture: typeof seeded.lineage,
-        branchPlateId: string
+        timelineFixture: typeof seeded.timeline,
+        branchIllustrationId: string
       ) => {
         await act(async () => {
           root.render(
             <GridlockPlateWidget
-              lineage={lineageFixture}
-              initialIllustrationId={branchPlateId}
+              lineage={timelineFixture}
+              initialIllustrationId={branchIllustrationId}
               apiBaseUrl=""
             />
           );
@@ -195,20 +195,20 @@ describe("PlateComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 Pha
         );
         assert.equal(
           container.querySelector('[data-comparison-slot="branch"]')?.getAttribute("data-plate-id"),
-          branchPlateId
+          branchIllustrationId
         );
       };
 
-      await assertTurn1BaselineSplit(turn1Fork.lineage, turn1Fork.branchPlate.illustrationId);
+      await assertTurn1BaselineSplit(turn1Fork.timeline, turn1Fork.branchIllustration.illustrationId);
 
-      const agedHopLineage = PlateLineageResponseSchema.parse({
-        timelineId: seeded.lineage.timelineId,
+      const agedHopTimeline = FrameTimelineResponseSchema.parse({
+        timelineId: seeded.timeline.timelineId,
         activeCanonicalIllustrationId: seeded.t1.illustrationId,
         nodes: [t1Node, t2Node, b2Node],
-        edges: [seeded.lineage.edges[0]!],
+        edges: [seeded.timeline.edges[0]!],
       });
 
-      await assertTurn1BaselineSplit(agedHopLineage, seeded.b2.illustrationId);
+      await assertTurn1BaselineSplit(agedHopTimeline, seeded.b2.illustrationId);
     });
   });
 });

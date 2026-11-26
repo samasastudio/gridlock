@@ -4,7 +4,7 @@ import type {
   FrameTimelineNode,
   FrameTimelineResponse,
 } from "@samasastudio/gridlock-core/schemas";
-import { submitPlateBranch } from "./plate-lineage-client.ts";
+import { submitScenarioBranch as submitScenarioBranchRequest } from "./frame-timeline-client.ts";
 import {
   mergeBranchedNodeIntoTimeline,
   orderTimelineNodes,
@@ -136,7 +136,7 @@ export function useTimelineBranching(options: UseTimelineBranchingOptions) {
     setIsSubmitting(true);
     setBranchErrorEntry(null);
 
-    const result = await submitPlateBranch({
+    const result = await submitScenarioBranchRequest({
       apiBaseUrl,
       interactionId: parentInteractionId,
       scenarioPrompt,

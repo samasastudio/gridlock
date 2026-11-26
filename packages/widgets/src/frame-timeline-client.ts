@@ -1,21 +1,21 @@
 import {
-  BranchPlateResponseSchema,
-  PlateLineageResponseSchema,
-  type BranchPlateRequest,
-  type BranchPlateResponse,
-  type PlateLineageResponse,
+  BranchIllustrationResponseSchema,
+  FrameTimelineResponseSchema,
+  type BranchIllustrationRequest,
+  type BranchIllustrationResponse,
+  type FrameTimelineResponse,
 } from "@samasastudio/gridlock-core/schemas";
 
-export interface PlateLineageQuery {
+export interface FrameTimelineQuery {
   apiBaseUrl: string;
   timelineId?: string;
 }
 
-export type PlateLineageSnapshotResult =
-  | { ok: true; lineage: PlateLineageResponse }
+export type FrameTimelineSnapshotResult =
+  | { ok: true; timeline: FrameTimelineResponse }
   | { ok: false; message: string; statusCode?: number };
 
-export function buildPlateLineageUrl(options: PlateLineageQuery): string {
+export function buildFrameTimelineUrl(options: FrameTimelineQuery): string {
   const base = options.apiBaseUrl.replace(/\/+$/, "");
   const trimmedId = options.timelineId?.trim();
   if (!trimmedId) return `${base}/api/illustrations/timeline`;
@@ -23,7 +23,7 @@ export function buildPlateLineageUrl(options: PlateLineageQuery): string {
   return `${base}/api/illustrations/timeline?${query}`;
 }
 
-export function buildPlateAssetUrl(apiBaseUrl: string, assetPath: string): string {
+export function buildIllustrationAssetUrl(apiBaseUrl: string, assetPath: string): string {
   const base = apiBaseUrl.replace(/\/+$/, "");
   const normalizedPath = `/${assetPath.replace(/^\/+/, "")}`;
   return `${base}${normalizedPath}`;
@@ -38,42 +38,42 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
   }
 }
 
-export async function fetchPlateLineageSnapshot(
-  options: PlateLineageQuery & { signal?: AbortSignal }
-): Promise<PlateLineageSnapshotResult> {
+export async function fetchFrameTimelineSnapshot(
+  options: FrameTimelineQuery & { signal?: AbortSignal }
+): Promise<FrameTimelineSnapshotResult> {
   try {
-    const res = await globalThis.fetch(buildPlateLineageUrl(options), { signal: options.signal });
+    const res = await globalThis.fetch(buildFrameTimelineUrl(options), { signal: options.signal });
     if (!res.ok) {
       return {
         ok: false,
         statusCode: res.status,
-        message: await readErrorMessage(res, `Plate Lineage HTTP ${res.status}`),
+        message: await readErrorMessage(res, `Frame Timeline HTTP ${res.status}`),
       };
     }
     const raw: unknown = await res.json();
-    const parsed = PlateLineageResponseSchema.safeParse(raw);
+    const parsed = FrameTimelineResponseSchema.safeParse(raw);
     if (!parsed.success) {
-      return { ok: false, message: "Malformed Plate Lineage payload" };
+      return { ok: false, message: "Malformed Frame Timeline payload" };
     }
-    return { ok: true, lineage: parsed.data };
+    return { ok: true, timeline: parsed.data };
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Network error loading Plate Lineage",
+      message: error instanceof Error ? error.message : "Network error loading Frame Timeline",
     };
   }
 }
 
-export interface SubmitPlateBranchOptions extends BranchPlateRequest {
+export interface SubmitScenarioBranchOptions extends BranchIllustrationRequest {
   apiBaseUrl: string;
   signal?: AbortSignal;
 }
 
-export type SubmitPlateBranchResult =
-  | { ok: true; branch: BranchPlateResponse }
+export type SubmitScenarioBranchResult =
+  | { ok: true; branch: BranchIllustrationResponse }
   | { ok: false; message: string; statusCode?: number; errorCode?: string };
 
-export function buildPlateBranchUrl(apiBaseUrl: string): string {
+export function buildScenarioBranchUrl(apiBaseUrl: string): string {
   const base = apiBaseUrl.replace(/\/+$/, "");
   return `${base}/api/illustrations/branch`;
 }
@@ -108,7 +108,7 @@ async function readErrorEnvelope(
 
 async function postBranchJson(
   url: string,
-  payload: BranchPlateRequest,
+  payload: BranchIllustrationRequest,
   signal?: AbortSignal
 ): Promise<{ ok: true; response: Response } | { ok: false; message: string }> {
   try {
@@ -128,18 +128,18 @@ async function postBranchJson(
   }
 }
 
-export async function submitPlateBranch(
-  options: SubmitPlateBranchOptions
-): Promise<SubmitPlateBranchResult> {
+export async function submitScenarioBranch(
+  options: SubmitScenarioBranchOptions
+): Promise<SubmitScenarioBranchResult> {
   const trimmedTimelineId = options.timelineId?.trim();
-  const payload: BranchPlateRequest = {
+  const payload: BranchIllustrationRequest = {
     interactionId: options.interactionId.trim(),
     scenarioPrompt: options.scenarioPrompt.trim(),
     ...(trimmedTimelineId ? { timelineId: trimmedTimelineId } : {}),
   };
 
   const postResult = await postBranchJson(
-    buildPlateBranchUrl(options.apiBaseUrl),
+    buildScenarioBranchUrl(options.apiBaseUrl),
     payload,
     options.signal
   );
@@ -156,7 +156,7 @@ export async function submitPlateBranch(
   }
 
   const rawBody = await parseJsonBody(postResult.response);
-  const parsed = rawBody.ok ? BranchPlateResponseSchema.safeParse(rawBody.value) : null;
+  const parsed = rawBody.ok ? BranchIllustrationResponseSchema.safeParse(rawBody.value) : null;
   if (!parsed?.success) {
     return { ok: false, message: "Malformed Scenario Branch payload" };
   }

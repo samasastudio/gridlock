@@ -34,17 +34,17 @@ export {
   type RepairChangelogSnapshotResult,
 } from "./repair-changelog-client.ts";
 export {
-  buildPlateAssetUrl,
-  buildPlateBranchUrl,
-  buildPlateLineageUrl,
-  fetchPlateLineageSnapshot,
-  submitPlateBranch,
-  type PlateLineageQuery,
-  type PlateLineageSnapshotResult,
-  type SubmitPlateBranchOptions,
-  type SubmitPlateBranchResult,
-} from "./plate-lineage-client.ts";
-export { PlateFrameStage, type PlateFrameStageProps } from "./PlateFrameStage.tsx";
+  buildFrameTimelineUrl,
+  buildIllustrationAssetUrl,
+  buildScenarioBranchUrl,
+  fetchFrameTimelineSnapshot,
+  submitScenarioBranch,
+  type FrameTimelineQuery,
+  type FrameTimelineSnapshotResult,
+  type SubmitScenarioBranchOptions,
+  type SubmitScenarioBranchResult,
+} from "./frame-timeline-client.ts";
+export { TimelineFrameStage, type TimelineFrameStageProps } from "./TimelineFrameStage.tsx";
 export { GridlockPlateWidget, type GridlockPlateWidgetProps } from "./GridlockPlateWidget.tsx";
 export { ProjectDossierCard, type ProjectDossierCardProps } from "./ProjectDossierCard.tsx";
 export { ObservationTimeline, type ObservationTimelineProps } from "./ObservationTimeline.tsx";

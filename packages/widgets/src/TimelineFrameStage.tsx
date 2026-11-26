@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { MotionConfig, motion } from "motion/react";
-import type { LineageEdge, LineageNode } from "@samasastudio/gridlock-core/schemas";
+import type { FrameTimelineEdge, FrameTimelineNode } from "@samasastudio/gridlock-core/schemas";
 import { RELIEF_RETICLE_ICON } from "./DossierPrimitives.tsx";
 import { TimelineComparisonStage } from "./TimelineComparisonStage.tsx";
 import { buildTimelineTurnLabels, orderTimelineNodes, resolveStageActiveNode } from "./frame-timeline-model.ts";
@@ -9,21 +9,21 @@ import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
 const STAGE_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
 const BRANCH_CUE_DOT = <span className="gridlock-branch-dot" aria-hidden="true" />;
 
-export interface PlateFrameStageProps {
-  nodes: readonly LineageNode[];
-  edges?: readonly LineageEdge[];
+export interface TimelineFrameStageProps {
+  nodes: readonly FrameTimelineNode[];
+  edges?: readonly FrameTimelineEdge[];
   activeCanonicalIllustrationId?: string | null;
-  activePlateId?: string | null;
+  activeIllustrationId?: string | null;
   isComparing?: boolean;
   onCompareChange?: (isComparing: boolean) => void;
-  onSelectPlate: (illustrationId: string) => void;
+  onSelectIllustration: (illustrationId: string) => void;
   apiBaseUrl?: string;
   assetUrlOverrides?: Readonly<Record<string, string>>;
   baseId?: string;
   children?: ReactNode;
 }
 
-export function PlateFrameStage(props: PlateFrameStageProps) {
+export function TimelineFrameStage(props: TimelineFrameStageProps) {
   const generatedId = useId();
   const stageId = props.baseId ?? generatedId;
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -39,7 +39,7 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
 
   const orderedNodes = orderTimelineNodes(props.nodes);
   const turnLabels = buildTimelineTurnLabels(orderedNodes);
-  const activeNode = resolveStageActiveNode(orderedNodes, props.activePlateId);
+  const activeNode = resolveStageActiveNode(orderedNodes, props.activeIllustrationId);
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (orderedNodes.length <= 1) return;
@@ -57,7 +57,7 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
     event.preventDefault();
     const target = orderedNodes[nextIndex];
     if (!target) return;
-    props.onSelectPlate(target.plate.illustrationId);
+    props.onSelectIllustration(target.plate.illustrationId);
     tabRefs.current[nextIndex]?.focus();
   };
 
@@ -66,9 +66,9 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
       <div className="gridlock-plate-stage">
         {STAGE_STYLESHEET_NODE}
         <div className="gridlock-plate-scrubber-bar">
-          <h3 className="gridlock-section-heading">Temporal Lineage Scrubber</h3>
+          <h3 className="gridlock-section-heading">Frame Timeline Scrubber</h3>
           {activeNode ? (
-            <div role="tablist" aria-label="Visual Plate Lineage turns" className="gridlock-tab-list">
+            <div role="tablist" aria-label="Frame Timeline turns" className="gridlock-tab-list">
               {orderedNodes.map((node, index) => {
                 const isSelected = node.plate.illustrationId === activeNode.plate.illustrationId;
                 const label =
@@ -85,7 +85,7 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
                     aria-controls={`${stageId}-panel-${node.plate.illustrationId}`}
                     tabIndex={isSelected ? 0 : -1}
                     className="gridlock-plate-tab"
-                    onClick={() => props.onSelectPlate(node.plate.illustrationId)}
+                    onClick={() => props.onSelectIllustration(node.plate.illustrationId)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                   >
                     {node.plate.isBranch ? BRANCH_CUE_DOT : null}
@@ -121,7 +121,7 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
         ) : (
           <p className="gridlock-empty-row" data-empty-lineage="true">
             {RELIEF_RETICLE_ICON}
-            <span><strong>0 Visual Plates recorded</strong> — awaiting initial $25M+ corridor filing milestone to bootstrap Turn 1.</span>
+            <span><strong>0 Generated Illustrations recorded</strong> — awaiting initial $25M+ corridor filing milestone to bootstrap Turn 1.</span>
           </p>
         )}
       </div>
