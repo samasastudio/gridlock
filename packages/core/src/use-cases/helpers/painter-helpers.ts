@@ -11,7 +11,6 @@ import {
   type Observation,
   type RunStage,
 } from "../../interfaces/index.ts";
-import { applyScenarioBranchWatermarkToWebp } from "./webp-codec.ts";
 
 export type PainterStage = Extract<RunStage, `painter_${string}`>;
 
@@ -158,34 +157,8 @@ export function isGeneratedIllustrationActiveAt(plate: GeneratedIllustration, no
   return plate.expiresAt === null || Date.parse(plate.expiresAt) > now.getTime();
 }
 
-export function prepareFinalIllustrationWebp(
-  encoded: { webpBuffer: Buffer; sha256: string },
-  isBranch: boolean
-): { webpBuffer: Buffer; sha256: string; pinCanonicalArtifacts: boolean } {
-  if (!isBranch) {
-    return {
-      webpBuffer: encoded.webpBuffer,
-      sha256: encoded.sha256,
-      pinCanonicalArtifacts: true,
-    };
-  }
-  const expectedRightsTag = `<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`;
-  if (encoded.webpBuffer.includes(expectedRightsTag, 0, "utf8")) {
-    return {
-      webpBuffer: encoded.webpBuffer,
-      sha256: encoded.sha256,
-      pinCanonicalArtifacts: false,
-    };
-  }
-  const watermarked = applyScenarioBranchWatermarkToWebp(
-    encoded.webpBuffer,
-    SCENARIO_BRANCH_WATERMARK
-  );
-  return {
-    webpBuffer: watermarked,
-    sha256: createHash("sha256").update(watermarked).digest("hex"),
-    pinCanonicalArtifacts: false,
-  };
+export function hasScenarioBranchRightsXmp(webpBuffer: Buffer): boolean {
+  return webpBuffer.includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`, 0, "utf8");
 }
 
 export function synthesizeScenarioBranchPrompt(parentPlate: GeneratedIllustration, scenarioPrompt: string): string {

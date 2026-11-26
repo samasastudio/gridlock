@@ -502,7 +502,8 @@ describe("GET /api/illustrations/assets/:illustrationId.webp HTTP Seam (Seam 3 A
   test("Enforces 400 query rejection, 405 Allow: GET, and 500 fail-closed metadata/WebP integrity verification with clean 200 recovery", async () => {
     const { repository, t1 } = await seedLineageGraph();
     const validBuf = (await repository.readGeneratedIllustrationWebp(t1.illustrationId))!;
-    const flippedBuf = createFixtureWebpBuffer("tampered-valid-webp");
+    const flippedBuf = Buffer.from(validBuf);
+    flippedBuf[flippedBuf.byteLength - 1] = (flippedBuf[flippedBuf.byteLength - 1] ?? 0) ^ 0xff;
 
     assert.ok(isWebpBuffer(flippedBuf));
     assert.equal(flippedBuf.byteLength, t1.byteLength);

@@ -1,24 +1,11 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { inflateSync } from "node:zlib";
-import type { GeminiInteractionImageBlock, PainterImageEncodeResult } from "../../interfaces/index.ts";
 
-const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const VP8X_RESERVED_OR_ANIM_MASK = 0xc3;
 const VP8X_ICCP_FLAG = 0x20;
 const VP8X_ALPHA_FLAG = 0x10;
 const VP8X_EXIF_FLAG = 0x08;
 const VP8X_XMP_FLAG = 0x04;
-
-const GLYPH_3X5: Readonly<Record<string, number>> = {
-  A: 0o25755, B: 0o65656, C: 0o34443, D: 0o65556, E: 0o74647, F: 0o74644, G: 0o34553,
-  H: 0o55755, I: 0o72227, J: 0o11152, K: 0o55655, L: 0o44447, M: 0o57755, N: 0o65555,
-  O: 0o25552, P: 0o65644, Q: 0o25531, R: 0o65665, S: 0o34216, T: 0o72222, U: 0o55557,
-  V: 0o55552, W: 0o55775, X: 0o55255, Y: 0o55222, Z: 0o71247, "/": 0o11244, "-": 0o00700,
-  ":": 0o02020, ".": 0o00002, "0": 0o75557, "1": 0o26227, "2": 0o71747, "3": 0o71717,
-  "4": 0o55711, "5": 0o74716, "6": 0o34757, "7": 0o71122, "8": 0o75757, "9": 0o75716,
-};
 
 const BIT_REV_8 = Uint8Array.from({ length: 256 }, (_, b) => {
   const x1 = ((b & 0xf0) >>> 4) | ((b & 0x0f) << 4);
@@ -124,83 +111,6 @@ function encodeRgbaToLosslessWebp(width: number, height: number, rgba: Buffer): 
   return wrapRiffWebpChunks([buildRiffChunk("VP8L", Buffer.concat([vp8lHeader, VP8L_FLAT_TREE_HEADER, pixelBytes]))]);
 }
 
-function wrapWatermarkLines(text: string, maxCharsPerLine: number): string[] {
-  const words = text.trim().toUpperCase().split(/\s+/).filter(Boolean);
-  if (words.length === 0 || maxCharsPerLine <= 0) return [];
-  return words.reduce<string[]>((lines, word) => {
-    const slices = Array.from({ length: Math.ceil(word.length / maxCharsPerLine) }, (_, idx) =>
-      word.slice(idx * maxCharsPerLine, (idx + 1) * maxCharsPerLine)
-    );
-    return slices.reduce<string[]>((acc, slice) => {
-      const current = acc.at(-1);
-      return current !== undefined && current.length + 1 + slice.length <= maxCharsPerLine
-        ? [...acc.slice(0, -1), `${current} ${slice}`]
-        : [...acc, slice];
-    }, lines);
-  }, []);
-}
-
-function isWatermarkGlyphInk(lines: readonly string[], x: number, y: number): boolean {
-  if (x < 2 || y < 1) return false;
-  const [lineIdx, glyphY, charIdx, glyphX] = [Math.floor((y - 1) / 6), (y - 1) % 6, Math.floor((x - 2) / 4), (x - 2) % 4];
-  const ch = lines[lineIdx]?.[charIdx];
-  if (!ch || ch === " " || glyphY >= 5 || glyphX >= 3) return false;
-  return (((GLYPH_3X5[ch] ?? 0o75557) >>> ((4 - glyphY) * 3 + (2 - glyphX))) & 1) === 1;
-}
-
-function stampFlatVp8lWatermarkBanner(primary: RiffChunk, dims: { width: number; height: number }, watermarkText: string): RiffChunk {
-  const flatPrefixLen = 5 + VP8L_FLAT_TREE_HEADER.byteLength;
-  const isFlatVp8l =
-    primary.fourCc === "VP8L" &&
-    primary.data.byteLength === flatPrefixLen + dims.width * dims.height * 4 &&
-    primary.data.subarray(5, flatPrefixLen).equals(VP8L_FLAT_TREE_HEADER);
-  if (!isFlatVp8l) return primary;
-  const visibleLines = wrapWatermarkLines(watermarkText, Math.max(1, Math.floor((dims.width - 3) / 4))).slice(
-    0,
-    Math.max(1, Math.floor((dims.height - 1) / 6))
-  );
-  const bannerHeight = visibleLines.length > 0 ? Math.min(dims.height, visibleLines.length * 6 + 1) : 0;
-  const rgba = Buffer.from(
-    Uint8Array.from({ length: dims.width * dims.height * 4 }, (_, byteIdx) => {
-      const [pxIdx, channel] = [byteIdx >>> 2, byteIdx & 3];
-      const [x, y] = [pxIdx % dims.width, Math.floor(pxIdx / dims.width)];
-      if (y < bannerHeight) return (isWatermarkGlyphInk(visibleLines, x, y) ? [245, 242, 235, 255] : [158, 42, 43, 255])[channel] ?? 255;
-      const srcOff = flatPrefixLen + pxIdx * 4;
-      const encodedOffset = channel === 0 ? srcOff + 1 : channel === 1 ? srcOff : srcOff + channel;
-      return BIT_REV_8[primary.data[encodedOffset] ?? (channel === 3 ? 255 : 0)] ?? 0;
-    })
-  );
-  return readRiffChunks(encodeRgbaToLosslessWebp(dims.width, dims.height, rgba))?.[0] ?? primary;
-}
-
-export function applyScenarioBranchWatermarkToWebp(webpBuffer: Buffer, watermarkText: string): Buffer {
-  const chunks = readRiffChunks(webpBuffer) ?? [];
-  const primary = chunks.find((c) => c.fourCc === "VP8L" || c.fourCc === "VP8 ");
-  const primaryDims = primary ? parseBitstreamDims(primary) : null;
-  if (!primary || !primaryDims) return webpBuffer;
-  const stampedPrimary = stampFlatVp8lWatermarkBanner(primary, primaryDims, watermarkText);
-  const stampedDims = parseBitstreamDims(stampedPrimary) ?? primaryDims;
-  const iccpChunk = chunks.find((c) => c.fourCc === "ICCP" && c.data.byteLength > 0);
-  const alphChunk = chunks.find((c) => c.fourCc === "ALPH" && c.data.byteLength > 0);
-  const exifChunk = chunks.find((c) => c.fourCc === "EXIF" && c.data.byteLength > 0);
-  const hasLossyAlpha = stampedPrimary.fourCc === "VP8 " && alphChunk !== undefined;
-  const hasAlpha = stampedDims.hasAlpha || hasLossyAlpha;
-  const vp8x = Buffer.alloc(10);
-  vp8x[0] = VP8X_XMP_FLAG | (iccpChunk ? VP8X_ICCP_FLAG : 0) | (hasAlpha ? VP8X_ALPHA_FLAG : 0) | (exifChunk ? VP8X_EXIF_FLAG : 0);
-  const [widthMinusOne, heightMinusOne] = [stampedDims.width - 1, stampedDims.height - 1];
-  vp8x.set([widthMinusOne & 0xff, (widthMinusOne >>> 8) & 0xff, (widthMinusOne >>> 16) & 0xff, heightMinusOne & 0xff, (heightMinusOne >>> 8) & 0xff, (heightMinusOne >>> 16) & 0xff], 4);
-  const escaped = watermarkText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const xmp = Buffer.from(`<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:rights>${escaped}</dc:rights></rdf:Description></rdf:RDF></x:xmpmeta>`, "utf-8");
-  return wrapRiffWebpChunks([
-    buildRiffChunk("VP8X", vp8x),
-    ...(iccpChunk ? [buildRiffChunk("ICCP", iccpChunk.data)] : []),
-    ...(hasLossyAlpha ? [buildRiffChunk("ALPH", alphChunk.data)] : []),
-    buildRiffChunk(stampedPrimary.fourCc, stampedPrimary.data),
-    ...(exifChunk ? [buildRiffChunk("EXIF", exifChunk.data)] : []),
-    buildRiffChunk("XMP ", xmp),
-  ]);
-}
-
 function corridorCanvasPixelRgba(x: number, y: number, width: number, height: number, spineX: number, hubY: number): readonly [number, number, number, number] {
   if (x === spineX || (Math.abs(x - spineX) <= 2 && Math.abs(y - hubY) <= 2)) return [44, 53, 57, 255];
   if (x === 0 || x === width - 1 || y === 0 || y === height - 1) return [138, 130, 117, 255];
@@ -216,78 +126,4 @@ export function createCorridorBaseCanvasWebp(timelineSeed = "texas-corridor-main
     Array.from({ length: width * height }, (_, i) => corridorCanvasPixelRgba(i % width, Math.floor(i / width), width, height, spineX, hubY)).flat()
   );
   return encodeRgbaToLosslessWebp(width, height, rgba);
-}
-
-function paeth(a: number, b: number, c: number): number {
-  const [pa, pb, pc] = [Math.abs(b - c), Math.abs(a - c), Math.abs(a + b - 2 * c)];
-  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
-}
-
-function pngFilterPredictor(filterType: number, left: number, up: number, upLeft: number): number {
-  if (filterType === 1) return left;
-  if (filterType === 2) return up;
-  if (filterType === 3) return (left + up) >>> 1;
-  if (filterType === 4) return paeth(left, up, upLeft);
-  return 0;
-}
-
-function expandPngChannelByte(row: Uint8Array, srcOffset: number, channels: number, channelIdx: number): number {
-  if (channelIdx === 0) return row[srcOffset] ?? 0;
-  if (channelIdx === 1) return channels >= 3 ? (row[srcOffset + 1] ?? 0) : (row[srcOffset] ?? 0);
-  if (channelIdx === 2) return channels >= 3 ? (row[srcOffset + 2] ?? 0) : (row[srcOffset] ?? 0);
-  if (channels === 4) return row[srcOffset + 3] ?? 255;
-  return channels === 2 ? (row[srcOffset + 1] ?? 255) : 255;
-}
-
-function parsePngChunks(buf: Buffer, off = 8, acc: readonly { type: string; data: Buffer }[] = []): { type: string; data: Buffer }[] | null {
-  if (off + 12 > buf.byteLength) return null;
-  const len = buf.readUInt32BE(off);
-  if (off + 12 + len > buf.byteLength) return null;
-  const type = buf.subarray(off + 4, off + 8).toString("ascii");
-  const next = [...acc, { type, data: buf.subarray(off + 8, off + 8 + len) }];
-  return type === "IEND" ? (off + 12 + len === buf.byteLength ? next : null) : parsePngChunks(buf, off + 12 + len, next);
-}
-
-function tryInflate(buf: Buffer): Buffer | null {
-  try { return inflateSync(buf); } catch { return null; }
-}
-
-function decodePngToRgba(buf: Buffer): { width: number; height: number; rgba: Buffer } | null {
-  if (buf.byteLength < 33 || !buf.subarray(0, 8).equals(PNG_SIG)) return null;
-  const chunks = parsePngChunks(buf);
-  const ihdr = chunks?.[0]?.type === "IHDR" && chunks[0].data.byteLength === 13 ? chunks[0].data : null;
-  if (!chunks || !ihdr) return null;
-  const [width, height, colorType] = [ihdr.readUInt32BE(0), ihdr.readUInt32BE(4), ihdr[9]];
-  const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : colorType === 4 ? 2 : colorType === 0 ? 1 : 0;
-  if (width <= 0 || width > 4096 || height <= 0 || height > 4096 || ihdr[8] !== 8 || ihdr[10] !== 0 || ihdr[11] !== 0 || ihdr[12] !== 0 || channels === 0) return null;
-  const [inflated, stride] = [tryInflate(Buffer.concat(chunks.filter((c) => c.type === "IDAT").map((c) => c.data))), width * channels];
-  if (!inflated || inflated.byteLength !== height * (1 + stride)) return null;
-  if (new Uint8Array(height).some((_, y) => (inflated[y * (1 + stride)] ?? 99) > 4)) return null;
-  const unfilteredSeed = new Uint8Array(height * stride);
-  const unfiltered = unfilteredSeed.reduce<Uint8Array>((out, _, idx) => {
-    const [y, byteIdx] = [Math.floor(idx / stride), idx % stride];
-    const rowStart = y * (1 + stride);
-    const [left, up, upLeft] = [byteIdx >= channels ? (out[idx - channels] ?? 0) : 0, y > 0 ? (out[idx - stride] ?? 0) : 0, y > 0 && byteIdx >= channels ? (out[idx - stride - channels] ?? 0) : 0];
-    out[idx] = ((inflated[rowStart + 1 + byteIdx] ?? 0) + pngFilterPredictor(inflated[rowStart] ?? 0, left, up, upLeft)) & 0xff;
-    return out;
-  }, unfilteredSeed);
-  const rgba = Buffer.from(
-    Uint8Array.from({ length: width * height * 4 }, (_, byteIdx) => expandPngChannelByte(unfiltered, (byteIdx >>> 2) * channels, channels, byteIdx & 3))
-  );
-  return { width, height, rgba };
-}
-
-export function defaultPainterImageEncoder(outputImage: GeminiInteractionImageBlock | null | undefined): PainterImageEncodeResult {
-  const rawBase64 = outputImage?.data?.trim() ?? "";
-  if (rawBase64.length === 0 || rawBase64.length % 4 !== 0 || !BASE64_RE.test(rawBase64)) {
-    return { ok: false, reason: "Missing or invalid base64 image data in Gemini response" };
-  }
-  const decoded = Buffer.from(rawBase64, "base64");
-  if (isWebpBuffer(decoded)) {
-    return { ok: true, webpBuffer: decoded, sha256: createHash("sha256").update(decoded).digest("hex") };
-  }
-  const decodedPng = decodePngToRgba(decoded);
-  if (!decodedPng) return { ok: false, reason: "Corrupt or unsupported image payload in Gemini response (expected valid WebP or 8-bit PNG)" };
-  const webpBuffer = encodeRgbaToLosslessWebp(decodedPng.width, decodedPng.height, decodedPng.rgba);
-  return { ok: true, webpBuffer, sha256: createHash("sha256").update(webpBuffer).digest("hex") };
 }

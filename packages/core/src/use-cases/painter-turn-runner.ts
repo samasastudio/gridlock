@@ -19,8 +19,8 @@ import {
   classifyNonCompletedInteraction,
   classifyThrownPainterError,
   evaluateMilestoneObservations,
+  hasScenarioBranchRightsXmp,
   isExpiredOrRejectedPreviousInteraction,
-  prepareFinalIllustrationWebp,
   selectActiveCanonicalIllustration,
   type GeneratedIllustrationTurnSpec,
   type PainterCompletedTurn,
@@ -28,10 +28,7 @@ import {
   type PainterStage,
   type PainterTurnAttemptResult,
 } from "./helpers/painter-helpers.ts";
-import {
-  defaultPainterImageEncoder,
-  isWebpBuffer,
-} from "./helpers/webp-codec.ts";
+import { isWebpBuffer } from "./helpers/webp-codec.ts";
 import { recordAgenticStageRun, recordStageRun } from "./record-run.ts";
 
 export interface PainterTurnContext {
@@ -55,7 +52,7 @@ export type PainterMilestoneGateOutcome =
 
 export async function preparePainterTurn(
   input: { timelineId?: string; now?: Date },
-  deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: RunSpanSink }
+  deps: { repository: GridlockRepository; imageEncoder: PainterImageEncoder; spanSink?: RunSpanSink }
 ): Promise<{ ctx: PainterTurnContext; existingPlates: GeneratedIllustration[] }> {
   const startedWallMs = Date.now();
   const timelineId = input.timelineId ?? DEFAULT_TIMELINE_ID;
@@ -69,7 +66,7 @@ export async function preparePainterTurn(
       now,
       startedWallMs,
       repository: deps.repository,
-      imageEncoder: deps.imageEncoder ?? defaultPainterImageEncoder,
+      imageEncoder: deps.imageEncoder,
       ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
     },
     existingPlates,
@@ -124,7 +121,7 @@ async function recordMilestoneSkip(
 
 export async function evaluatePainterMilestoneGate(
   input: { timelineId?: string; observations: readonly Observation[]; now?: Date },
-  deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: RunSpanSink }
+  deps: { repository: GridlockRepository; imageEncoder: PainterImageEncoder; spanSink?: RunSpanSink }
 ): Promise<PainterMilestoneGateOutcome> {
   const { ctx, existingPlates } = await preparePainterTurn(input, deps);
   const milestoneObservations = evaluateMilestoneObservations(input.observations, existingPlates);
@@ -263,13 +260,15 @@ export async function finalizePaintedIllustrationTurn(
   if (!encoded.ok) {
     return failClosedPainter(ctx, { stage: params.stage, reason: encoded.reason, errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
-  const finalized = prepareFinalIllustrationWebp(encoded, params.isBranch);
-  if (!isWebpBuffer(finalized.webpBuffer)) {
+  if (!isWebpBuffer(encoded.webpBuffer)) {
     return failClosedPainter(ctx, { stage: params.stage, reason: "Encoded Generated Illustration failed RIFF/WEBP bitstream validation", errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
-  const plate = buildGeneratedIllustrationRecord({ ...params, rebootstrappedFromParentWebp, timelineId: ctx.timelineId, interactionId, webpBuffer: finalized.webpBuffer, sha256: finalized.sha256, createdAt: ctx.now.toISOString() });
-  await ctx.repository.saveGeneratedIllustration(plate, finalized.webpBuffer);
-  if (finalized.pinCanonicalArtifacts) await pinMilestoneRawCaptures(ctx.repository, plate.rawCaptureHashes);
+  if (params.isBranch && !hasScenarioBranchRightsXmp(encoded.webpBuffer)) {
+    return failClosedPainter(ctx, { stage: params.stage, reason: "Encoded Scenario Branch illustration missing required XMP rights watermark metadata", errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
+  }
+  const plate = buildGeneratedIllustrationRecord({ ...params, rebootstrappedFromParentWebp, timelineId: ctx.timelineId, interactionId, webpBuffer: encoded.webpBuffer, sha256: encoded.sha256, createdAt: ctx.now.toISOString() });
+  await ctx.repository.saveGeneratedIllustration(plate, encoded.webpBuffer);
+  if (!params.isBranch) await pinMilestoneRawCaptures(ctx.repository, plate.rawCaptureHashes);
   await recordAgenticStageRun(
     {
       stage: params.stage,
@@ -277,7 +276,7 @@ export async function finalizePaintedIllustrationTurn(
       status: "agentic_completed",
       tokensUsed,
       interactionId,
-      rawByteLength: finalized.webpBuffer.byteLength,
+      rawByteLength: encoded.webpBuffer.byteLength,
       ...(rebootstrappedFromParentWebp ? { illustrationCacheHitsDelta: 1 } : {}),
       startedAt: ctx.now,
       endedAt: turnEndedAt(ctx),
@@ -285,5 +284,5 @@ export async function finalizePaintedIllustrationTurn(
     },
     runRecordDeps(ctx)
   );
-  return { status: "illustration_painted", operation: params.operation, timelineId: ctx.timelineId, illustration: plate, webpBuffer: finalized.webpBuffer, tokensUsed, rebootstrappedFromParentWebp };
+  return { status: "illustration_painted", operation: params.operation, timelineId: ctx.timelineId, illustration: plate, webpBuffer: encoded.webpBuffer, tokensUsed, rebootstrappedFromParentWebp };
 }

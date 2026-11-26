@@ -1,14 +1,37 @@
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import {
   defaultPageLoader,
   defaultSearchLoader,
 } from "./adapters/http-loaders.ts";
+import { sharpImageEncoder } from "./adapters/sharp-image-encoder.ts";
+import {
+  createGridlockHttpServer as createGridlockHttpServerController,
+  handleGridlockHttpRequest as handleGridlockHttpRequestController,
+  type GridlockHttpDeps as GridlockHttpControllerDeps,
+} from "./controllers/http-server.ts";
 import { ingestTdlrFiling as ingestTdlrFilingUseCase } from "./use-cases/ingest-tdlr-filing.ts";
+import {
+  evaluatePainterMilestoneGate as evaluatePainterMilestoneGateUseCase,
+  type PainterMilestoneGateOutcome,
+} from "./use-cases/painter-turn-runner.ts";
+import {
+  bootstrapCanvas as bootstrapCanvasUseCase,
+  branchTimeline as branchTimelineUseCase,
+  paintMilestoneDelta as paintMilestoneDeltaUseCase,
+  type BootstrapCanvasInput,
+  type BranchTimelineInput,
+  type PainterUseCaseDeps,
+  type PaintMilestoneDeltaInput,
+} from "./use-cases/run-painter-agent.ts";
 import { runTdlrDiscoverySweep as runTdlrDiscoverySweepUseCase } from "./use-cases/run-tdlr-discovery.ts";
 import type {
   GridlockRepository,
   IngestFilingResult,
+  Observation,
   PageLoader,
+  PainterImageEncoder,
   SearchLoader,
+  StatefulPainterResult,
   TdlrDiscoveryMode,
   TdlrDiscoverySweepResult,
   TdlrSearchFilter,
@@ -152,22 +175,9 @@ export {
   type HydrateWorkspaceResult,
 } from "./use-cases/hydrate-investigation-workspace.ts";
 export {
-  evaluatePainterMilestoneGate,
-  type PainterMilestoneGateOutcome,
-} from "./use-cases/painter-turn-runner.ts";
-export {
   recordAgenticStageRun,
   recordStageRun,
 } from "./use-cases/record-run.ts";
-export {
-  bootstrapCanvas,
-  branchTimeline,
-  paintMilestoneDelta,
-  type BootstrapCanvasInput,
-  type BranchTimelineInput,
-  type PainterDeps,
-  type PaintMilestoneDeltaInput,
-} from "./use-cases/run-painter-agent.ts";
 export {
   runUiOrchestrationAgent,
   type UiOrchestrationAgentDeps,
@@ -176,6 +186,62 @@ export {
   type UiOrchestrationAgentResult,
 } from "./use-cases/run-ui-orchestration-agent.ts";
 export { runOutOfBandRepairAgent } from "./use-cases/run-repair-agent.ts";
+
+export type {
+  BootstrapCanvasInput,
+  BranchTimelineInput,
+  PaintMilestoneDeltaInput,
+  PainterMilestoneGateOutcome,
+};
+
+export type PainterDeps = Omit<PainterUseCaseDeps, "imageEncoder"> & {
+  imageEncoder?: PainterImageEncoder;
+};
+
+export type GridlockHttpDeps = Omit<GridlockHttpControllerDeps, "imageEncoder"> & {
+  imageEncoder?: PainterImageEncoder;
+};
+
+export async function evaluatePainterMilestoneGate(
+  input: { timelineId?: string; observations: readonly Observation[]; now?: Date },
+  deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: RunSpanSink }
+): Promise<PainterMilestoneGateOutcome> {
+  return evaluatePainterMilestoneGateUseCase(input, {
+    repository: deps.repository,
+    imageEncoder: deps.imageEncoder ?? sharpImageEncoder,
+    ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+  });
+}
+
+export async function bootstrapCanvas(
+  input: BootstrapCanvasInput,
+  deps: PainterDeps
+): Promise<StatefulPainterResult> {
+  return bootstrapCanvasUseCase(input, {
+    ...deps,
+    imageEncoder: deps.imageEncoder ?? sharpImageEncoder,
+  });
+}
+
+export async function paintMilestoneDelta(
+  input: PaintMilestoneDeltaInput,
+  deps: PainterDeps
+): Promise<StatefulPainterResult> {
+  return paintMilestoneDeltaUseCase(input, {
+    ...deps,
+    imageEncoder: deps.imageEncoder ?? sharpImageEncoder,
+  });
+}
+
+export async function branchTimeline(
+  input: BranchTimelineInput,
+  deps: PainterDeps
+): Promise<StatefulPainterResult> {
+  return branchTimelineUseCase(input, {
+    ...deps,
+    imageEncoder: deps.imageEncoder ?? sharpImageEncoder,
+  });
+}
 
 export async function ingestTdlrFiling(
   input: {
@@ -228,8 +294,20 @@ export async function runTdlrDiscoverySweep(
   });
 }
 
-export {
-  createGridlockHttpServer,
-  handleGridlockHttpRequest,
-  type GridlockHttpDeps,
-} from "./controllers/http-server.ts";
+export async function handleGridlockHttpRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  deps: GridlockHttpDeps
+): Promise<void> {
+  return handleGridlockHttpRequestController(req, res, {
+    ...deps,
+    imageEncoder: deps.imageEncoder ?? sharpImageEncoder,
+  });
+}
+
+export function createGridlockHttpServer(deps: GridlockHttpDeps): Server {
+  return createGridlockHttpServerController({
+    ...deps,
+    imageEncoder: deps.imageEncoder ?? sharpImageEncoder,
+  });
+}
