@@ -532,6 +532,12 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
           `${relPath}:${index + 1}: TypeScript suppression directive (@ts-ignore / @ts-nocheck) is prohibited (CODING_STANDARDS.md §2)`
         );
       }
+      const stripped = stripCommentsAndStrings(line);
+      if (/=>\s*\{[^}\n]*;\s*[^}\s][^}\n]*\}/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Avoid line-golfing multiple statements into a single-line arrow block — format across lines (CODING_STANDARDS.md §1)`
+        );
+      }
     }
   }
 
@@ -586,6 +592,40 @@ export function evaluatePullRequestLineBudget({
   ];
 }
 
+function countUntrackedWorkingTreeLines(repoRoot) {
+  const untrackedResult = spawnSync(
+    "git",
+    ["ls-files", "--others", "--exclude-standard"],
+    { cwd: repoRoot, encoding: "utf-8" }
+  );
+  if (untrackedResult.status !== 0) {
+    return 0;
+  }
+  return untrackedResult.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reduce((total, relPath) => {
+      const fullPath = join(repoRoot, relPath);
+      const stats = statSync(fullPath, { throwIfNoEntry: false });
+      if (!stats?.isFile()) {
+        return total;
+      }
+      const buf = readFileSync(fullPath);
+      if (buf.includes(0)) {
+        return total;
+      }
+      const text = buf.toString("utf-8");
+      if (text.length === 0) {
+        return total;
+      }
+      const lineCount = text.endsWith("\n")
+        ? text.split("\n").length - 1
+        : text.split("\n").length;
+      return total + lineCount;
+    }, 0);
+}
+
 export function checkPullRequestDiffSize(repoRoot, options = {}) {
   const baseRef =
     options.baseRef ||
@@ -614,7 +654,7 @@ export function checkPullRequestDiffSize(repoRoot, options = {}) {
       ],
     };
   }
-  const { insertions, deletions } = diffResult.stdout
+  const trackedCounts = diffResult.stdout
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
@@ -630,6 +670,11 @@ export function checkPullRequestDiffSize(repoRoot, options = {}) {
       },
       { insertions: 0, deletions: 0 }
     );
+  const untrackedInsertions = workingTree
+    ? countUntrackedWorkingTreeLines(repoRoot)
+    : 0;
+  const insertions = trackedCounts.insertions + untrackedInsertions;
+  const deletions = trackedCounts.deletions;
   return {
     insertions,
     deletions,
