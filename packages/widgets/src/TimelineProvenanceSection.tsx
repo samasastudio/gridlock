@@ -1,17 +1,17 @@
-import type { LineageNode, PlateLineageResponse } from "@samasastudio/gridlock-core/schemas";
+import type { FrameTimelineNode, FrameTimelineResponse } from "@samasastudio/gridlock-core/schemas";
 import { CopyCitationButton, EXPORT_ARROW_ICON } from "./DossierPrimitives.tsx";
 import {
   buildAncestorProvenanceChain,
-  buildPlateTurnLabels,
-  orderLineageNodes,
+  buildTimelineTurnLabels,
+  orderTimelineNodes,
   resolveNodeSourceCitations,
   type ProvenanceHop,
-} from "./plate-lineage-model.ts";
+} from "./frame-timeline-model.ts";
 
-export interface PlateProvenanceSectionProps {
-  lineage: PlateLineageResponse;
-  activeNode: LineageNode;
-  onSelectPlate: (illustrationId: string) => void;
+export interface TimelineProvenanceSectionProps {
+  timeline: FrameTimelineResponse;
+  activeNode: FrameTimelineNode;
+  onSelectIllustration: (illustrationId: string) => void;
 }
 
 function formatTurnLabel(hop: ProvenanceHop): string {
@@ -21,16 +21,16 @@ function formatTurnLabel(hop: ProvenanceHop): string {
 function ProvenanceHopRow(props: {
   hop: ProvenanceHop;
   turnLabel?: string;
-  onSelectPlate: (illustrationId: string) => void;
+  onSelectIllustration: (illustrationId: string) => void;
 }) {
-  const { hop, turnLabel, onSelectPlate } = props;
+  const { hop, turnLabel, onSelectIllustration } = props;
   const resolvedTurnLabel = turnLabel ?? formatTurnLabel(hop);
-  const selectablePlateId = !hop.isActiveTarget && !hop.isAgedOutParent ? hop.illustrationId : null;
+  const selectableIllustrationId = !hop.isActiveTarget && !hop.isAgedOutParent ? hop.illustrationId : null;
 
   return (
     <li className="gridlock-provenance-hop" aria-current={hop.isActiveTarget ? "step" : undefined}>
-      {selectablePlateId ? (
-        <button type="button" className="gridlock-hop-btn" onClick={() => onSelectPlate(selectablePlateId)}>
+      {selectableIllustrationId ? (
+        <button type="button" className="gridlock-hop-btn" onClick={() => onSelectIllustration(selectableIllustrationId)}>
           {`${resolvedTurnLabel} · ${hop.interactionId}`}
         </button>
       ) : hop.isAgedOutParent ? (
@@ -61,12 +61,12 @@ function ProvenanceHopRow(props: {
   );
 }
 
-export function PlateProvenanceSection(props: PlateProvenanceSectionProps) {
-  const { lineage, activeNode, onSelectPlate } = props;
+export function TimelineProvenanceSection(props: TimelineProvenanceSectionProps) {
+  const { timeline, activeNode, onSelectIllustration } = props;
   const { plate } = activeNode;
   const citations = resolveNodeSourceCitations(activeNode);
-  const turnLabels = buildPlateTurnLabels(orderLineageNodes(lineage.nodes));
-  const hops = buildAncestorProvenanceChain(lineage, activeNode);
+  const turnLabels = buildTimelineTurnLabels(orderTimelineNodes(timeline.nodes));
+  const hops = buildAncestorProvenanceChain(timeline, activeNode);
 
   return (
     <>
@@ -103,16 +103,16 @@ export function PlateProvenanceSection(props: PlateProvenanceSectionProps) {
             </span>
             <span className="gridlock-provenance-meta">
               <CopyCitationButton value={plate.interactionId} displayLabel={plate.interactionId} citationKind="Interaction ID" />
-              <CopyCitationButton value={plate.sha256} displayLabel={`webp:${plate.sha256.slice(0, 12)}`} citationKind="Visual Plate WebP SHA-256" />
+              <CopyCitationButton value={plate.sha256} displayLabel={`webp:${plate.sha256.slice(0, 12)}`} citationKind="Generated Illustration WebP SHA-256" />
             </span>
           </div>
-          <ol className="gridlock-provenance-hops" aria-label="Interaction lineage chain">
+          <ol className="gridlock-provenance-hops" aria-label="Interaction timeline chain">
             {hops.map((hop) => (
               <ProvenanceHopRow
                 key={hop.interactionId}
                 hop={hop}
                 turnLabel={hop.illustrationId ? turnLabels.get(hop.illustrationId) : undefined}
-                onSelectPlate={onSelectPlate}
+                onSelectIllustration={onSelectIllustration}
               />
             ))}
           </ol>

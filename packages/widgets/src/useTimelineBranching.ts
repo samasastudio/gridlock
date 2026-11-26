@@ -1,47 +1,53 @@
 import { useEffect, useRef, useState } from "react";
 import type {
-  BranchPlateResponse,
-  LineageNode,
-  PlateLineageResponse,
+  BranchIllustrationResponse,
+  FrameTimelineNode,
+  FrameTimelineResponse,
 } from "@samasastudio/gridlock-core/schemas";
 import { submitPlateBranch } from "./plate-lineage-client.ts";
 import {
-  mergeBranchedNodeIntoLineage,
-  orderLineageNodes,
-  resolveActiveLineageNode,
-} from "./plate-lineage-model.ts";
+  mergeBranchedNodeIntoTimeline,
+  orderTimelineNodes,
+  resolveActiveTimelineNode,
+} from "./frame-timeline-model.ts";
 
-export interface PlateBranchAlert {
+export interface TimelineBranchAlert {
   message: string;
   statusCode?: number;
   errorCode?: string;
 }
 
-export interface UsePlateBranchingOptions {
-  baseLineage: PlateLineageResponse;
+export interface UseTimelineBranchingOptions {
+  baseTimeline: FrameTimelineResponse;
   apiBaseUrl?: string;
-  selectedPlateId?: string;
+  selectedIllustrationId?: string;
   initialIllustrationId?: string;
-  onSelectPlate?: (illustrationId: string) => void;
+  onSelectIllustration?: (illustrationId: string) => void;
 }
 
-export function usePlateBranching(options: UsePlateBranchingOptions) {
-  const { baseLineage, apiBaseUrl, selectedPlateId, initialIllustrationId, onSelectPlate } = options;
-  const queryKey = `${apiBaseUrl ?? "::static"}::${baseLineage.timelineId}`;
+export function useTimelineBranching(options: UseTimelineBranchingOptions) {
+  const {
+    baseTimeline,
+    apiBaseUrl,
+    selectedIllustrationId,
+    initialIllustrationId,
+    onSelectIllustration,
+  } = options;
+  const queryKey = `${apiBaseUrl ?? "::static"}::${baseTimeline.timelineId}`;
 
-  const [internalPlateEntry, setInternalPlateEntry] = useState<{
+  const [internalIllustrationEntry, setInternalIllustrationEntry] = useState<{
     queryKey: string;
     illustrationId: string | null;
   } | null>(null);
   const [localBranchEntries, setLocalBranchEntries] = useState<
-    readonly { queryKey: string; branch: BranchPlateResponse }[]
+    readonly { queryKey: string; branch: BranchIllustrationResponse }[]
   >([]);
   const [scenarioPrompt, setScenarioPrompt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittingTargetNode, setSubmittingTargetNode] = useState<LineageNode | null>(null);
+  const [submittingTargetNode, setSubmittingTargetNode] = useState<FrameTimelineNode | null>(null);
   const [branchErrorEntry, setBranchErrorEntry] = useState<{
     queryKey: string;
-    alert: PlateBranchAlert;
+    alert: TimelineBranchAlert;
   } | null>(null);
   const [isComparingEntry, setIsComparingEntry] = useState<{
     queryKey: string;
@@ -49,9 +55,9 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
   } | null>(null);
   const inFlightRef = useRef<AbortController | null>(null);
 
-  const internalPlateId =
-    internalPlateEntry?.queryKey === queryKey
-      ? internalPlateEntry.illustrationId
+  const internalIllustrationId =
+    internalIllustrationEntry?.queryKey === queryKey
+      ? internalIllustrationEntry.illustrationId
       : (initialIllustrationId ?? null);
   const isComparing =
     isComparingEntry?.queryKey === queryKey ? isComparingEntry.value : false;
@@ -59,15 +65,15 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
   const scopedBranches = localBranchEntries
     .filter((entry) => entry.queryKey === queryKey)
     .map((entry) => entry.branch);
-  const effectiveLineage = scopedBranches.reduce(
-    (acc, branch) => mergeBranchedNodeIntoLineage(acc, branch),
-    baseLineage
+  const effectiveTimeline = scopedBranches.reduce(
+    (acc, branch) => mergeBranchedNodeIntoTimeline(acc, branch),
+    baseTimeline
   );
-  const orderedNodes = orderLineageNodes(effectiveLineage.nodes);
-  const activeNode = resolveActiveLineageNode({
+  const orderedNodes = orderTimelineNodes(effectiveTimeline.nodes);
+  const activeNode = resolveActiveTimelineNode({
     orderedNodes,
-    activeCanonicalIllustrationId: effectiveLineage.activeCanonicalIllustrationId,
-    selectedPlateId: selectedPlateId ?? internalPlateId,
+    activeCanonicalIllustrationId: effectiveTimeline.activeCanonicalIllustrationId,
+    selectedIllustrationId: selectedIllustrationId ?? internalIllustrationId,
     initialIllustrationId,
   });
 
@@ -85,22 +91,22 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
         setIsSubmitting(false);
       }
     };
-  }, [apiBaseUrl, baseLineage.timelineId]);
+  }, [apiBaseUrl, baseTimeline.timelineId]);
 
   const setIsComparing = (value: boolean) => {
     setIsComparingEntry({ queryKey, value });
   };
 
-  const selectPlateForQuery = (targetKey: string, illustrationId: string) => {
+  const selectIllustrationForQuery = (targetKey: string, illustrationId: string) => {
     setBranchErrorEntry(null);
-    if (selectedPlateId === undefined) {
-      setInternalPlateEntry({ queryKey: targetKey, illustrationId });
+    if (selectedIllustrationId === undefined) {
+      setInternalIllustrationEntry({ queryKey: targetKey, illustrationId });
     }
-    onSelectPlate?.(illustrationId);
+    onSelectIllustration?.(illustrationId);
   };
 
-  const selectPlate = (illustrationId: string) => {
-    selectPlateForQuery(queryKey, illustrationId);
+  const selectIllustration = (illustrationId: string) => {
+    selectIllustrationForQuery(queryKey, illustrationId);
   };
 
   const updateScenarioPrompt = (nextPrompt: string) => {
@@ -118,7 +124,7 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
     }
 
     const targetQueryKey = queryKey;
-    const targetTimelineId = baseLineage.timelineId;
+    const targetTimelineId = baseTimeline.timelineId;
     const pinnedTarget =
       orderedNodes.find((node) => node.plate.interactionId === parentInteractionId) ??
       activeNode ??
@@ -178,11 +184,11 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
     setScenarioPrompt("");
     setBranchErrorEntry(null);
     setIsComparingEntry({ queryKey: targetQueryKey, value: true });
-    selectPlateForQuery(targetQueryKey, result.branch.plate.illustrationId);
+    selectIllustrationForQuery(targetQueryKey, result.branch.plate.illustrationId);
   };
 
   return {
-    effectiveLineage,
+    effectiveTimeline,
     orderedNodes,
     activeNode,
     branchTargetNode,
@@ -191,7 +197,7 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
     branchError,
     isComparing,
     setIsComparing,
-    selectPlate,
+    selectIllustration,
     updateScenarioPrompt,
     submitScenarioBranch,
   };

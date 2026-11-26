@@ -1,18 +1,18 @@
 import type { ReactNode } from "react";
 import { motion } from "motion/react";
-import type { LineageNode, PlateLineageResponse } from "@samasastudio/gridlock-core/schemas";
+import type { FrameTimelineNode, FrameTimelineResponse } from "@samasastudio/gridlock-core/schemas";
 import { DossierNumber, EDITORIAL_EASE } from "./DossierPrimitives.tsx";
-import { computePlateLineageKpis } from "./plate-lineage-model.ts";
+import { computeFrameTimelineKpis } from "./frame-timeline-model.ts";
 
 const LEAD_TRANSITION = { duration: 0.45, ease: EDITORIAL_EASE } as const;
 const META_DOT = <span aria-hidden="true">·</span>;
 
-export function PlateWidgetLoadingPlaceholder() {
+export function TimelineWidgetLoadingPlaceholder() {
   return (
     <div
       role="status"
       aria-live="polite"
-      aria-label="Loading Plate Lineage"
+      aria-label="Loading Frame Timeline"
       data-loading-placeholder="plate-lineage"
       className="gridlock-loading-placeholder"
     >
@@ -27,10 +27,10 @@ export function PlateWidgetLoadingPlaceholder() {
   );
 }
 
-export function PlateHeadlineKpiStrip(props: { lineage: PlateLineageResponse }) {
-  const kpis = computePlateLineageKpis(props.lineage);
-  const headSublabel = props.lineage.activeCanonicalIllustrationId
-    ? `head ${props.lineage.activeCanonicalIllustrationId}`
+export function TimelineHeadlineKpiStrip(props: { timeline: FrameTimelineResponse }) {
+  const kpis = computeFrameTimelineKpis(props.timeline);
+  const headSublabel = props.timeline.activeCanonicalIllustrationId
+    ? `head ${props.timeline.activeCanonicalIllustrationId}`
     : "awaiting Turn 1 bootstrap";
   const items = [
     { label: "Canonical Milestones", value: kpis.canonicalMilestonesCount, sub: headSublabel, delay: 0.08 },
@@ -39,7 +39,7 @@ export function PlateHeadlineKpiStrip(props: { lineage: PlateLineageResponse }) 
   ];
 
   return (
-    <section className="gridlock-scorecard-section" aria-label="Plate Lineage Metrics">
+    <section className="gridlock-scorecard-section" aria-label="Frame Timeline Metrics">
       <dl className="gridlock-headline-stats">
         {items.map((item) => (
           <motion.div
@@ -63,9 +63,9 @@ export function PlateHeadlineKpiStrip(props: { lineage: PlateLineageResponse }) 
   );
 }
 
-export function PlateSummarySection(props: {
-  activeNode: LineageNode;
-  orderedNodes: readonly LineageNode[];
+export function TimelineSummarySection(props: {
+  activeNode: FrameTimelineNode;
+  orderedNodes: readonly FrameTimelineNode[];
   children?: ReactNode;
 }) {
   const { activeNode, orderedNodes, children } = props;

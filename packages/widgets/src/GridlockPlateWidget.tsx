@@ -5,14 +5,14 @@ import { DossierStatusBadge, type GridlockWidgetTheme } from "./DossierPrimitive
 import { fetchPlateLineageSnapshot, type PlateLineageQuery, type PlateLineageSnapshotResult } from "./plate-lineage-client.ts";
 import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
 import { PlateFrameStage } from "./PlateFrameStage.tsx";
-import { PlateProvenanceSection } from "./PlateProvenanceSection.tsx";
-import { PlateScenarioBranchSection } from "./PlateScenarioBranchSection.tsx";
-import { PlateHeadlineKpiStrip, PlateSummarySection, PlateWidgetLoadingPlaceholder } from "./PlateSummarySection.tsx";
+import { TimelineProvenanceSection } from "./TimelineProvenanceSection.tsx";
+import { TimelineScenarioBranchSection } from "./TimelineScenarioBranchSection.tsx";
+import { TimelineHeadlineKpiStrip, TimelineSummarySection, TimelineWidgetLoadingPlaceholder } from "./TimelineSummarySection.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
-import { usePlateBranching } from "./usePlateBranching.ts";
+import { useTimelineBranching } from "./useTimelineBranching.ts";
 
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
-const LOADING_PLACEHOLDER_NODE = <PlateWidgetLoadingPlaceholder />;
+const LOADING_PLACEHOLDER_NODE = <TimelineWidgetLoadingPlaceholder />;
 const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<PlateLineageSnapshotResult>, Promise<PlateLineageSnapshotResult>>();
 const LINEAGE_TITLE = "Corridor Plate Lineage";
 const LINEAGE_ERROR_PREFIX = "Unable to load Plate Lineage:";
@@ -66,41 +66,41 @@ function LoadedPlateDossierContent(props: {
   viewOptions: PlateViewOptions;
 }) {
   const { baseId, lineage, viewOptions } = props;
-  const branching = usePlateBranching({
-    baseLineage: lineage,
+  const branching = useTimelineBranching({
+    baseTimeline: lineage,
     apiBaseUrl: viewOptions.apiBaseUrl,
-    selectedPlateId: viewOptions.selectedPlateId,
+    selectedIllustrationId: viewOptions.selectedPlateId,
     initialIllustrationId: viewOptions.initialIllustrationId,
-    onSelectPlate: viewOptions.onSelectPlate,
+    onSelectIllustration: viewOptions.onSelectPlate,
   });
-  const { effectiveLineage, orderedNodes, activeNode } = branching;
+  const { effectiveTimeline, orderedNodes, activeNode } = branching;
   const frameCountLabel = `${orderedNodes.length} ${orderedNodes.length === 1 ? "Visual Plate" : "Visual Plates"}`;
 
   return (
     <>
       <header className="gridlock-repair-header">
-        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={effectiveLineage.timelineId} />
+        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={effectiveTimeline.timelineId} />
         <div className="gridlock-header-controls">
           <DossierStatusBadge tone="healthy" label={frameCountLabel} />
         </div>
       </header>
-      <PlateHeadlineKpiStrip lineage={effectiveLineage} />
+      <TimelineHeadlineKpiStrip timeline={effectiveTimeline} />
       <PlateFrameStage
         baseId={baseId}
         nodes={orderedNodes}
-        edges={effectiveLineage.edges}
-        activeCanonicalIllustrationId={effectiveLineage.activeCanonicalIllustrationId}
+        edges={effectiveTimeline.edges}
+        activeCanonicalIllustrationId={effectiveTimeline.activeCanonicalIllustrationId}
         activePlateId={activeNode?.plate.illustrationId ?? null}
         isComparing={branching.isComparing}
         onCompareChange={branching.setIsComparing}
-        onSelectPlate={branching.selectPlate}
+        onSelectPlate={branching.selectIllustration}
         apiBaseUrl={viewOptions.apiBaseUrl}
         assetUrlOverrides={viewOptions.assetUrlOverrides}
       >
         {activeNode ? (
-          <PlateSummarySection activeNode={activeNode} orderedNodes={orderedNodes}>
+          <TimelineSummarySection activeNode={activeNode} orderedNodes={orderedNodes}>
             {viewOptions.apiBaseUrl !== undefined ? (
-              <PlateScenarioBranchSection
+              <TimelineScenarioBranchSection
                 baseId={baseId}
                 activeNode={branching.branchTargetNode ?? activeNode}
                 scenarioPrompt={branching.scenarioPrompt}
@@ -112,12 +112,12 @@ function LoadedPlateDossierContent(props: {
                 }}
               />
             ) : null}
-            <PlateProvenanceSection
-              lineage={effectiveLineage}
+            <TimelineProvenanceSection
+              timeline={effectiveTimeline}
               activeNode={activeNode}
-              onSelectPlate={branching.selectPlate}
+              onSelectIllustration={branching.selectIllustration}
             />
-          </PlateSummarySection>
+          </TimelineSummarySection>
         ) : null}
       </PlateFrameStage>
     </>

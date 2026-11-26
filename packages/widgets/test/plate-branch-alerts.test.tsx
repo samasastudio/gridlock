@@ -114,7 +114,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
           await waitForDom(() => container.querySelector('[data-error-status="404"]') !== null);
           assertFailureState({
             status: "404",
-            prefix: "Parent plate unavailable (HTTP 404):",
+            prefix: "Parent illustration unavailable (HTTP 404):",
             detail: /Unknown or expired parent interactionId/,
             draft: validDraft,
             ariaInvalid: "false",

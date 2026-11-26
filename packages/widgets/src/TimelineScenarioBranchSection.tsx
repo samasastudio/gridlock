@@ -1,28 +1,28 @@
 import type { ChangeEvent, FormEvent } from "react";
 import {
   MAX_SCENARIO_PROMPT_LENGTH,
-  type LineageNode,
+  type FrameTimelineNode,
 } from "@samasastudio/gridlock-core/schemas";
 import { ALERT_TRIANGLE_ICON } from "./DossierPrimitives.tsx";
-import type { PlateBranchAlert } from "./usePlateBranching.ts";
+import type { TimelineBranchAlert } from "./useTimelineBranching.ts";
 
-export interface PlateScenarioBranchSectionProps {
+export interface TimelineScenarioBranchSectionProps {
   baseId: string;
-  activeNode: LineageNode;
+  activeNode: FrameTimelineNode;
   scenarioPrompt: string;
   isSubmitting: boolean;
-  error: PlateBranchAlert | null;
+  error: TimelineBranchAlert | null;
   onPromptChange: (nextPrompt: string) => void;
   onSubmitBranch: (parentInteractionId: string) => void;
 }
 
-function formatBranchAlertPrefix(error: PlateBranchAlert): string {
+function formatBranchAlertPrefix(error: TimelineBranchAlert): string {
   if (error.statusCode === 400) {
     return "Invalid scenario prompt (HTTP 400):";
   }
 
   if (error.statusCode === 404) {
-    return "Parent plate unavailable (HTTP 404):";
+    return "Parent illustration unavailable (HTTP 404):";
   }
 
   if (error.statusCode === 429) {
@@ -40,7 +40,7 @@ function formatBranchAlertPrefix(error: PlateBranchAlert): string {
   return "Scenario Branch request failed:";
 }
 
-export function PlateScenarioBranchSection(props: PlateScenarioBranchSectionProps) {
+export function TimelineScenarioBranchSection(props: TimelineScenarioBranchSectionProps) {
   const {
     baseId,
     activeNode,
