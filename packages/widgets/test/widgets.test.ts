@@ -8,7 +8,7 @@ import {
 describe("@samasastudio/gridlock-widgets shell", () => {
   test("exports widget manifest and formats SHA-256 provenance citation badge from core Project schema", () => {
     assert.deepEqual(GRIDLOCK_WIDGET_MANIFEST.widgets, [
-      "GridlockPlateWidget",
+      "GridlockTimelineWidget",
       "GridlockConsoleWidget",
       "GridlockRepairChangelogWidget",
     ]);

@@ -3,9 +3,9 @@ import { execFileSync } from "node:child_process";
 import { describe, test } from "node:test";
 import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { GridlockPlateWidget, GridlockRepairChangelogWidget } from "../src/index.ts";
+import { GridlockTimelineWidget, GridlockRepairChangelogWidget } from "../src/index.ts";
 import workspaceCardsMeta, * as workspaceCardsStories from "../stories/GridlockWorkspaceCards.stories.tsx";
-import { CanonicalAndBranchLineage } from "../stories/GridlockPlateWidget.stories.tsx";
+import { CanonicalAndBranchTimeline } from "../stories/GridlockTimelineWidget.stories.tsx";
 import { HealedWithAmortization } from "../stories/GridlockRepairChangelogWidget.stories.tsx";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 
@@ -144,7 +144,7 @@ describe("GridlockWorkspaceCards CSF3 Stories, Browser Boundary & Co-Mount Parit
         root.render(
           <div>
             <StoryComponent {...InvestigativeBriefDiurnal.args} />
-            <GridlockPlateWidget {...CanonicalAndBranchLineage.args} />
+            <GridlockTimelineWidget {...CanonicalAndBranchTimeline.args} />
             <GridlockRepairChangelogWidget {...HealedWithAmortization.args} />
           </div>
         );

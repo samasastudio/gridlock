@@ -3,7 +3,7 @@ import { ProjectSchema, type Project } from "@samasastudio/gridlock-core/schemas
 export const GRIDLOCK_WIDGET_MANIFEST = {
   packageName: "@samasastudio/gridlock-widgets",
   widgets: [
-    "GridlockPlateWidget",
+    "GridlockTimelineWidget",
     "GridlockConsoleWidget",
     "GridlockRepairChangelogWidget",
   ] as const,
@@ -45,7 +45,7 @@ export {
   type SubmitScenarioBranchResult,
 } from "./frame-timeline-client.ts";
 export { TimelineFrameStage, type TimelineFrameStageProps } from "./TimelineFrameStage.tsx";
-export { GridlockPlateWidget, type GridlockPlateWidgetProps } from "./GridlockPlateWidget.tsx";
+export { GridlockTimelineWidget, type GridlockTimelineWidgetProps } from "./GridlockTimelineWidget.tsx";
 export { ProjectDossierCard, type ProjectDossierCardProps } from "./ProjectDossierCard.tsx";
 export { ObservationTimeline, type ObservationTimelineProps } from "./ObservationTimeline.tsx";
 export { MetricComparisonTable, type MetricComparisonTableProps } from "./MetricComparisonTable.tsx";

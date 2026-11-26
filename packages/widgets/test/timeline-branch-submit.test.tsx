@@ -3,10 +3,10 @@ import { describe, test } from "node:test";
 import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
-  PlateLineageResponseSchema,
+  FrameTimelineResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
 } from "@samasastudio/gridlock-core";
-import { GridlockPlateWidget } from "../src/index.ts";
+import { GridlockTimelineWidget } from "../src/index.ts";
 import { setTextareaValue, waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
 import {
   createGatedGeminiClient,
@@ -16,22 +16,22 @@ import {
 
 type WidgetContainer = Parameters<Parameters<typeof withWidgetDom>[0]>[0]["container"];
 
-function readPlateTabs(container: WidgetContainer) {
+function readTimelineTabs(container: WidgetContainer) {
   return Array.from(container.querySelectorAll("button")).filter(
     (btn) => btn.getAttribute("role") === "tab"
   );
 }
 
-function readPlateKpis(container: WidgetContainer): number[] {
+function readTimelineKpis(container: WidgetContainer): number[] {
   return Array.from(container.querySelectorAll(".gridlock-kpi-value [aria-label]"), (el) =>
     Number(el.getAttribute("aria-label"))
   );
 }
 
-describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Ticket #35)", () => {
-  test("Omits Scenario Branch form in static snapshots and 0-plate empty lineages", async () => {
+describe("<GridlockTimelineWidget /> Scenario Branch Submission & Auto-Compare (Ticket #35)", () => {
+  test("Omits Scenario Branch form in static snapshots and 0-frame empty timelines", async () => {
     const seeded = await seedTestFrameTimeline();
-    const emptyLineage = PlateLineageResponseSchema.parse({
+    const emptyTimeline = FrameTimelineResponseSchema.parse({
       timelineId: "empty-corridor",
       activeCanonicalIllustrationId: null,
       nodes: [],
@@ -39,13 +39,13 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
     });
 
     const staticHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.timeline} />
+      <GridlockTimelineWidget timeline={seeded.timeline} />
     );
     assert.doesNotMatch(staticHtml, /<form[^>]*class="gridlock-plate-branch-section"/);
     assert.doesNotMatch(staticHtml, /<textarea/);
 
     const emptyLiveHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={emptyLineage} apiBaseUrl="" />
+      <GridlockTimelineWidget timeline={emptyTimeline} apiBaseUrl="" />
     );
     assert.doesNotMatch(emptyLiveHtml, /<form[^>]*class="gridlock-plate-branch-section"/);
     assert.doesNotMatch(emptyLiveHtml, /<textarea/);
@@ -60,7 +60,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
       async (apiBaseUrl) => {
         await withWidgetDom(async ({ window: win, container, root }) => {
           await act(async () => {
-            root.render(<GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl={apiBaseUrl} />);
+            root.render(<GridlockTimelineWidget timeline={seeded.timeline} apiBaseUrl={apiBaseUrl} />);
           });
 
           const getForm = () => container.querySelector("form")!;
@@ -97,7 +97,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
           assert.equal(getSubmit().textContent, "Painting Scenario Branch…");
 
           await act(async () => {
-            readPlateTabs(container)[0]!.click();
+            readTimelineTabs(container)[0]!.click();
           });
           assert.equal(
             container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
@@ -115,8 +115,8 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
           await waitForDom(
             () => container.querySelector('[data-plate-comparison="split"]') !== null
           );
-          assert.deepEqual(readPlateKpis(container), [2, 3, 2]);
-          assert.equal(readPlateTabs(container).length, 5);
+          assert.deepEqual(readTimelineKpis(container), [2, 3, 2]);
+          assert.equal(readTimelineTabs(container).length, 5);
           assert.equal(getTextarea().value, "");
           assert.equal(
             container.querySelector(".gridlock-plate-compare-toggle")?.getAttribute("aria-pressed"),
@@ -134,18 +134,18 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
 
           await act(async () => {
             root.render(
-              <GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl="http://127.0.0.1:1" />
+              <GridlockTimelineWidget timeline={seeded.timeline} apiBaseUrl="http://127.0.0.1:1" />
             );
           });
-          assert.equal(readPlateTabs(container).length, 4);
-          assert.deepEqual(readPlateKpis(container), [2, 2, 2]);
+          assert.equal(readTimelineTabs(container).length, 4);
+          assert.deepEqual(readTimelineKpis(container), [2, 2, 2]);
           assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
 
           await act(async () => {
-            root.render(<GridlockPlateWidget lineage={seeded.timeline} />);
+            root.render(<GridlockTimelineWidget timeline={seeded.timeline} />);
           });
-          assert.equal(readPlateTabs(container).length, 4);
-          assert.deepEqual(readPlateKpis(container), [2, 2, 2]);
+          assert.equal(readTimelineTabs(container).length, 4);
+          assert.deepEqual(readTimelineKpis(container), [2, 2, 2]);
           assert.equal(container.querySelector("form"), null);
         });
       }
@@ -164,7 +164,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
           async (secondaryUrl) => {
             await withWidgetDom(async ({ window: win, container, root }) => {
               await act(async () => {
-                root.render(<GridlockPlateWidget apiBaseUrl={primaryUrl} />);
+                root.render(<GridlockTimelineWidget apiBaseUrl={primaryUrl} />);
               });
 
               await waitForDom(() => container.querySelector("form") !== null);
@@ -186,15 +186,15 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
               await waitForDom(
                 () => container.querySelector('[data-plate-comparison="split"]') !== null
               );
-              assert.equal(readPlateTabs(container).length, 5);
-              assert.deepEqual(readPlateKpis(container), [2, 3, 2]);
+              assert.equal(readTimelineTabs(container).length, 5);
+              assert.deepEqual(readTimelineKpis(container), [2, 3, 2]);
 
               await act(async () => {
-                root.render(<GridlockPlateWidget apiBaseUrl={secondaryUrl} />);
+                root.render(<GridlockTimelineWidget apiBaseUrl={secondaryUrl} />);
               });
 
-              await waitForDom(() => readPlateTabs(container).length === 4);
-              assert.deepEqual(readPlateKpis(container), [2, 2, 2]);
+              await waitForDom(() => readTimelineTabs(container).length === 4);
+              assert.deepEqual(readTimelineKpis(container), [2, 2, 2]);
               assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
             });
           }

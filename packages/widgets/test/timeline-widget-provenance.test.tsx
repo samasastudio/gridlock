@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { act } from "react";
-import { PlateLineageResponseSchema } from "@samasastudio/gridlock-core";
-import { GridlockPlateWidget } from "../src/index.ts";
+import { FrameTimelineResponseSchema } from "@samasastudio/gridlock-core";
+import { GridlockTimelineWidget } from "../src/index.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 import { seedTestFrameTimeline } from "./helpers/timeline-fixtures.ts";
 
-describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #34)", () => {
+describe("<GridlockTimelineWidget /> Citations & Ancestor Provenance Walk (Ticket #34)", () => {
   test("Interactive DOM: copies SHA-256 citations, resets disclosures across scrubbing, walks 4-hop chain, jumps to ancestor, and flags TTL-aged parents", async () => {
     const seeded = await seedTestFrameTimeline();
 
     await withWidgetDom(async ({ window: win, container, root, getLastCopiedText }) => {
       await act(async () => {
-        root.render(<GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl="" />);
+        root.render(<GridlockTimelineWidget timeline={seeded.timeline} apiBaseUrl="" />);
       });
 
       assert.equal(container.querySelector("section")?.getAttribute("data-gridlock-theme"), "inherit");
@@ -94,7 +94,7 @@ describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #
         /250,000 sq ft hyperscale data center hall and 345kV substation yard/
       );
 
-      const agedOutParentLineage = PlateLineageResponseSchema.parse({
+      const agedOutParentTimeline = FrameTimelineResponseSchema.parse({
         timelineId: seeded.timeline.timelineId,
         activeCanonicalIllustrationId: seeded.t1.illustrationId,
         nodes: [
@@ -104,7 +104,7 @@ describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #
         edges: [],
       });
       await act(async () => {
-        root.render(<GridlockPlateWidget lineage={agedOutParentLineage} selectedPlateId={seeded.b2.illustrationId} apiBaseUrl="" />);
+        root.render(<GridlockTimelineWidget timeline={agedOutParentTimeline} selectedIllustrationId={seeded.b2.illustrationId} apiBaseUrl="" />);
       });
       assert.match(container.textContent ?? "", /parent aged past 90d TTL/);
     });
