@@ -8,7 +8,7 @@ import {
   type EfficiencyScorecard,
   type LineageNode,
   type Observation,
-  type PlannerNodeSpec,
+  type OrchestrationNodeSpec,
   type PlateLineageResponse,
   type RepairChangelogResponse,
   type RawCapture,
@@ -46,7 +46,7 @@ export interface WorkspaceNodeHydrationContext {
 }
 
 export function extractWorkspaceLookupKeys(
-  nodes: readonly PlannerNodeSpec[]
+  nodes: readonly OrchestrationNodeSpec[]
 ): WorkspaceLookupKeys {
   const uniqueCitedProjectNumbers = Array.from(
     new Set(
@@ -230,7 +230,7 @@ function buildConnectorHealthCardNode(
 }
 
 export function hydrateWorkspaceNodes(
-  specNodes: readonly PlannerNodeSpec[],
+  specNodes: readonly OrchestrationNodeSpec[],
   ctx: WorkspaceNodeHydrationContext
 ): { ok: true; nodes: WorkspaceCardNode[] } | HydratorStepFailure {
   const nodeResults = specNodes.map((specNode) => {

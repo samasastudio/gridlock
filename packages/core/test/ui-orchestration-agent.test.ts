@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
   DEFAULT_LINEAGE_ID,
-  INVESTIGATION_PLANNER_MODEL,
   InvestigatePlanResponseSchema,
   MAX_INVESTIGATE_QUERY_LENGTH,
-  MAX_PLANNER_CATALOG_PROJECTS,
-  PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
+  MAX_ORCHESTRATION_CATALOG_PROJECTS,
+  ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA,
   RepairChangelogEntrySchema,
-  runInvestigationPlanner,
   RunStageSchema,
+  runUiOrchestrationAgent,
+  UI_ORCHESTRATION_AGENT_MODEL,
   type GeminiInteractionResponse,
   type GridlockRepository,
   type RunSpan,
@@ -18,27 +18,27 @@ import {
 import { createTestProject } from "./helpers/fixtures.ts";
 import {
   createFiveCardLayoutSpec,
-  createPlannerClientStub,
-  createPlannerObservation,
+  createOrchestrationClientStub,
+  createOrchestrationObservation,
   createQueuedLayoutClientStub,
   HASH_ACTIVE_A,
   HASH_QUARANTINED,
-  PLANNER_TEST_NOW,
-  seedFilingPlannerRepository,
-  seedFiveCardPlannerRepository,
+  ORCHESTRATION_TEST_NOW,
+  seedFilingOrchestrationRepository,
+  seedFiveCardOrchestrationRepository,
   singleNodeLayout,
-} from "./helpers/planner-test-helpers.ts";
+} from "./helpers/orchestration-test-helpers.ts";
 
-describe("runInvestigationPlanner (Core filing planner & preconditions)", () => {
-  test("RunStageSchema accepts investigation_planner", () => {
-    assert.equal(RunStageSchema.safeParse("investigation_planner").success, true);
+describe("runUiOrchestrationAgent (Core workspace orchestration & preconditions)", () => {
+  test("RunStageSchema accepts ui_orchestration_agent", () => {
+    assert.equal(RunStageSchema.safeParse("ui_orchestration_agent").success, true);
   });
 
   test("hydrates filing cards, filters uncitable catalog projects, redacts PII, and records run scorecard", async () => {
-    const repository = await seedFilingPlannerRepository();
+    const repository = await seedFilingOrchestrationRepository();
     const spans: RunSpan[] = [];
-    const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
-      id: "ix_planner_200",
+    const { geminiClient, recordedRequests } = createOrchestrationClientStub(async () => ({
+      id: "ix_orchestration_200",
       status: "completed",
       output_text: JSON.stringify({
         nodes: [
@@ -62,8 +62,8 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       usage: { total_tokens: 340 },
     }));
 
-    const outcome = await runInvestigationPlanner(
-      { query: "Compare Ellis County data center filings", now: PLANNER_TEST_NOW },
+    const outcome = await runUiOrchestrationAgent(
+      { query: "Compare Ellis County data center filings", now: ORCHESTRATION_TEST_NOW },
       { repository, geminiClient, spanSink: (span) => spans.push(span) }
     );
 
@@ -71,7 +71,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     if (!outcome.ok) return;
     assert.equal(outcome.status, 200);
     assert.equal(InvestigatePlanResponseSchema.safeParse(outcome.response).success, true);
-    assert.equal(outcome.response.interactionId, "ix_planner_200");
+    assert.equal(outcome.response.interactionId, "ix_orchestration_200");
     assert.equal(outcome.response.tokensUsed, 340);
     assert.equal(outcome.response.workspace.isEmpty, false);
     assert.equal(outcome.response.workspace.nodes.length, 3);
@@ -99,9 +99,9 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
 
     assert.equal(recordedRequests.length, 1);
     const geminiReq = recordedRequests[0]!;
-    assert.equal(geminiReq.model, INVESTIGATION_PLANNER_MODEL);
-    assert.deepEqual(geminiReq.response_format?.schema, PLANNER_LAYOUT_SPEC_JSON_SCHEMA);
-    assert.equal(PLANNER_LAYOUT_SPEC_JSON_SCHEMA.additionalProperties, false);
+    assert.equal(geminiReq.model, UI_ORCHESTRATION_AGENT_MODEL);
+    assert.deepEqual(geminiReq.response_format?.schema, ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA);
+    assert.equal(ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA.additionalProperties, false);
 
     const parsedPrompt = JSON.parse(String(geminiReq.input)) as {
       catalog: { projects: Array<Record<string, unknown>> };
@@ -115,7 +115,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
 
     const runs = await repository.listRunRecords();
     assert.equal(runs.length, 1);
-    assert.equal(runs[0]?.stage, "investigation_planner");
+    assert.equal(runs[0]?.stage, "ui_orchestration_agent");
     assert.equal(runs[0]?.execution_mode, "agentic");
     assert.equal(runs[0]?.status, "agentic_completed");
     assert.equal(runs[0]?.tokensUsed, 340);
@@ -124,15 +124,15 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(scorecard.agenticRunsCount, 1);
     assert.equal(scorecard.actualTokensUsed, 340);
     assert.equal(spans.length, 1);
-    assert.equal(spans[0]?.stage, "investigation_planner");
+    assert.equal(spans[0]?.stage, "ui_orchestration_agent");
     assert.equal(spans[0]?.attributes?.nodeCount, 3);
     assert.equal(spans[0]?.attributes?.isEmpty, false);
   });
 
-  test("caps citable project catalog at MAX_PLANNER_CATALOG_PROJECTS with deterministic tie-breaking and flags unresolvable milestone timelines", async () => {
-    const repository = await seedFilingPlannerRepository();
+  test("caps citable project catalog at MAX_ORCHESTRATION_CATALOG_PROJECTS with deterministic tie-breaking and flags unresolvable milestone timelines", async () => {
+    const repository = await seedFilingOrchestrationRepository();
     await repository.appendObservation(
-      createPlannerObservation(
+      createOrchestrationObservation(
         "obs_1001_quarantined_m2",
         "TABS2027001001",
         HASH_QUARANTINED,
@@ -166,15 +166,15 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       );
     }
 
-    const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
-      id: "ix_planner_cap",
+    const { geminiClient, recordedRequests } = createOrchestrationClientStub(async () => ({
+      id: "ix_orchestration_cap",
       status: "completed",
       output_text: JSON.stringify({ nodes: [] }),
       usage: { total_tokens: 150 },
     }));
 
-    const outcome = await runInvestigationPlanner(
-      { query: "List top Ellis corridor filings", now: PLANNER_TEST_NOW },
+    const outcome = await runUiOrchestrationAgent(
+      { query: "List top Ellis corridor filings", now: ORCHESTRATION_TEST_NOW },
       { repository, geminiClient }
     );
     assert.equal(outcome.ok, true);
@@ -190,7 +190,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
         }>;
       };
     };
-    assert.equal(parsedPrompt.catalog.projects.length, MAX_PLANNER_CATALOG_PROJECTS);
+    assert.equal(parsedPrompt.catalog.projects.length, MAX_ORCHESTRATION_CATALOG_PROJECTS);
     assert.deepEqual(
       parsedPrompt.catalog.projects.slice(0, 3).map((p) => p.projectNumber),
       ["TABS2027005001", "TABS2027005002", "TABS2027001001"]
@@ -213,16 +213,16 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
   });
 
   test("hydrates zero-match empty workspace (isEmpty: true) and records completed run records", async () => {
-    const repository = await seedFilingPlannerRepository();
-    const { geminiClient } = createPlannerClientStub(async () => ({
-      id: "ix_planner_empty",
+    const repository = await seedFilingOrchestrationRepository();
+    const { geminiClient } = createOrchestrationClientStub(async () => ({
+      id: "ix_orchestration_empty",
       status: "completed",
       output_text: JSON.stringify({ nodes: [] }),
       usage: { total_tokens: 120 },
     }));
 
-    const outcome = await runInvestigationPlanner(
-      { query: "Show El Paso geothermal filings", now: PLANNER_TEST_NOW },
+    const outcome = await runUiOrchestrationAgent(
+      { query: "Show El Paso geothermal filings", now: ORCHESTRATION_TEST_NOW },
       { repository, geminiClient }
     );
 
@@ -243,8 +243,8 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
         throw new Error("Run record write failed");
       },
     };
-    const runWriteErr = await runInvestigationPlanner(
-      { query: "Show El Paso geothermal filings", now: PLANNER_TEST_NOW },
+    const runWriteErr = await runUiOrchestrationAgent(
+      { query: "Show El Paso geothermal filings", now: ORCHESTRATION_TEST_NOW },
       { repository: brokenRunRepo, geminiClient }
     );
     assert.equal(runWriteErr.ok, false);
@@ -255,8 +255,8 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
   });
 
   test("enforces zero-token preconditions on 400 invalid input/now/query, 500 corrupt or duplicate-observation storage, and 503 missing client", async () => {
-    const repository = await seedFilingPlannerRepository();
-    const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
+    const repository = await seedFilingOrchestrationRepository();
+    const { geminiClient, recordedRequests } = createOrchestrationClientStub(async () => ({
       id: "ix_unused",
       status: "completed",
       output_text: JSON.stringify({ nodes: [] }),
@@ -267,11 +267,11 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       [] as never,
       { query: "Show Ellis filings", now: new Date("invalid") },
       { query: "Show Ellis filings", now: "2026-10-28T15:00:00.000Z" as never },
-      { query: "Show Ellis filings", extraKey: true, now: PLANNER_TEST_NOW } as never,
-      { query: "   ", now: PLANNER_TEST_NOW },
-      { query: "x".repeat(MAX_INVESTIGATE_QUERY_LENGTH + 1), now: PLANNER_TEST_NOW },
+      { query: "Show Ellis filings", extraKey: true, now: ORCHESTRATION_TEST_NOW } as never,
+      { query: "   ", now: ORCHESTRATION_TEST_NOW },
+      { query: "x".repeat(MAX_INVESTIGATE_QUERY_LENGTH + 1), now: ORCHESTRATION_TEST_NOW },
     ]) {
-      const badInputRes = await runInvestigationPlanner(malformedInput, {
+      const badInputRes = await runUiOrchestrationAgent(malformedInput, {
         repository,
         geminiClient,
       });
@@ -282,7 +282,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       }
     }
 
-    const duplicateObservation = createPlannerObservation(
+    const duplicateObservation = createOrchestrationObservation(
       "obs_1001_m1",
       "TABS2027001001",
       HASH_ACTIVE_A,
@@ -302,8 +302,8 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       },
     ];
     for (const corruptRepo of corruptRepositories) {
-      const corruptRes = await runInvestigationPlanner(
-        { query: "Show Ellis filings", now: PLANNER_TEST_NOW },
+      const corruptRes = await runUiOrchestrationAgent(
+        { query: "Show Ellis filings", now: ORCHESTRATION_TEST_NOW },
         { repository: corruptRepo, geminiClient }
       );
       assert.equal(corruptRes.ok, false);
@@ -313,14 +313,14 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       }
     }
 
-    const unavailableRes = await runInvestigationPlanner(
-      { query: "Show Ellis filings", now: PLANNER_TEST_NOW },
+    const unavailableRes = await runUiOrchestrationAgent(
+      { query: "Show Ellis filings", now: ORCHESTRATION_TEST_NOW },
       { repository }
     );
     assert.equal(unavailableRes.ok, false);
     if (!unavailableRes.ok) {
       assert.equal(unavailableRes.status, 503);
-      assert.equal(unavailableRes.error, "planner_unavailable");
+      assert.equal(unavailableRes.error, "orchestration_unavailable");
     }
 
     assert.equal(recordedRequests.length, 0);
@@ -328,10 +328,10 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
   });
 
   test("maps upstream and structural AI failures to 502 with agentic_failed run records", async () => {
-    const repository = await seedFilingPlannerRepository();
+    const repository = await seedFilingOrchestrationRepository();
 
-    const thrownOutcome = await runInvestigationPlanner(
-      { query: "Show Ellis filings", now: PLANNER_TEST_NOW },
+    const thrownOutcome = await runUiOrchestrationAgent(
+      { query: "Show Ellis filings", now: ORCHESTRATION_TEST_NOW },
       {
         repository,
         geminiClient: {
@@ -346,7 +346,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(thrownOutcome.ok, false);
     if (!thrownOutcome.ok) {
       assert.equal(thrownOutcome.status, 502);
-      assert.equal(thrownOutcome.error, "planner_upstream_error");
+      assert.equal(thrownOutcome.error, "orchestration_upstream_error");
     }
 
     const invalidResponses: GeminiInteractionResponse[] = [
@@ -385,22 +385,22 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     ];
 
     for (const response of invalidResponses) {
-      const { geminiClient } = createPlannerClientStub(async () => response);
-      const res = await runInvestigationPlanner(
-        { query: "Show Ellis filings", now: PLANNER_TEST_NOW },
+      const { geminiClient } = createOrchestrationClientStub(async () => response);
+      const res = await runUiOrchestrationAgent(
+        { query: "Show Ellis filings", now: ORCHESTRATION_TEST_NOW },
         { repository, geminiClient }
       );
       assert.equal(res.ok, false);
       if (!res.ok) {
         assert.equal(res.status, 502);
-        assert.equal(res.error, "planner_upstream_error");
+        assert.equal(res.error, "orchestration_upstream_error");
       }
     }
 
     const runs = await repository.listRunRecords();
     assert.equal(runs.length, 6);
     assert.equal(
-      runs.every((run) => run.stage === "investigation_planner" && run.status === "agentic_failed"),
+      runs.every((run) => run.stage === "ui_orchestration_agent" && run.status === "agentic_failed"),
       true
     );
     assert.deepEqual(
@@ -411,7 +411,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
   });
 
   test("maps fabricated or quarantined entity references in valid specs to 422", async () => {
-    const repository = await seedFilingPlannerRepository();
+    const repository = await seedFilingOrchestrationRepository();
     const { geminiClient } = createQueuedLayoutClientStub(
       [
         singleNodeLayout({
@@ -429,14 +429,14 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     );
 
     for (const query of ["Show TABS9999999999", "Show quarantined project"]) {
-      const unresolvableRes = await runInvestigationPlanner(
-        { query, now: PLANNER_TEST_NOW },
+      const unresolvableRes = await runUiOrchestrationAgent(
+        { query, now: ORCHESTRATION_TEST_NOW },
         { repository, geminiClient }
       );
       assert.equal(unresolvableRes.ok, false);
       if (!unresolvableRes.ok) {
         assert.equal(unresolvableRes.status, 422);
-        assert.equal(unresolvableRes.error, "planner_unresolvable_plan");
+        assert.equal(unresolvableRes.error, "orchestration_unresolvable_layout");
       }
     }
 
@@ -449,20 +449,20 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
   });
 });
 
-describe("runInvestigationPlanner (Cross-seam grounding)", () => {
+describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
   test("grounds healthy lineages and connectors, omits quarantined/expired lineages, and hydrates all 5 card types", async () => {
-    const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
-    const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
-      id: "ix_planner_five_card",
+    const { repository, branchPlateId } = await seedFiveCardOrchestrationRepository();
+    const { geminiClient, recordedRequests } = createOrchestrationClientStub(async () => ({
+      id: "ix_orchestration_five_card",
       status: "completed",
       output_text: JSON.stringify(createFiveCardLayoutSpec(branchPlateId)),
       usage: { total_tokens: 410 },
     }));
 
-    const outcome = await runInvestigationPlanner(
+    const outcome = await runUiOrchestrationAgent(
       {
         query: "Assemble full Ellis corridor dossier, plates, and connector health",
-        now: PLANNER_TEST_NOW,
+        now: ORCHESTRATION_TEST_NOW,
       },
       { repository, geminiClient }
     );
@@ -511,13 +511,13 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
     assert.deepEqual(parsedPrompt.catalog.connectors, [
       { connectorId: "tdlr-tabs", status: "healthy", activeVersion: 2, repairCount: 1 },
     ]);
-    assert.equal(promptText.includes("planner_lead@example.com"), false);
+    assert.equal(promptText.includes("corridor_lead@example.com"), false);
     assert.equal(promptText.includes("[REDACTED_EMAIL]"), true);
   });
 
   test("aborts with 500 at 0 Gemini calls and 0 RunRecord writes on corrupt VisualPlate, RepairChangelogEntry, or ConnectorConfig", async () => {
-    const repository = await seedFilingPlannerRepository();
-    const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
+    const repository = await seedFilingOrchestrationRepository();
+    const { geminiClient, recordedRequests } = createOrchestrationClientStub(async () => ({
       id: "ix_unreachable",
       status: "completed",
       output_text: JSON.stringify({ nodes: [] }),
@@ -551,8 +551,8 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
       expiresAt: null,
     });
 
-    const blankProseRes = await runInvestigationPlanner(
-      { query: "Check corridor status", now: PLANNER_TEST_NOW },
+    const blankProseRes = await runUiOrchestrationAgent(
+      { query: "Check corridor status", now: ORCHESTRATION_TEST_NOW },
       {
         repository: {
           ...repository,
@@ -587,8 +587,8 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
     ];
 
     for (const corruptRepo of corruptVariants) {
-      const res = await runInvestigationPlanner(
-        { query: "Check corridor status", now: PLANNER_TEST_NOW },
+      const res = await runUiOrchestrationAgent(
+        { query: "Check corridor status", now: ORCHESTRATION_TEST_NOW },
         { repository: corruptRepo, geminiClient }
       );
       assert.equal(res.ok, false);
@@ -603,9 +603,9 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
   });
 });
 
-describe("runInvestigationPlanner (In-place workspace refinement)", () => {
+describe("runUiOrchestrationAgent (In-place workspace refinement)", () => {
   test("passes compact currentWorkspace manifest on refinement without hydrated prose and rejects tampered currentLayout at 0 tokens", async () => {
-    const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
+    const { repository, branchPlateId } = await seedFiveCardOrchestrationRepository();
     const spans: RunSpan[] = [];
     const { geminiClient, recordedRequests } = createQueuedLayoutClientStub(
       [
@@ -644,8 +644,8 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
       { idPrefix: "ix_refine_turn", baseTokens: 260, tokenStep: 20 }
     );
 
-    const freshOutcome = await runInvestigationPlanner(
-      { query: "Build initial five-card corridor workspace", now: PLANNER_TEST_NOW },
+    const freshOutcome = await runUiOrchestrationAgent(
+      { query: "Build initial five-card corridor workspace", now: ORCHESTRATION_TEST_NOW },
       { repository, geminiClient, spanSink: (span) => spans.push(span) }
     );
     assert.equal(freshOutcome.ok, true);
@@ -659,12 +659,12 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
     assert.equal("currentWorkspace" in freshPromptObj, false);
 
     const initialWorkspace = freshOutcome.response.workspace;
-    const refineOutcome = await runInvestigationPlanner(
+    const refineOutcome = await runUiOrchestrationAgent(
       {
         query:
           "Move visual plate first, add TABS2027001002 dossier, remove connector health, and filter timeline and metrics to TABS2027001001",
         currentLayout: initialWorkspace,
-        now: PLANNER_TEST_NOW,
+        now: ORCHESTRATION_TEST_NOW,
       },
       { repository, geminiClient, spanSink: (span) => spans.push(span) }
     );
@@ -742,8 +742,8 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
     ];
 
     for (const tamperedLayout of tamperedLayouts) {
-      const tamperedRes = await runInvestigationPlanner(
-        { query: "Refine tampered workspace", currentLayout: tamperedLayout, now: PLANNER_TEST_NOW },
+      const tamperedRes = await runUiOrchestrationAgent(
+        { query: "Refine tampered workspace", currentLayout: tamperedLayout, now: ORCHESTRATION_TEST_NOW },
         { repository, geminiClient }
       );
       assert.equal(tamperedRes.ok, false);

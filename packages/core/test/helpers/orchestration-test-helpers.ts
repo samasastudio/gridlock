@@ -23,7 +23,7 @@ import {
   type GridlockHttpDeps,
   type GridlockRepository,
   type Observation,
-  type PlannerLayoutSpec,
+  type OrchestrationLayoutSpec,
   type VisualPlate,
 } from "../../src/index.ts";
 import {
@@ -35,7 +35,7 @@ import {
   MUTATED_PORTAL_V2_HTML,
 } from "./fixtures.ts";
 
-export const PLANNER_TEST_NOW = new Date("2026-10-28T15:00:00.000Z");
+export const ORCHESTRATION_TEST_NOW = new Date("2026-10-28T15:00:00.000Z");
 export const HASH_ACTIVE_A = "a".repeat(64);
 export const HASH_ACTIVE_B = "b".repeat(64);
 export const HASH_QUARANTINED = "c".repeat(64);
@@ -49,7 +49,7 @@ export function singleNodeLayout(
   return { nodes: [node] };
 }
 
-export function createPlannerObservation(
+export function createOrchestrationObservation(
   id: string,
   projectNumber: string,
   rawCaptureHash: string,
@@ -69,7 +69,7 @@ export function createPlannerObservation(
   });
 }
 
-export function createPlannerClientStub(
+export function createOrchestrationClientStub(
   responder: (
     req: GeminiInteractionCreateRequest
   ) => Promise<GeminiInteractionResponse>
@@ -106,7 +106,7 @@ export function createQueuedLayoutClientStub(
   const baseTokens = options.baseTokens ?? 240;
   const tokenStep = options.tokenStep ?? 20;
   let turnIndex = 0;
-  return createPlannerClientStub(async () => {
+  return createOrchestrationClientStub(async () => {
     const layout = layouts[turnIndex];
     assert.notEqual(layout, undefined);
     turnIndex += 1;
@@ -119,7 +119,7 @@ export function createQueuedLayoutClientStub(
   });
 }
 
-export async function seedFilingPlannerRepository(): Promise<GridlockRepository> {
+export async function seedFilingOrchestrationRepository(): Promise<GridlockRepository> {
   const repository = createInMemoryGridlockRepository();
 
   await repository.saveRawCapture(
@@ -174,10 +174,10 @@ export async function seedFilingPlannerRepository(): Promise<GridlockRepository>
   );
 
   await repository.appendObservation(
-    createPlannerObservation("obs_1001_m1", "TABS2027001001", HASH_ACTIVE_A)
+    createOrchestrationObservation("obs_1001_m1", "TABS2027001001", HASH_ACTIVE_A)
   );
   await repository.appendObservation(
-    createPlannerObservation("obs_1002_r1", "TABS2027001002", HASH_ACTIVE_B, {
+    createOrchestrationObservation("obs_1002_r1", "TABS2027001002", HASH_ACTIVE_B, {
       observedAt: "2026-10-27T10:00:00.000Z",
       estimatedCostUsd: 95_000_000,
       squareFootage: 210_000,
@@ -228,12 +228,12 @@ async function saveTestVisualPlate(
   );
 }
 
-export async function seedFiveCardPlannerRepository(): Promise<{
+export async function seedFiveCardOrchestrationRepository(): Promise<{
   repository: GridlockRepository;
   canonicalArtifactHash: string;
   branchPlateId: string;
 }> {
-  const repository = await seedFilingPlannerRepository();
+  const repository = await seedFilingOrchestrationRepository();
 
   const anomaly = await ingestTdlrFiling(
     {
@@ -301,7 +301,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
           output_image: {
             mime_type: "image/webp",
             data: createFixtureWebpBuffer(
-              `planner-plate-${painterSeq}`
+              `orchestration-plate-${painterSeq}`
             ).toString("base64"),
           },
           usage: { total_tokens: 160 },
@@ -330,7 +330,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
     {
       lineageId: DEFAULT_LINEAGE_ID,
       parentInteractionId: bootstrapRes.plate.interactionId,
-      scenarioPrompt: "Add 300MW switchyard for planner_lead@example.com",
+      scenarioPrompt: "Add 300MW switchyard for corridor_lead@example.com",
       now: new Date("2026-10-27T15:10:00.000Z"),
     },
     { repository, geminiClient: painterClient }
@@ -358,7 +358,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
   });
 
   await repository.appendObservation(
-    createPlannerObservation(
+    createOrchestrationObservation(
       "obs_quarantined_lineage",
       "TABS2027001003",
       HASH_QUARANTINED
@@ -374,7 +374,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
   });
 
   await repository.appendObservation(
-    createPlannerObservation(
+    createOrchestrationObservation(
       "obs_expired_lineage",
       "TABS2027001004",
       HASH_EXPIRED
@@ -398,7 +398,7 @@ export async function seedFiveCardPlannerRepository(): Promise<{
 
 export function createFiveCardLayoutSpec(
   branchPlateId: string
-): PlannerLayoutSpec {
+): OrchestrationLayoutSpec {
   return {
     nodes: [
       {

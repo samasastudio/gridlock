@@ -40,7 +40,6 @@ export {
   EpistemicPlateLabelSchema,
   ExecutionModeSchema,
   GRIDLOCK_USER_AGENT,
-  INVESTIGATION_PLANNER_MODEL,
   InvestigatePlanRequestSchema,
   InvestigatePlanResponseSchema,
   IsoCalendarDateSchema,
@@ -50,7 +49,7 @@ export {
   MAX_CONCURRENCY,
   MAX_INVESTIGATE_BODY_BYTES,
   MAX_INVESTIGATE_QUERY_LENGTH,
-  MAX_PLANNER_CATALOG_PROJECTS,
+  MAX_ORCHESTRATION_CATALOG_PROJECTS,
   MAX_PROJECTS_PER_CARD,
   MAX_RECORDS_PER_RUN,
   MAX_SCENARIO_PROMPT_LENGTH,
@@ -60,12 +59,12 @@ export {
   MetricComparisonTableNodeSchema,
   NAIVE_COST_PER_TOKEN_USD,
   NINETY_DAYS_MS,
+  ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA,
   ObservationSchema,
   ObservationTimelineNodeSchema,
+  OrchestrationLayoutSpecSchema,
+  OrchestrationNodeSpecSchema,
   PAINTER_AGENT_MODEL,
-  PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
-  PlannerLayoutSpecSchema,
-  PlannerNodeSpecSchema,
   PlateLineageResponseSchema,
   PositiveIntegerStringSchema,
   ProjectDossierCardNodeSchema,
@@ -84,6 +83,7 @@ export {
   RunRecordStatusSchema,
   RunSpanSchema,
   RunStageSchema,
+  UI_ORCHESTRATION_AGENT_MODEL,
   UnknownConnectorError,
   VisualPlateSchema,
   VisualPlateScrubberNodeSchema,
@@ -168,12 +168,12 @@ export {
   type PaintMilestoneDeltaInput,
 } from "./use-cases/run-painter-agent.ts";
 export {
-  runInvestigationPlanner,
-  type InvestigationPlannerDeps,
-  type InvestigationPlannerErrorCode,
-  type InvestigationPlannerInput,
-  type InvestigationPlannerResult,
-} from "./use-cases/run-investigation-planner.ts";
+  runUiOrchestrationAgent,
+  type UiOrchestrationAgentDeps,
+  type UiOrchestrationAgentErrorCode,
+  type UiOrchestrationAgentInput,
+  type UiOrchestrationAgentResult,
+} from "./use-cases/run-ui-orchestration-agent.ts";
 export { runOutOfBandRepairAgent } from "./use-cases/run-repair-agent.ts";
 
 export async function ingestTdlrFiling(

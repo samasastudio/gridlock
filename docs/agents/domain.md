@@ -25,7 +25,7 @@ Consult this map before exploring so research and reviews open only the files fo
 
 - **Public entrypoints**: [`packages/core/src/index.ts`](../../packages/core/src/index.ts) (Composition Root), [`packages/core/src/interfaces/index.ts`](../../packages/core/src/interfaces/index.ts) (`@samasastudio/gridlock-core/schemas`, browser-safe), [`packages/widgets/src/index.ts`](../../packages/widgets/src/index.ts)
 - **Shared core contracts & adapters**:
-  - Schemas & ports: `packages/core/src/interfaces/` (`primitives.ts`, `constants.ts`, `adapter-contracts.ts`, `filing-models.ts`, `run-record-models.ts`, `repair-models.ts`, `painter-models.ts`, `workspace-layout-models.ts`, `investigate-planner-models.ts`)
+  - Schemas & ports: `packages/core/src/interfaces/` (`primitives.ts`, `constants.ts`, `adapter-contracts.ts`, `filing-models.ts`, `run-record-models.ts`, `repair-models.ts`, `painter-models.ts`, `workspace-layout-models.ts`, `ui-orchestration-models.ts`)
   - Adapters: `packages/core/src/adapters/` (`in-memory-repository.ts`, `http-loaders.ts`, `gemini-interactions-client.ts`, `sharp-image-encoder.ts`, `cloud-logging-sink.ts`)
   - HTTP server: `packages/core/src/controllers/` (`http-server.ts`, `http-utils.ts`, plus per-seam route controllers)
 - **Seam 1 (TDLR Ingestion, Discovery & Efficiency Scorecard)**:
@@ -37,6 +37,6 @@ Consult this map before exploring so research and reviews open only the files fo
   - Core: `use-cases/run-painter-agent.ts`, `painter-turn-runner.ts`, `get-plate-lineage.ts`, `branch-plate.ts`, `lineage-branch-slots.ts`; `helpers/painter-helpers.ts`, `webp-codec.ts`; `controllers/plates-controller.ts`
   - Widgets: `GridlockPlateWidget.tsx`, `PlateFrameStage.tsx`, `PlateComparisonStage.tsx`, `PlateSummarySection.tsx`, `PlateProvenanceSection.tsx`, `PlateScenarioBranchSection.tsx`, `usePlateBranching.ts`, `plate-lineage-client.ts`, `plate-lineage-model.ts`, `plate-widget-styles.ts`
 - **Seam 4 (UI Orchestration Agent & Workspace Layout Cards)**:
-  - Core: `use-cases/run-investigation-planner.ts`, `load-investigation-catalog.ts`, `hydrate-investigation-workspace.ts`; `helpers/investigate-planner-catalog.ts`, `investigate-planner-seam-catalog.ts`, `investigate-planner-prompt.ts`, `investigate-hydrator.ts`, `investigate-seam-hydrator.ts`, `investigate-provenance.ts`; `controllers/investigate-controller.ts`
+  - Core: `use-cases/run-ui-orchestration-agent.ts`, `load-investigation-catalog.ts`, `hydrate-investigation-workspace.ts`; `helpers/investigate-orchestration-catalog.ts`, `investigate-orchestration-seam-catalog.ts`, `investigate-orchestration-prompt.ts`, `investigate-hydrator.ts`, `investigate-seam-hydrator.ts`, `investigate-provenance.ts`; `controllers/investigate-controller.ts`
   - Widgets: `ProjectDossierCard.tsx`, `ObservationTimeline.tsx`, `MetricComparisonTable.tsx`, `workspace-card-model.ts`, `workspace-card-styles.ts`
 - **Shared widget primitives & tooling**: `DossierPrimitives.tsx`, `dossier-styles.ts`; `scripts/lint-checks.mjs`, `scripts/type-hygiene.mjs`, `scripts/widget-workbench.mjs`, `scripts/ensure-ext4-deps.sh`

@@ -10,7 +10,7 @@ import {
 } from "./workspace-layout-models.ts";
 import { TdlrProjectNumberSchema } from "./primitives.ts";
 
-const ProjectDossierCardPlanSchema = z
+const ProjectDossierCardSpecSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
     component: z.literal("ProjectDossierCard"),
@@ -18,32 +18,32 @@ const ProjectDossierCardPlanSchema = z
   })
   .strict();
 
-const PlannedProjectNumberListSchema = z
+const OrchestrationProjectNumberListSchema = z
   .array(TdlrProjectNumberSchema)
   .min(1)
   .max(MAX_PROJECTS_PER_CARD)
   .refine(
     (items) => new Set(items).size === items.length,
-    "Duplicate projectNumber in planner card spec"
+    "Duplicate projectNumber in orchestration card spec"
   );
 
-const ObservationTimelinePlanSchema = z
+const ObservationTimelineSpecSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
     component: z.literal("ObservationTimeline"),
-    projectNumbers: PlannedProjectNumberListSchema,
+    projectNumbers: OrchestrationProjectNumberListSchema,
   })
   .strict();
 
-const MetricComparisonTablePlanSchema = z
+const MetricComparisonTableSpecSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
     component: z.literal("MetricComparisonTable"),
-    projectNumbers: PlannedProjectNumberListSchema,
+    projectNumbers: OrchestrationProjectNumberListSchema,
   })
   .strict();
 
-const VisualPlateScrubberPlanSchema = z
+const VisualPlateScrubberSpecSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
     component: z.literal("VisualPlateScrubber"),
@@ -52,7 +52,7 @@ const VisualPlateScrubberPlanSchema = z
   })
   .strict();
 
-const ConnectorHealthCardPlanSchema = z
+const ConnectorHealthCardSpecSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
     component: z.literal("ConnectorHealthCard"),
@@ -60,19 +60,19 @@ const ConnectorHealthCardPlanSchema = z
   })
   .strict();
 
-export const PlannerNodeSpecSchema = z.discriminatedUnion("component", [
-  ProjectDossierCardPlanSchema,
-  VisualPlateScrubberPlanSchema,
-  ObservationTimelinePlanSchema,
-  MetricComparisonTablePlanSchema,
-  ConnectorHealthCardPlanSchema,
+export const OrchestrationNodeSpecSchema = z.discriminatedUnion("component", [
+  ProjectDossierCardSpecSchema,
+  VisualPlateScrubberSpecSchema,
+  ObservationTimelineSpecSchema,
+  MetricComparisonTableSpecSchema,
+  ConnectorHealthCardSpecSchema,
 ]);
 
-export type PlannerNodeSpec = z.infer<typeof PlannerNodeSpecSchema>;
+export type OrchestrationNodeSpec = z.infer<typeof OrchestrationNodeSpecSchema>;
 
-export const PlannerLayoutSpecSchema = z
+export const OrchestrationLayoutSpecSchema = z
   .object({
-    nodes: z.array(PlannerNodeSpecSchema).max(MAX_WORKSPACE_NODES),
+    nodes: z.array(OrchestrationNodeSpecSchema).max(MAX_WORKSPACE_NODES),
   })
   .strict()
   .superRefine((spec, ctx) => {
@@ -81,12 +81,12 @@ export const PlannerLayoutSpecSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["nodes"],
-        message: "Duplicate nodeId in PlannerLayoutSpec nodes",
+        message: "Duplicate nodeId in OrchestrationLayoutSpec nodes",
       });
     }
   });
 
-export type PlannerLayoutSpec = z.infer<typeof PlannerLayoutSpecSchema>;
+export type OrchestrationLayoutSpec = z.infer<typeof OrchestrationLayoutSpecSchema>;
 
 export const InvestigatePlanRequestSchema = z
   .object({

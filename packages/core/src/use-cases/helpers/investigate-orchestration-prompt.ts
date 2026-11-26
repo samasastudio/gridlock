@@ -2,15 +2,15 @@ import {
   InvestigatePlanRequestSchema,
   MAX_PROJECTS_PER_CARD,
   MAX_WORKSPACE_NODES,
-  PlannerLayoutSpecSchema,
+  OrchestrationLayoutSpecSchema,
   type GeminiInteractionResponse,
   type HydrateWorkspaceErrorCode,
   type InvestigatePlanRequest,
-  type PlannerLayoutSpec,
+  type OrchestrationLayoutSpec,
   type WorkspaceCardNode,
   type WorkspaceLayout,
 } from "../../interfaces/index.ts";
-import type { PlannerGroundingCatalog } from "./investigate-planner-catalog.ts";
+import type { OrchestrationGroundingCatalog } from "./investigate-orchestration-catalog.ts";
 
 type CompactWorkspaceNodeSummary =
   | {
@@ -45,8 +45,8 @@ interface CompactWorkspaceSummary {
   nodes: readonly CompactWorkspaceNodeSummary[];
 }
 
-export type PlannerInteractionValidationResult =
-  | { ok: true; spec: PlannerLayoutSpec; interactionId: string; tokensUsed: number }
+export type OrchestrationInteractionValidationResult =
+  | { ok: true; spec: OrchestrationLayoutSpec; interactionId: string; tokensUsed: number }
   | { ok: false; message: string; tokensUsed: number; interactionId?: string };
 
 function tryParseJsonPayload(
@@ -55,11 +55,11 @@ function tryParseJsonPayload(
   try {
     return { ok: true, value: JSON.parse(rawText) };
   } catch {
-    return { ok: false, message: "Malformed JSON returned from Investigation Planner" };
+    return { ok: false, message: "Malformed JSON returned from UI Orchestration Agent" };
   }
 }
 
-export function validatePlannerRequestInput(
+export function validateOrchestrationRequestInput(
   input: unknown
 ):
   | { ok: true; request: InvestigatePlanRequest; now?: Date }
@@ -93,15 +93,18 @@ export function validatePlannerRequestInput(
   };
 }
 
-export function mapHydrationErrorToPlannerStatus(error: HydrateWorkspaceErrorCode): {
+export function mapHydrationErrorToOrchestrationStatus(error: HydrateWorkspaceErrorCode): {
   status: 422 | 500 | 502;
-  error: "planner_upstream_error" | "planner_unresolvable_plan" | "investigate_plan_error";
+  error:
+    | "orchestration_upstream_error"
+    | "orchestration_unresolvable_layout"
+    | "investigate_plan_error";
 } {
   if (error === "invalid_layout_spec") {
-    return { status: 502, error: "planner_upstream_error" };
+    return { status: 502, error: "orchestration_upstream_error" };
   }
   if (error === "entity_not_found" || error === "unresolvable_provenance") {
-    return { status: 422, error: "planner_unresolvable_plan" };
+    return { status: 422, error: "orchestration_unresolvable_layout" };
   }
   return { status: 500, error: "investigate_plan_error" };
 }
@@ -153,9 +156,9 @@ function summarizeCurrentWorkspaceLayout(
   };
 }
 
-export function buildInvestigationPlannerPrompt(input: {
+export function buildUiOrchestrationPrompt(input: {
   query: string;
-  catalog: PlannerGroundingCatalog;
+  catalog: OrchestrationGroundingCatalog;
   currentLayout?: WorkspaceLayout;
 }): string {
   const refinementRules =
@@ -181,9 +184,9 @@ export function buildInvestigationPlannerPrompt(input: {
   });
 }
 
-export function validatePlannerInteractionOutput(
+export function validateOrchestrationInteractionOutput(
   interaction: GeminiInteractionResponse
-): PlannerInteractionValidationResult {
+): OrchestrationInteractionValidationResult {
   const rawTokens = interaction.usage?.total_tokens;
   const tokensUsed =
     typeof rawTokens === "number" && Number.isFinite(rawTokens)
@@ -199,7 +202,7 @@ export function validatePlannerInteractionOutput(
     const suffix = diagnostic.length > 0 ? `: ${diagnostic}` : "";
     return {
       ok: false,
-      message: `Gemini planner interaction returned non-completed status "${interaction.status}"${suffix}`,
+      message: `Gemini UI orchestration interaction returned non-completed status "${interaction.status}"${suffix}`,
       tokensUsed,
       ...idPatch,
     };
@@ -208,7 +211,7 @@ export function validatePlannerInteractionOutput(
   if (!trimmedId) {
     return {
       ok: false,
-      message: "Gemini planner interaction returned missing or empty interaction id",
+      message: "Gemini UI orchestration interaction returned missing or empty interaction id",
       tokensUsed,
     };
   }
@@ -216,7 +219,7 @@ export function validatePlannerInteractionOutput(
   if (!interaction.output_text || interaction.output_text.trim().length === 0) {
     return {
       ok: false,
-      message: "Gemini planner interaction returned empty output_text",
+      message: "Gemini UI orchestration interaction returned empty output_text",
       tokensUsed,
       interactionId: trimmedId,
     };
@@ -227,13 +230,13 @@ export function validatePlannerInteractionOutput(
     return { ok: false, message: parsedJson.message, tokensUsed, interactionId: trimmedId };
   }
 
-  const parsedSpec = PlannerLayoutSpecSchema.safeParse(parsedJson.value);
+  const parsedSpec = OrchestrationLayoutSpecSchema.safeParse(parsedJson.value);
   if (!parsedSpec.success) {
     const firstIssue = parsedSpec.error.issues[0];
     const detail = firstIssue ? `: ${firstIssue.message}` : "";
     return {
       ok: false,
-      message: `PlannerLayoutSpec failed schema validation${detail}`,
+      message: `OrchestrationLayoutSpec failed schema validation${detail}`,
       tokensUsed,
       interactionId: trimmedId,
     };

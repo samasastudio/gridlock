@@ -92,7 +92,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
 
     const planRes = InvestigatePlanResponseSchema.parse({
       workspace: result.workspace,
-      interactionId: "ix_planner_turn_1",
+      interactionId: "ix_orchestration_turn_1",
       tokensUsed: 412,
     });
     assert.deepEqual(
@@ -101,9 +101,9 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     );
   });
 
-  test("hydrates empty PlannerLayoutSpec without invoking repository lookups", async () => {
+  test("hydrates empty OrchestrationLayoutSpec without invoking repository lookups", async () => {
     const unexpectedCall = async (): Promise<never> => {
-      throw new Error("Unexpected repository lookup on empty PlannerLayoutSpec");
+      throw new Error("Unexpected repository lookup on empty OrchestrationLayoutSpec");
     };
     const result = await hydrateInvestigationWorkspace(
       { nodes: [] },

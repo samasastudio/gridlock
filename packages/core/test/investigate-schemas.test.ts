@@ -16,7 +16,7 @@ import { createPainterTestObservations } from "./helpers/fixtures.ts";
 
 const NOW_ISO = "2026-10-28T15:00:00.000Z";
 
-describe("Workspace Layout & Planner Zod Contracts", () => {
+describe("Workspace Layout & Orchestration Zod Contracts", () => {
   test("validates WorkspaceCardTypeSchema, WorkspaceCardNodeSchema cross-field invariants, and InvestigatePlan bounds", () => {
     assert.deepEqual(WorkspaceCardTypeSchema.options, [
       "ProjectDossierCard",

@@ -25,7 +25,7 @@ export const RunStageSchema = z.enum([
   "painter_milestone_gate",
   "painter_milestone_delta",
   "painter_branch_lineage",
-  "investigation_planner",
+  "ui_orchestration_agent",
 ]);
 
 export type RunStage = z.infer<typeof RunStageSchema>;
@@ -73,7 +73,7 @@ export const RunRecordSchema = z.object({
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 
 export const EfficiencyScorecardSchema = z.object({
-  ledgerId: z.string().min(1),
+  scorecardId: z.string().min(1),
   deterministicRunsCount: z.number().int().nonnegative(),
   agenticRunsCount: z.number().int().nonnegative(),
   failedOrBlockedRunsCount: z.number().int().nonnegative(),

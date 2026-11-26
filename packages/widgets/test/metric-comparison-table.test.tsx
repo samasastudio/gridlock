@@ -29,7 +29,7 @@ function makeSubstationCitedProject() {
 }
 
 describe("<MetricComparisonTable /> Seam 4 Workspace Card (Ticket #38 Phase 3)", () => {
-  test("Preserves planner row order verbatim, computes cohort KPIs, framing prose, $/sq ft cells, and proportional 2px scale bars", () => {
+  test("Preserves orchestrated row order verbatim, computes cohort KPIs, framing prose, $/sq ft cells, and proportional 2px scale bars", () => {
     const rows = [
       makeEscapedShellCitedProject(),
       makeSubstationCitedProject(),
