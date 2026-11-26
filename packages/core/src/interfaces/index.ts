@@ -35,17 +35,17 @@ export {
 export {
   EfficiencyLedgerSchema,
   ExecutionModeSchema,
-  TelemetryRunSchema,
-  TelemetryRunStatusSchema,
-  TelemetrySpanSchema,
-  TelemetryStageSchema,
+  RunRecordSchema,
+  RunRecordStatusSchema,
+  RunSpanSchema,
+  RunStageSchema,
   type EfficiencyLedger,
   type ExecutionMode,
-  type TelemetryRun,
-  type TelemetryRunStatus,
-  type TelemetrySpan,
-  type TelemetryStage,
-} from "./telemetry-models.ts";
+  type RunRecord,
+  type RunRecordStatus,
+  type RunSpan,
+  type RunStage,
+} from "./run-record-models.ts";
 
 export {
   CandidateSelectorPatchSchema,
@@ -96,10 +96,10 @@ export type {
   PainterImageEncodeResult,
   PainterImageEncoder,
   SearchLoader,
-  TelemetryLedgerQueryOptions,
-  TelemetryPainterDeltas,
-  TelemetrySpanSink,
-  TelemetryStateUpdate,
+  ScorecardQueryOptions,
+  RunPainterDeltas,
+  RunSpanSink,
+  RunStateUpdate,
 } from "./adapter-contracts.ts";
 
 export {

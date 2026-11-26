@@ -10,7 +10,7 @@ import {
   type GridlockRepository,
   type IngestFilingResult,
   type PageLoader,
-  type TelemetrySpanSink,
+  type RunSpanSink,
 } from "../interfaces/index.ts";
 import { verifySiteAccess } from "./helpers/site-access.ts";
 import {
@@ -20,12 +20,12 @@ import {
 import {
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
-} from "./helpers/telemetry-math.ts";
+} from "./helpers/scorecard-math.ts";
 import {
   markBlockedByWaf,
   preflightRobotsTxt,
 } from "./preflight-site-access.ts";
-import { recordStageTelemetry } from "./record-telemetry.ts";
+import { recordStageRun } from "./record-run.ts";
 
 export async function ingestTdlrFiling(
   input: {
@@ -37,7 +37,7 @@ export async function ingestTdlrFiling(
   deps: {
     repository: GridlockRepository;
     pageLoader: PageLoader;
-    spanSink?: TelemetrySpanSink;
+    spanSink?: RunSpanSink;
   }
 ): Promise<IngestFilingResult> {
   const startedWallMs = Date.now();
@@ -56,7 +56,7 @@ export async function ingestTdlrFiling(
     ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
   };
 
-  const finalizeTelemetry = async (result: IngestFilingResult): Promise<IngestFilingResult> => {
+  const finalizeRunRecord = async (result: IngestFilingResult): Promise<IngestFilingResult> => {
     const durationMs = Math.max(0, Date.now() - startedWallMs);
     const endedAt = new Date(now.getTime() + durationMs);
     const isSuccess = result.status === "ingested" || result.status === "unchanged_artifact";
@@ -64,7 +64,7 @@ export async function ingestTdlrFiling(
     const naiveTokensAvoided = isSuccess ? calculateNaiveTokensAvoided(rawByteLength) : 0;
     const estimatedCostSavedUsd = isSuccess ? calculateEstimatedCostSavedUsd(naiveTokensAvoided) : 0;
 
-    await recordStageTelemetry(
+    await recordStageRun(
       {
         stage: "tdlr_ingest",
         connectorId: config.connectorId,
@@ -99,7 +99,7 @@ export async function ingestTdlrFiling(
       now,
     });
     if (!preflight.allowed) {
-      return finalizeTelemetry(
+      return finalizeRunRecord(
         await markBlockedByWaf(deps.repository, config.connectorId, nowIso, preflight.access)
       );
     }
@@ -115,7 +115,7 @@ export async function ingestTdlrFiling(
     });
 
     if (!accessCheck.allowed) {
-      return finalizeTelemetry(
+      return finalizeRunRecord(
         await markBlockedByWaf(deps.repository, config.connectorId, nowIso, accessCheck)
       );
     }
@@ -125,7 +125,7 @@ export async function ingestTdlrFiling(
 
     const existingArtifact = await deps.repository.getRawCaptureByHash(sha256);
     if (existingArtifact && !existingArtifact.storageUri.includes("/quarantine/")) {
-      return finalizeTelemetry({
+      return finalizeRunRecord({
         status: "unchanged_artifact",
         rawCapture: existingArtifact,
       });
@@ -149,7 +149,7 @@ export async function ingestTdlrFiling(
       });
       await deps.repository.saveRawCapture(quarantinedArtifact, gzipBuffer);
       await deps.repository.setConnectorStatus(config.connectorId, "selector_anomaly", nowIso);
-      return finalizeTelemetry({
+      return finalizeRunRecord({
         status: "selector_anomaly",
         rawCapture: quarantinedArtifact,
         invariantErrors: parsed.invariantErrors,
@@ -190,7 +190,7 @@ export async function ingestTdlrFiling(
     await deps.repository.upsertProject(project);
     await deps.repository.appendObservation(observation);
 
-    return finalizeTelemetry({
+    return finalizeRunRecord({
       status: "ingested",
       rawCapture,
       project,
@@ -199,7 +199,7 @@ export async function ingestTdlrFiling(
   } catch (error) {
     const durationMs = Math.max(0, Date.now() - startedWallMs);
     const endedAt = new Date(now.getTime() + durationMs);
-    await recordStageTelemetry(
+    await recordStageRun(
       {
         stage: "tdlr_ingest",
         connectorId: config.connectorId,

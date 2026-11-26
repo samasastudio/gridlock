@@ -13,7 +13,7 @@ import {
   type TdlrDiscoverySweepResult,
   type TdlrSearchFilter,
   type TdlrSearchRow,
-  type TelemetrySpanSink,
+  type RunSpanSink,
 } from "../interfaces/index.ts";
 import { verifySiteAccess } from "./helpers/site-access.ts";
 import {
@@ -21,15 +21,15 @@ import {
   sanitizeDiscoverySearchFilters,
   sortDiscoveryRowsChronologically,
 } from "./helpers/tdlr-discovery-filter.ts";
-import { buildTelemetrySpan, calculateNaiveTokensAvoided } from "./helpers/telemetry-math.ts";
+import { buildRunSpan, calculateNaiveTokensAvoided } from "./helpers/scorecard-math.ts";
 import { ingestTdlrFiling } from "./ingest-tdlr-filing.ts";
 import { markBlockedByWaf, preflightRobotsTxt } from "./preflight-site-access.ts";
-import { recordStageTelemetry } from "./record-telemetry.ts";
+import { recordStageRun } from "./record-run.ts";
 
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 const defaultJitterMs = (): number => Math.floor(Math.random() * 250);
-const noopSpanSink: TelemetrySpanSink = () => {};
+const noopSpanSink: RunSpanSink = () => {};
 
 type SearchSweepOutcome =
   | { blocked: false; discoveredRows: readonly TdlrSearchRow[] }
@@ -112,7 +112,7 @@ export async function runTdlrDiscoverySweep(
     searchLoader: SearchLoader;
     sleep?: (ms: number) => Promise<void>;
     jitterMs?: () => number;
-    spanSink?: TelemetrySpanSink;
+    spanSink?: RunSpanSink;
   }
 ): Promise<TdlrDiscoverySweepResult> {
   const startedWallMs = Date.now();
@@ -137,9 +137,9 @@ export async function runTdlrDiscoverySweep(
   const config = await deps.repository.getActiveConnectorConfig("tdlr-tabs");
   const searchPath = "/TABS/Search/SearchProjects";
 
-  const recordDiscoveryFailureTelemetry = async (status: "blocked_by_waf" | "aborted") => {
+  const recordDiscoveryFailureRun = async (status: "blocked_by_waf" | "aborted") => {
     const durationMs = Math.max(0, Date.now() - startedWallMs);
-    await recordStageTelemetry(
+    await recordStageRun(
       {
         stage: "tdlr_discovery_sweep",
         connectorId: config.connectorId,
@@ -168,7 +168,7 @@ export async function runTdlrDiscoverySweep(
     const preflight = await preflightRobotsTxt({ baseUrl, targetPath: searchPath, pageLoader, now });
     if (!preflight.allowed) {
       const blocked = await markBlockedByWaf(deps.repository, config.connectorId, nowIso, preflight.access);
-      await recordDiscoveryFailureTelemetry("blocked_by_waf");
+      await recordDiscoveryFailureRun("blocked_by_waf");
       return { ok: false, blockedResult: { ...blocked, mode } };
     }
 
@@ -190,7 +190,7 @@ export async function runTdlrDiscoverySweep(
     });
     if (sweepOutcome.blocked) {
       const blocked = await markBlockedByWaf(deps.repository, config.connectorId, nowIso, sweepOutcome.access);
-      await recordDiscoveryFailureTelemetry("blocked_by_waf");
+      await recordDiscoveryFailureRun("blocked_by_waf");
       return { ok: false, blockedResult: { ...blocked, mode } };
     }
     return {
@@ -201,7 +201,7 @@ export async function runTdlrDiscoverySweep(
   };
 
   const searchPhaseOutcome = await runSearchPhase().catch(async (error: unknown) => {
-    await recordDiscoveryFailureTelemetry("aborted");
+    await recordDiscoveryFailureRun("aborted");
     throw error;
   });
   if (!searchPhaseOutcome.ok) return searchPhaseOutcome.blockedResult;
@@ -268,7 +268,7 @@ export async function runTdlrDiscoverySweep(
   }, 0);
   const sink = deps.spanSink ?? noopSpanSink;
   sink(
-    buildTelemetrySpan({
+    buildRunSpan({
       stage: "tdlr_discovery_sweep",
       execution_mode: "deterministic",
       status: ingestedProjectNumbers.length > 0 ? "ingested" : "unchanged_artifact",

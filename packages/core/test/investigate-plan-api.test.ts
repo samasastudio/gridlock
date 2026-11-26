@@ -9,7 +9,7 @@ import {
   MAX_WORKSPACE_NODES,
   type GeminiInteractionResponse,
   type GridlockRepository,
-  type TelemetrySpan,
+  type RunSpan,
 } from "../src/index.ts";
 import {
   assertInvestigateErrorResponse,
@@ -211,7 +211,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
     );
 
     assert.equal(recordedRequests.length, 0);
-    assert.equal((await repository.listTelemetryRuns()).length, 0);
+    assert.equal((await repository.listRunRecords()).length, 0);
   });
 
   test("maps upstream/structural AI errors to 502 and unresolvable entities to 422 with agentic_failed telemetry", async () => {
@@ -344,7 +344,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
       }
     );
 
-    const runs = await repository.listTelemetryRuns();
+    const runs = await repository.listRunRecords();
     assert.equal(runs.length, upstreamSteps.length + unresolvableNumbers.length);
     assert.equal(
       runs.every(
@@ -477,7 +477,7 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
       );
     }
 
-    const spans: TelemetrySpan[] = [];
+    const spans: RunSpan[] = [];
     const { geminiClient } = createQueuedLayoutClientStub(
       [
         createFiveCardLayoutSpec(branchPlateId),
@@ -588,6 +588,6 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
     );
 
     assert.equal(recordedRequests.length, 0);
-    assert.equal((await repository.listTelemetryRuns()).length, 0);
+    assert.equal((await repository.listRunRecords()).length, 0);
   });
 });

@@ -3,21 +3,21 @@ import {
   type EfficiencyLedger,
   type ExecutionMode,
   type GridlockRepository,
-  type TelemetryPainterDeltas,
-  type TelemetryRun,
-  type TelemetryRunStatus,
-  type TelemetrySpan,
-  type TelemetrySpanSink,
-  type TelemetryStage,
+  type RunPainterDeltas,
+  type RunRecord,
+  type RunRecordStatus,
+  type RunSpan,
+  type RunSpanSink,
+  type RunStage,
 } from "../interfaces/index.ts";
 import {
   applyHealAmortization,
-  applyTelemetryRunToLedger,
-  buildTelemetryRun,
-  buildTelemetrySpan,
-} from "./helpers/telemetry-math.ts";
+  applyRunRecordToLedger,
+  buildRunRecord,
+  buildRunSpan,
+} from "./helpers/scorecard-math.ts";
 
-const noopSpanSink: TelemetrySpanSink = () => {};
+const noopSpanSink: RunSpanSink = () => {};
 
 async function resolveActiveConnectorConfig(
   repository: GridlockRepository,
@@ -31,14 +31,14 @@ async function resolveActiveConnectorConfig(
   }
 }
 
-export async function recordStageTelemetry(
-  input: TelemetryPainterDeltas & {
-    stage: TelemetryStage;
+export async function recordStageRun(
+  input: RunPainterDeltas & {
+    stage: RunStage;
     connectorId?: string;
     projectNumber?: string;
     rawCaptureHash?: string;
     execution_mode: ExecutionMode;
-    status: TelemetryRunStatus;
+    status: RunRecordStatus;
     rawByteLength: number;
     tokensUsed: number;
     naiveTokensAvoided: number;
@@ -51,14 +51,14 @@ export async function recordStageTelemetry(
   },
   deps: {
     repository: GridlockRepository;
-    spanSink?: TelemetrySpanSink;
+    spanSink?: RunSpanSink;
   }
-): Promise<{ run: TelemetryRun; span: TelemetrySpan; ledger: EfficiencyLedger }> {
+): Promise<{ run: RunRecord; span: RunSpan; ledger: EfficiencyLedger }> {
   const durationMs = Math.max(
     0,
     input.endedAt.getTime() - input.startedAt.getTime()
   );
-  const run = buildTelemetryRun({
+  const run = buildRunRecord({
     stage: input.stage,
     ...(input.connectorId !== undefined
       ? { connectorId: input.connectorId }
@@ -85,9 +85,9 @@ export async function recordStageTelemetry(
   });
 
   const currentLedger = await deps.repository.getEfficiencyLedger();
-  const existingRuns = await deps.repository.listTelemetryRuns();
+  const existingRuns = await deps.repository.listRunRecords();
   const recentSlice = [...existingRuns, run].slice(-50);
-  const ledgerAfterRun = applyTelemetryRunToLedger(
+  const ledgerAfterRun = applyRunRecordToLedger(
     currentLedger,
     run,
     recentSlice,
@@ -107,12 +107,12 @@ export async function recordStageTelemetry(
     ledger: ledgerAfterRun,
   });
 
-  const ledger = await deps.repository.recordTelemetryRun(run, {
+  const ledger = await deps.repository.recordRunRecord(run, {
     updatedLedger: amortized.updatedLedger,
     updatedChangelog: amortized.updatedChangelog,
   });
 
-  const span = buildTelemetrySpan({
+  const span = buildRunSpan({
     stage: input.stage,
     execution_mode: input.execution_mode,
     status: input.status,
@@ -134,9 +134,9 @@ export async function recordStageTelemetry(
   return { run, span, ledger };
 }
 
-export async function recordAgenticStageTelemetry(
+export async function recordAgenticStageRun(
   input: {
-    stage: TelemetryStage;
+    stage: RunStage;
     connectorId?: string;
     projectNumber?: string;
     rawCaptureHash?: string;
@@ -151,10 +151,10 @@ export async function recordAgenticStageTelemetry(
   },
   deps: {
     repository: GridlockRepository;
-    spanSink?: TelemetrySpanSink;
+    spanSink?: RunSpanSink;
   }
-): Promise<{ run: TelemetryRun; span: TelemetrySpan; ledger: EfficiencyLedger }> {
-  return recordStageTelemetry(
+): Promise<{ run: RunRecord; span: RunSpan; ledger: EfficiencyLedger }> {
+  return recordStageRun(
     {
       ...input,
       execution_mode: "agentic",

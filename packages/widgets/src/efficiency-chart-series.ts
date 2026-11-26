@@ -1,4 +1,4 @@
-import type { EfficiencyLedger, TelemetryRun } from "@samasastudio/gridlock-core/schemas";
+import type { EfficiencyLedger, RunRecord } from "@samasastudio/gridlock-core/schemas";
 
 export interface ChartPoint {
   x: number;
@@ -24,7 +24,7 @@ export function buildCumulativeSeries(
   endDate: string | null;
   sampledCount: number;
 } {
-  const sorted: TelemetryRun[] = [...ledger.recentRuns].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
+  const sorted: RunRecord[] = [...ledger.recentRuns].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt));
   const innerWidth = SVG_WIDTH - PAD_X * 2;
   const innerHeight = SVG_HEIGHT - PAD_TOP - PAD_BOTTOM;
   const bottomY = PAD_TOP + innerHeight;
@@ -44,7 +44,7 @@ export function buildCumulativeSeries(
     };
   }
 
-  const windowSeries = sorted.reduce<Array<{ run: TelemetryRun; avoided: number; actual: number }>>((acc, run) => {
+  const windowSeries = sorted.reduce<Array<{ run: RunRecord; avoided: number; actual: number }>>((acc, run) => {
     const prev = acc[acc.length - 1];
     acc.push({
       run,

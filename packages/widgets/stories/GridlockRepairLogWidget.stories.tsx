@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { DEFAULT_EFFICIENCY_LEDGER, type EfficiencyLedger, type RepairChangelogEntry, type TelemetryRun } from "@samasastudio/gridlock-core/schemas";
+import { DEFAULT_EFFICIENCY_LEDGER, type EfficiencyLedger, type RepairChangelogEntry, type RunRecord } from "@samasastudio/gridlock-core/schemas";
 import { GridlockRepairLogWidget, type GridlockRepairLogWidgetProps } from "../src/index.ts";
 
 export interface StoryMeta<TProps> {
@@ -12,7 +12,7 @@ export interface StoryObj<TProps> {
   args: TProps;
 }
 
-function makeDetRun(runId: string, hashChar: string, avoided: number, durationMs: number, recordedAt: string): TelemetryRun {
+function makeDetRun(runId: string, hashChar: string, avoided: number, durationMs: number, recordedAt: string): RunRecord {
   return {
     runId, stage: "tdlr_ingest", connectorId: "tdlr-tabs", projectNumber: "TABS2027003697",
     rawCaptureHash: hashChar.repeat(64), execution_mode: "deterministic",
@@ -22,7 +22,7 @@ function makeDetRun(runId: string, hashChar: string, avoided: number, durationMs
   };
 }
 
-function makeAgentRun(runId: string, hashChar: string, tokensUsed: number, durationMs: number, interactionId: string, recordedAt: string): TelemetryRun {
+function makeAgentRun(runId: string, hashChar: string, tokensUsed: number, durationMs: number, interactionId: string, recordedAt: string): RunRecord {
   return {
     runId, stage: "repair_agent", connectorId: "tdlr-tabs", rawCaptureHash: hashChar.repeat(64),
     execution_mode: "agentic", status: "agentic_completed", durationMs, rawByteLength: 102_400,
@@ -30,7 +30,7 @@ function makeAgentRun(runId: string, hashChar: string, tokensUsed: number, durat
   };
 }
 
-function makeDegradedRun(runId: string, hashChar: string, status: "selector_anomaly" | "blocked_by_waf", durationMs: number, recordedAt: string): TelemetryRun {
+function makeDegradedRun(runId: string, hashChar: string, status: "selector_anomaly" | "blocked_by_waf", durationMs: number, recordedAt: string): RunRecord {
   return {
     runId, stage: "tdlr_ingest", connectorId: "tdlr-tabs", rawCaptureHash: hashChar.repeat(64),
     execution_mode: "deterministic", status, durationMs, rawByteLength: 40_960,
@@ -38,7 +38,7 @@ function makeDegradedRun(runId: string, hashChar: string, status: "selector_anom
   };
 }
 
-const RECENT_TELEMETRY_RUNS: TelemetryRun[] = [
+const RECENT_RUN_RECORDS: RunRecord[] = [
   makeDetRun("run_tdlr_det_019", "1", 62_000, 54, "2026-10-23T14:00:00.000Z"),
   makeDetRun("run_tdlr_det_020", "2", 78_000, 47, "2026-10-25T14:00:00.000Z"),
   makeAgentRun("run_tdlr_repair_v2", "b", 380, 1850, "inter_widget_heal_v2", "2026-10-27T14:00:01.850Z"),
@@ -50,7 +50,7 @@ const RECENT_TELEMETRY_RUNS: TelemetryRun[] = [
   makeDetRun("run_tdlr_det_028", "d", 120_000, 11, "2026-11-04T14:00:00.000Z"),
 ];
 
-const ZERO_ANOMALY_RUNS = RECENT_TELEMETRY_RUNS.filter((run) => run.execution_mode === "deterministic").slice(0, 4);
+const ZERO_ANOMALY_RUNS = RECENT_RUN_RECORDS.filter((run) => run.execution_mode === "deterministic").slice(0, 4);
 const ANOMALY_RUN = makeDegradedRun("run_tdlr_anom_029", "e", "selector_anomaly", 31, "2026-11-05T14:00:00.000Z");
 const WAF_BLOCKED_RUN = makeDegradedRun("run_tdlr_waf_030", "f", "blocked_by_waf", 8, "2026-11-06T14:00:00.000Z");
 
@@ -61,7 +61,7 @@ const HEALED_LEDGER: EfficiencyLedger = {
   naiveTokensAvoided: 650_000, actualTokensUsed: 790, tokenReductionPercentage: 99.88,
   estimatedCostSavedUsd: 1.623, actualCostUsd: 0.001975, averageRepairMttrMs: 1635,
   subsequentDeterministicRunsServed: 26, updatedAt: "2026-11-04T14:00:00.000Z",
-  recentRuns: RECENT_TELEMETRY_RUNS,
+  recentRuns: RECENT_RUN_RECORDS,
 };
 
 const PROMOTED_HEAL_ENTRY: RepairChangelogEntry = {
@@ -129,7 +129,7 @@ export const SelectorAnomalyDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
     efficiencyLedger: {
       ...HEALED_LEDGER, totalRunsCount: 29, failedOrBlockedRunsCount: 1,
       deterministicExecutionRatio: 0.8966, deterministicExecutionPercentage: 89.66,
-      updatedAt: "2026-11-05T14:00:00.000Z", recentRuns: [...RECENT_TELEMETRY_RUNS, ANOMALY_RUN],
+      updatedAt: "2026-11-05T14:00:00.000Z", recentRuns: [...RECENT_RUN_RECORDS, ANOMALY_RUN],
     },
     theme: "diurnal",
   },
@@ -141,7 +141,7 @@ export const BlockedByWafDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
     efficiencyLedger: {
       ...HEALED_LEDGER, totalRunsCount: 30, failedOrBlockedRunsCount: 2,
       deterministicExecutionRatio: 0.8667, deterministicExecutionPercentage: 86.67,
-      updatedAt: "2026-11-06T14:00:00.000Z", recentRuns: [...RECENT_TELEMETRY_RUNS, ANOMALY_RUN, WAF_BLOCKED_RUN],
+      updatedAt: "2026-11-06T14:00:00.000Z", recentRuns: [...RECENT_RUN_RECORDS, ANOMALY_RUN, WAF_BLOCKED_RUN],
     },
     theme: "diurnal",
   },

@@ -11,7 +11,7 @@ import {
 } from "./painter-models.ts";
 import { TdlrProjectNumberSchema } from "./primitives.ts";
 import { RepairChangelogResponseSchema } from "./repair-models.ts";
-import { EfficiencyLedgerSchema } from "./telemetry-models.ts";
+import { EfficiencyLedgerSchema } from "./run-record-models.ts";
 
 export const SafeAstIdSchema = z
   .string()

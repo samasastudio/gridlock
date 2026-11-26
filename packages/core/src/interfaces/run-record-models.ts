@@ -5,7 +5,7 @@ export const ExecutionModeSchema = z.enum(["deterministic", "agentic"]);
 
 export type ExecutionMode = z.infer<typeof ExecutionModeSchema>;
 
-export const TelemetryRunStatusSchema = z.enum([
+export const RunRecordStatusSchema = z.enum([
   "ingested",
   "unchanged_artifact",
   "selector_anomaly",
@@ -15,9 +15,9 @@ export const TelemetryRunStatusSchema = z.enum([
   "agentic_failed",
 ]);
 
-export type TelemetryRunStatus = z.infer<typeof TelemetryRunStatusSchema>;
+export type RunRecordStatus = z.infer<typeof RunRecordStatusSchema>;
 
-export const TelemetryStageSchema = z.enum([
+export const RunStageSchema = z.enum([
   "tdlr_ingest",
   "tdlr_discovery_sweep",
   "repair_agent",
@@ -28,14 +28,14 @@ export const TelemetryStageSchema = z.enum([
   "investigation_planner",
 ]);
 
-export type TelemetryStage = z.infer<typeof TelemetryStageSchema>;
+export type RunStage = z.infer<typeof RunStageSchema>;
 
-export const TelemetrySpanSchema = z.object({
+export const RunSpanSchema = z.object({
   traceId: z.string().min(1),
   spanId: z.string().min(1),
-  stage: TelemetryStageSchema,
+  stage: RunStageSchema,
   execution_mode: ExecutionModeSchema,
-  status: TelemetryRunStatusSchema,
+  status: RunRecordStatusSchema,
   durationMs: z.number().nonnegative(),
   tokensUsed: z.number().int().nonnegative(),
   naiveTokensAvoided: z.number().int().nonnegative(),
@@ -50,16 +50,16 @@ export const TelemetrySpanSchema = z.object({
     .optional(),
 });
 
-export type TelemetrySpan = z.infer<typeof TelemetrySpanSchema>;
+export type RunSpan = z.infer<typeof RunSpanSchema>;
 
-export const TelemetryRunSchema = z.object({
+export const RunRecordSchema = z.object({
   runId: z.string().min(1),
-  stage: TelemetryStageSchema,
+  stage: RunStageSchema,
   connectorId: z.string().min(1).optional(),
   projectNumber: TdlrProjectNumberSchema.optional(),
   rawCaptureHash: Sha256HashSchema.optional(),
   execution_mode: ExecutionModeSchema,
-  status: TelemetryRunStatusSchema,
+  status: RunRecordStatusSchema,
   durationMs: z.number().nonnegative(),
   rawByteLength: z.number().int().nonnegative(),
   tokensUsed: z.number().int().nonnegative(),
@@ -70,7 +70,7 @@ export const TelemetryRunSchema = z.object({
   expiresAt: z.null(),
 });
 
-export type TelemetryRun = z.infer<typeof TelemetryRunSchema>;
+export type RunRecord = z.infer<typeof RunRecordSchema>;
 
 export const EfficiencyLedgerSchema = z.object({
   ledgerId: z.string().min(1),
@@ -93,7 +93,7 @@ export const EfficiencyLedgerSchema = z.object({
   subsequentDeterministicRunsServed: z.number().int().nonnegative(),
   updatedAt: z.string().datetime(),
   expiresAt: z.null(),
-  recentRuns: z.array(TelemetryRunSchema),
+  recentRuns: z.array(RunRecordSchema),
 });
 
 export type EfficiencyLedger = z.infer<typeof EfficiencyLedgerSchema>;

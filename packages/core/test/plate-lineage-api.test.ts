@@ -722,7 +722,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
       },
     };
 
-    const runsBefore = (await repository.listTelemetryRuns()).length;
+    const runsBefore = (await repository.listRunRecords()).length;
     const agenticBefore = (await repository.getEfficiencyLedger()).agenticRunsCount;
 
     await withPlatesServer(
@@ -850,7 +850,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         );
 
         assert.equal(recordedRequests.length, 0);
-        assert.equal((await repository.listTelemetryRuns()).length, runsBefore);
+        assert.equal((await repository.listRunRecords()).length, runsBefore);
         assert.equal(
           (await repository.getEfficiencyLedger()).agenticRunsCount,
           agenticBefore
@@ -894,7 +894,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           : repository.getRawCaptureByHash(hash),
     };
 
-    const runsBefore503 = (await repository.listTelemetryRuns()).length;
+    const runsBefore503 = (await repository.listRunRecords()).length;
     await withPlatesServer(
       {
         repository: proxyRepo,
@@ -971,7 +971,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           503,
           "painter_unavailable"
         );
-        assert.equal((await repository.listTelemetryRuns()).length, runsBefore503);
+        assert.equal((await repository.listRunRecords()).length, runsBefore503);
       }
     );
 
@@ -1143,14 +1143,14 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
     const savedPromise = new Promise<void>((resolve) => {
       markSaved = resolve;
     });
-    let releaseTelemetry: (() => void) | undefined;
-    const telemetryGate = new Promise<void>((resolve) => {
-      releaseTelemetry = resolve;
+    let releaseRunGate: (() => void) | undefined;
+    const runGate = new Promise<void>((resolve) => {
+      releaseRunGate = resolve;
     });
     let notifiedSaved = false;
-    let blockedFirstTelemetry = false;
+    let blockedFirstRun = false;
 
-    const delayedTelemetryRepo: GridlockRepository = {
+    const delayedRunRepo: GridlockRepository = {
       ...teleRepo,
       saveVisualPlate: async (plate, webpBuf) => {
         await teleRepo.saveVisualPlate(plate, webpBuf);
@@ -1159,18 +1159,18 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           markSaved?.();
         }
       },
-      recordTelemetryRun: async (run, updates) => {
-        if (run.stage === "painter_branch_lineage" && !blockedFirstTelemetry) {
-          blockedFirstTelemetry = true;
-          await telemetryGate;
+      recordRunRecord: async (run, updates) => {
+        if (run.stage === "painter_branch_lineage" && !blockedFirstRun) {
+          blockedFirstRun = true;
+          await runGate;
         }
-        return teleRepo.recordTelemetryRun(run, updates);
+        return teleRepo.recordRunRecord(run, updates);
       },
     };
 
     await withPlatesServer(
       {
-        repository: delayedTelemetryRepo,
+        repository: delayedRunRepo,
         geminiClient,
         maxBranchesPerLineage: 3,
         now: () => teleClock,
@@ -1194,7 +1194,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         );
         assert.equal(post2Res.status, 201);
 
-        releaseTelemetry?.();
+        releaseRunGate?.();
         const post1Res = await post1Promise;
         assert.equal(post1Res.status, 201);
       }

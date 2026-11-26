@@ -10,7 +10,7 @@ import {
   type GridlockRepository,
   type PainterErrorCode,
   type PainterImageEncoder,
-  type TelemetrySpanSink,
+  type RunSpanSink,
 } from "../interfaces/index.ts";
 import { hydrateLineageNodes } from "./get-plate-lineage.ts";
 import { isVisualPlateActiveAt } from "./helpers/painter-helpers.ts";
@@ -21,7 +21,7 @@ export interface BranchPlateDeps {
   repository: GridlockRepository;
   geminiClient?: GeminiInteractionsClient;
   imageEncoder?: PainterImageEncoder;
-  spanSink?: TelemetrySpanSink;
+  spanSink?: RunSpanSink;
   maxBranchesPerLineage?: number;
   now?: () => Date;
 }

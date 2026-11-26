@@ -8,7 +8,7 @@ import {
   ProjectSchema,
   RepairChangelogEntrySchema,
   RawCaptureSchema,
-  TelemetryRunSchema,
+  RunRecordSchema,
   UnknownConnectorError,
   VisualPlateSchema,
   type ConnectorConfig,
@@ -20,9 +20,9 @@ import {
   type Project,
   type RepairChangelogEntry,
   type RawCapture,
-  type TelemetryLedgerQueryOptions,
-  type TelemetryRun,
-  type TelemetryStateUpdate,
+  type ScorecardQueryOptions,
+  type RunRecord,
+  type RunStateUpdate,
   type VisualPlate,
 } from "../interfaces/index.ts";
 
@@ -39,9 +39,9 @@ export function createInMemoryGridlockRepository(
   const visualPlateWebpBlobs = new Map<string, Buffer>();
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
-  const telemetryRuns: TelemetryRun[] = [
+  const runRecords: RunRecord[] = [
     ...initialLedger.recentRuns.map((run) =>
-      structuredClone(TelemetryRunSchema.parse(run))
+      structuredClone(RunRecordSchema.parse(run))
     ),
   ];
   const state = {
@@ -119,12 +119,12 @@ export function createInMemoryGridlockRepository(
       return Array.from(projects.values()).map((proj) => structuredClone(proj));
     },
 
-    async recordTelemetryRun(
-      run: TelemetryRun,
-      stateUpdate: TelemetryStateUpdate
+    async recordRunRecord(
+      run: RunRecord,
+      stateUpdate: RunStateUpdate
     ): Promise<EfficiencyLedger> {
-      const validatedRun = TelemetryRunSchema.parse(run);
-      telemetryRuns.push(structuredClone(validatedRun));
+      const validatedRun = RunRecordSchema.parse(run);
+      runRecords.push(structuredClone(validatedRun));
       state.efficiencyLedger = structuredClone(
         EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
       );
@@ -137,9 +137,9 @@ export function createInMemoryGridlockRepository(
     },
 
     async getEfficiencyLedger(
-      options?: TelemetryLedgerQueryOptions
+      options?: ScorecardQueryOptions
     ): Promise<EfficiencyLedger> {
-      const boundedRuns = await this.listTelemetryRuns({
+      const boundedRuns = await this.listRunRecords({
         ...options,
         limit: options?.limit ?? 50,
       });
@@ -149,11 +149,11 @@ export function createInMemoryGridlockRepository(
       });
     },
 
-    async listTelemetryRuns(
-      options?: TelemetryLedgerQueryOptions
-    ): Promise<TelemetryRun[]> {
+    async listRunRecords(
+      options?: ScorecardQueryOptions
+    ): Promise<RunRecord[]> {
       const executionMode = options?.executionMode;
-      const filteredRuns = telemetryRuns.filter((run) =>
+      const filteredRuns = runRecords.filter((run) =>
         executionMode ? run.execution_mode === executionMode : true
       );
       const sliced =
