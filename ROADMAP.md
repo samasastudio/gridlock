@@ -28,7 +28,7 @@ Gridlock is an **editorial civic publishing pipeline**, not a high-QPS platform.
 
 - **Pre-Wave 5 Prefactor ([`gridlock#81`](https://github.com/samasastudio/gridlock/issues/81) — Active Frontier)**:
   - [x] [`#82`](https://github.com/samasastudio/gridlock/issues/82) — Glossary alignment, public routes, docs, widget exports, and `400`/`280`-line caps *(completed & closed)*.
-  - [ ] [`#83`](https://github.com/samasastudio/gridlock/issues/83) — Deepen persistence boundary for atomic transitions and bounded reads *(unblocked)*.
+  - [x] [`#83`](https://github.com/samasastudio/gridlock/issues/83) — Deepen persistence boundary for atomic transitions and bounded reads *(completed)*.
   - [ ] [`#84`](https://github.com/samasastudio/gridlock/issues/84) — Collapse illustration encoder onto `sharp`, fold Scenario Branch wrapper, and unify HTTP guards.
   - [ ] [`#85`](https://github.com/samasastudio/gridlock/issues/85) — Isolate widget theme tokens, deduplicate base CSS, and extract shared snapshot loading shell *(unblocked)*.
 - **In MVP (Wave 5 — Queued Behind `#81`)**:
@@ -73,7 +73,7 @@ flowchart TD
 
   subgraph PreWave5["Pre-Wave 5 Prefactor (#81 — Active Frontier)"]
     T35 --> T82["#82 [under #81] Glossary, Routes, Docs & Caps (Closed)"]
-    T82 --> T83["#83 [under #81] Deepen Persistence Boundary (Unblocked)"]
+    T82 --> T83["#83 [under #81] Deepen Persistence Boundary (Completed)"]
     T82 --> T85["#85 [under #81] Widget Theme Isolation & Shared Shell (Unblocked)"]
     T83 --> T84["#84 [under #81] Sharp Encoder, Branch Fold & HTTP Guards"]
   end
@@ -226,7 +226,7 @@ flowchart TD
 ### Pre-Wave 5 Prefactor — Glossary Alignment & Architecture Cleanup ([`gridlock#81`](https://github.com/samasastudio/gridlock/issues/81)) *(Active Frontier)*
 
 - [x] **[`gridlock#82`](https://github.com/samasastudio/gridlock/issues/82) — Align domain vocabulary, public routes, docs, and file-size caps** *(Closed via PRs `#90`–`#106`)*
-- [ ] **[`gridlock#83`](https://github.com/samasastudio/gridlock/issues/83) — Deepen persistence boundary for atomic transitions and bounded reads** *(Unblocked — unlocks `#84`)*
+- [x] **[`gridlock#83`](https://github.com/samasastudio/gridlock/issues/83) — Deepen persistence boundary for atomic transitions and bounded reads** *(Completed — unlocks `#84`)*
 - [ ] **[`gridlock#84`](https://github.com/samasastudio/gridlock/issues/84) — Collapse illustration encoder onto `sharp`, fold Scenario Branch wrapper, and unify HTTP guards** *(Blocked by `#83`)*
 - [ ] **[`gridlock#85`](https://github.com/samasastudio/gridlock/issues/85) — Isolate widget theme tokens, deduplicate base CSS, and extract shared snapshot loading shell** *(Unblocked)*
 
