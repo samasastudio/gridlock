@@ -133,7 +133,7 @@ function sanitizeTimelineNode(node: FrameTimelineNode): FrameTimelineNode {
 function buildFrameTimelineScrubberNode(
   nodeId: string,
   timeline: FrameTimelineResponse,
-  initialPlateId?: string
+  initialIllustrationId?: string
 ): { ok: true; node: FrameTimelineScrubberNode } | HydratorStepFailure {
   if (timeline.nodes.length === 0) {
     return stepFailure(
@@ -143,12 +143,12 @@ function buildFrameTimelineScrubberNode(
   }
 
   if (
-    initialPlateId !== undefined &&
-    !timeline.nodes.some((node) => node.plate.plateId === initialPlateId)
+    initialIllustrationId !== undefined &&
+    !timeline.nodes.some((node) => node.plate.illustrationId === initialIllustrationId)
   ) {
     return stepFailure(
       "entity_not_found",
-      `Generated Illustration "${initialPlateId}" was not found in active timeline "${timeline.timelineId}"`
+      `Generated Illustration "${initialIllustrationId}" was not found in active timeline "${timeline.timelineId}"`
     );
   }
 
@@ -171,7 +171,7 @@ function buildFrameTimelineScrubberNode(
   if (unresolvableNode) {
     return stepFailure(
       "unresolvable_provenance",
-      `Generated Illustration "${unresolvableNode.plate.plateId}" in timeline "${timeline.timelineId}" lacks resolvable Raw Capture provenance`
+      `Generated Illustration "${unresolvableNode.plate.illustrationId}" in timeline "${timeline.timelineId}" lacks resolvable Raw Capture provenance`
     );
   }
 
@@ -182,7 +182,7 @@ function buildFrameTimelineScrubberNode(
       ...timeline,
       nodes: timeline.nodes.map(sanitizeTimelineNode),
     },
-    ...(initialPlateId !== undefined ? { initialPlateId } : {}),
+    ...(initialIllustrationId !== undefined ? { initialIllustrationId } : {}),
   });
   if (!parsedNode.success) {
     return stepFailure(
@@ -247,7 +247,7 @@ export function hydrateWorkspaceNodes(
           ? buildFrameTimelineScrubberNode(
               specNode.nodeId,
               timeline,
-              specNode.initialPlateId
+              specNode.initialIllustrationId
             )
           : stepFailure(
               "entity_not_found",

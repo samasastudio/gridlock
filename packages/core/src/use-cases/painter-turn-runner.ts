@@ -170,10 +170,10 @@ export async function requestChainedOrFallbackPainterInteraction(params: {
   });
   if (primary.ok || !isExpiredOrRejectedPreviousInteraction(primary)) return primary;
 
-  const cachedParentWebp = await params.repository.readGeneratedIllustrationWebp(params.parentPlate.plateId);
+  const cachedParentWebp = await params.repository.readGeneratedIllustrationWebp(params.parentPlate.illustrationId);
   if (!cachedParentWebp || !isWebpBuffer(cachedParentWebp)) return primary;
 
-  const fallbackPrompt = `${params.prompt}\n[Re-bootstrapped from cached parent Generated Illustration ${params.parentPlate.plateId} after previous_interaction_id ${params.parentPlate.interactionId} expired]`;
+  const fallbackPrompt = `${params.prompt}\n[Re-bootstrapped from cached parent Generated Illustration ${params.parentPlate.illustrationId} after previous_interaction_id ${params.parentPlate.interactionId} expired]`;
   const fallback = await tryCreatePainterInteraction(params.geminiClient, {
     model: PAINTER_AGENT_MODEL,
     store: true,
@@ -269,7 +269,7 @@ export async function finalizePaintedIllustrationTurn(
       ...(rebootstrappedFromParentWebp ? { illustrationCacheHitsDelta: 1 } : {}),
       startedAt: ctx.now,
       endedAt: turnEndedAt(ctx),
-      attributes: { timelineId: ctx.timelineId, plateId: plate.plateId, turnNumber: plate.turnNumber, isBranch: plate.isBranch },
+      attributes: { timelineId: ctx.timelineId, illustrationId: plate.illustrationId, turnNumber: plate.turnNumber, isBranch: plate.isBranch },
     },
     runRecordDeps(ctx)
   );

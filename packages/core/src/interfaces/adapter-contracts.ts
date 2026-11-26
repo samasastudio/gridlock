@@ -70,12 +70,12 @@ export interface GridlockRepository {
   ): Promise<void>;
   listRepairChangelog(connectorId?: string): Promise<RepairChangelogEntry[]>;
   saveGeneratedIllustration(illustration: GeneratedIllustration, webpBuffer: Buffer): Promise<void>;
-  getGeneratedIllustrationById(plateId: string): Promise<GeneratedIllustration | null>;
+  getGeneratedIllustrationById(illustrationId: string): Promise<GeneratedIllustration | null>;
   getGeneratedIllustrationByInteractionId(
     interactionId: string
   ): Promise<GeneratedIllustration | null>;
   listGeneratedIllustrationsByTimeline(timelineId?: string): Promise<GeneratedIllustration[]>;
-  readGeneratedIllustrationWebp(plateId: string): Promise<Buffer | null>;
+  readGeneratedIllustrationWebp(illustrationId: string): Promise<Buffer | null>;
 }
 
 export interface PageLoaderResponse {

@@ -39,9 +39,9 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       const okSnap = await fetchPlateLineageSnapshot({ apiBaseUrl });
       assert.equal(okSnap.ok, true);
       if (!okSnap.ok) return;
-      assert.equal(okSnap.lineage.activeCanonicalPlateId, seeded.t2.plateId);
+      assert.equal(okSnap.lineage.activeCanonicalIllustrationId, seeded.t2.illustrationId);
       assert.equal(okSnap.lineage.nodes.length, 4);
-      const t2Node = okSnap.lineage.nodes.find((n) => n.plate.plateId === seeded.t2.plateId);
+      const t2Node = okSnap.lineage.nodes.find((n) => n.plate.illustrationId === seeded.t2.illustrationId);
       assert.deepEqual(
         t2Node?.rawCaptures.map((a) => a.sha256),
         [seeded.h2]
@@ -54,7 +54,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       });
       assert.equal(emptySnap.ok, true);
       if (emptySnap.ok) {
-        assert.equal(emptySnap.lineage.activeCanonicalPlateId, null);
+        assert.equal(emptySnap.lineage.activeCanonicalIllustrationId, null);
         assert.equal(emptySnap.lineage.nodes.length, 0);
       }
 
@@ -131,7 +131,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
             created.branch.plate.scenarioPrompt,
             "Simulate 345kV loop upgrade at Navarro County"
           );
-          assert.equal(created.branch.node.plate.plateId, created.branch.plate.plateId);
+          assert.equal(created.branch.node.plate.illustrationId, created.branch.plate.illustrationId);
         }
 
         const quota429 = await submitPlateBranch({

@@ -206,7 +206,7 @@ export async function branchIllustration(
     const parentNode = parentHydrated.nodes[0];
     const branchedNode = FrameTimelineNodeSchema.safeParse({
       plate: painterResult.illustration,
-      assetPath: `/api/illustrations/assets/${encodeURIComponent(painterResult.illustration.plateId)}.webp`,
+      assetPath: `/api/illustrations/assets/${encodeURIComponent(painterResult.illustration.illustrationId)}.webp`,
       triggeringObservations: parentNode.triggeringObservations.filter((obs) =>
         painterResult.illustration.triggeringObservationIds.includes(obs.id)
       ),

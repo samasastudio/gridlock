@@ -211,7 +211,7 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
           assert.equal(res.headers.get("cache-control"), "no-store");
           assert.deepEqual(FrameTimelineResponseSchema.parse(await res.json()), {
             timelineId: expectedId,
-            activeCanonicalPlateId: null,
+            activeCanonicalIllustrationId: null,
             nodes: [],
             edges: [],
           });
@@ -222,19 +222,19 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
     assert.throws(() =>
       FrameTimelineResponseSchema.parse({
         timelineId: DEFAULT_TIMELINE_ID,
-        activeCanonicalPlateId: "ghost",
+        activeCanonicalIllustrationId: "ghost",
         nodes: [],
         edges: [],
       })
     );
 
     const { obs1, t1, t2 } = await seedLineageGraph();
-    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, plateId: "plate/1" }).success, false);
+    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, illustrationId: "plate/1" }).success, false);
     assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, timelineId: "austin/north" }).success, false);
     assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, timelineId: "austin north" }).success, false);
     const t1NodeBase = {
       plate: t1,
-      assetPath: `/api/illustrations/assets/${t1.plateId}.webp`,
+      assetPath: `/api/illustrations/assets/${t1.illustrationId}.webp`,
       triggeringObservations: [obs1],
       rawCaptures: [],
     };
@@ -255,14 +255,14 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
     assert.equal(
       FrameTimelineResponseSchema.safeParse({
         timelineId: DEFAULT_TIMELINE_ID,
-        activeCanonicalPlateId: t1.plateId,
+        activeCanonicalIllustrationId: t1.illustrationId,
         nodes: [t1NodeBase],
         edges: [
           {
             parentInteractionId: t1.interactionId,
             childInteractionId: t2.interactionId,
-            parentPlateId: t1.plateId,
-            childPlateId: t2.plateId,
+            parentIllustrationId: t1.illustrationId,
+            childIllustrationId: t2.illustrationId,
             isBranch: false,
           },
         ],
@@ -282,10 +282,10 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
         const initialRes = await fetch(`${baseUrl}/api/illustrations/timeline`);
         const initial = FrameTimelineResponseSchema.parse(await initialRes.json());
 
-        assert.equal(initial.activeCanonicalPlateId, t2.plateId);
+        assert.equal(initial.activeCanonicalIllustrationId, t2.illustrationId);
         assert.deepEqual(
-          initial.nodes.map((node) => node.plate.plateId),
-          [t1.plateId, t2.plateId, b1.plateId, b2.plateId]
+          initial.nodes.map((node) => node.plate.illustrationId),
+          [t1.illustrationId, t2.illustrationId, b1.illustrationId, b2.illustrationId]
         );
         assert.deepEqual(initial.nodes[0]?.triggeringObservations, [obs1]);
         assert.equal(
@@ -313,16 +313,16 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
         const afterTtl = FrameTimelineResponseSchema.parse(await afterTtlRes.json());
 
         assert.deepEqual(
-          afterTtl.nodes.map((node) => node.plate.plateId),
-          [t1.plateId, t2.plateId, b2.plateId]
+          afterTtl.nodes.map((node) => node.plate.illustrationId),
+          [t1.illustrationId, t2.illustrationId, b2.illustrationId]
         );
         assert.equal(afterTtl.nodes[2]?.plate.parentInteractionId, b1.interactionId);
         assert.deepEqual(afterTtl.edges, [
           {
             parentInteractionId: t1.interactionId,
             childInteractionId: t2.interactionId,
-            parentPlateId: t1.plateId,
-            childPlateId: t2.plateId,
+            parentIllustrationId: t1.illustrationId,
+            childIllustrationId: t2.illustrationId,
             isBranch: false,
           },
         ]);
@@ -403,7 +403,7 @@ describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phas
   });
 });
 
-describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33 Phase 2)", () => {
+describe("GET /api/illustrations/assets/:illustrationId.webp HTTP Seam (Seam 3 API, Ticket #33 Phase 2)", () => {
   test("Round-trips 200 canonical (immutable) and active branch (no-store) WebP bytes and enforces 404 on missing, expired, blobless, or malformed paths", async () => {
     const { repository, t1, b1, b2 } = await seedLineageGraph();
     let clock = new Date("2026-11-01T00:00:00.000Z");
@@ -459,7 +459,7 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
           "sub/x.webp",
           "%E0%A4%A.webp",
           "a%2Fb.webp",
-          `%20${t1.plateId}%20.webp`,
+          `%20${t1.illustrationId}%20.webp`,
           "..webp",
         ]) {
           assert.equal(
@@ -471,7 +471,7 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
 
         dropBlob = true;
         await assertErr(
-          fetch(`${baseUrl}/api/illustrations/assets/${t1.plateId}.webp`),
+          fetch(`${baseUrl}/api/illustrations/assets/${t1.illustrationId}.webp`),
           404,
           "illustration_not_found"
         );
@@ -480,18 +480,18 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
         clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
         readWebpCalls = 0;
         assert.equal(
-          (await fetch(`${baseUrl}/api/illustrations/assets/${b1.plateId}.webp`))
+          (await fetch(`${baseUrl}/api/illustrations/assets/${b1.illustrationId}.webp`))
             .status,
           404
         );
         assert.equal(readWebpCalls, 0);
         assert.equal(
-          (await fetch(`${baseUrl}/api/illustrations/assets/${t1.plateId}.webp`))
+          (await fetch(`${baseUrl}/api/illustrations/assets/${t1.illustrationId}.webp`))
             .status,
           200
         );
         assert.equal(
-          (await fetch(`${baseUrl}/api/illustrations/assets/${b2.plateId}.webp`))
+          (await fetch(`${baseUrl}/api/illustrations/assets/${b2.illustrationId}.webp`))
             .status,
           200
         );
@@ -501,7 +501,7 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
 
   test("Enforces 400 query rejection, 405 Allow: GET, and 500 fail-closed metadata/WebP integrity verification with clean 200 recovery", async () => {
     const { repository, t1 } = await seedLineageGraph();
-    const validBuf = (await repository.readGeneratedIllustrationWebp(t1.plateId))!;
+    const validBuf = (await repository.readGeneratedIllustrationWebp(t1.illustrationId))!;
     const flippedBuf = createFixtureWebpBuffer("tampered-valid-webp");
 
     assert.ok(isWebpBuffer(flippedBuf));
@@ -521,8 +521,8 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
       | "throw" = "none";
 
     const metaFaults: Record<string, unknown> = {
-      id_mismatch: { ...t1, plateId: "wrong_id" },
-      bad_schema: { plateId: t1.plateId },
+      id_mismatch: { ...t1, illustrationId: "wrong_id" },
+      bad_schema: { illustrationId: t1.illustrationId },
     };
     const blobFaults: Record<string, Buffer> = {
       non_webp: Buffer.alloc(t1.byteLength, 0x42),
@@ -553,7 +553,7 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
     await withPlatesServer(
       { repository: proxyRepo, now: () => new Date("2026-11-01T00:00:00.000Z") },
       async (baseUrl) => {
-        const assetUrl = `${baseUrl}/api/illustrations/assets/${encodeURIComponent(t1.plateId)}.webp`;
+        const assetUrl = `${baseUrl}/api/illustrations/assets/${encodeURIComponent(t1.illustrationId)}.webp`;
 
         await assertErr(
           fetch(`${assetUrl}?unexpected=1`),
@@ -596,7 +596,7 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
 });
 
 describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", () => {
-  test("Returns 201 Created with watermarked WebP + XMP dc:rights and updates GET /api/illustrations/timeline without advancing activeCanonicalPlateId", async () => {
+  test("Returns 201 Created with watermarked WebP + XMP dc:rights and updates GET /api/illustrations/timeline without advancing activeCanonicalIllustrationId", async () => {
     const { repository, t2, h2, hAged } = await seedLineageGraph();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const clock = new Date("2026-11-02T12:00:00.000Z");
@@ -680,9 +680,9 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
         const timeline = FrameTimelineResponseSchema.parse(
           await (await fetch(`${baseUrl}/api/illustrations/timeline`)).json()
         );
-        assert.equal(timeline.activeCanonicalPlateId, t2.plateId);
+        assert.equal(timeline.activeCanonicalIllustrationId, t2.illustrationId);
         assert.ok(
-          timeline.nodes.some((node) => node.plate.plateId === created.plate.plateId)
+          timeline.nodes.some((node) => node.plate.illustrationId === created.plate.illustrationId)
         );
         assert.ok(
           timeline.edges.some(
@@ -882,7 +882,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
           : repository.getGeneratedIllustrationByInteractionId(id),
       listGeneratedIllustrationsByTimeline: async (id) =>
         fault === "timeline"
-          ? ([{ plateId: "corrupt" }] as never)
+          ? ([{ illustrationId: "corrupt" }] as never)
           : repository.listGeneratedIllustrationsByTimeline(id),
       listObservationsByProject: async (projectNumber) =>
         fault === "obs"

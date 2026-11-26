@@ -8,7 +8,7 @@ import { resolveCanonicalBaselineNode } from "./plate-lineage-model.ts";
 export interface PlateComparisonStageProps {
   nodes: readonly LineageNode[];
   edges?: readonly LineageEdge[];
-  activeCanonicalPlateId?: string | null;
+  activeCanonicalIllustrationId?: string | null;
   activeNode: LineageNode;
   isComparing: boolean;
   onToggleCompare: (nextComparing: boolean) => void;
@@ -21,7 +21,7 @@ function resolveNodeAssetSrc(
   apiBaseUrl?: string,
   assetUrlOverrides?: Readonly<Record<string, string>>
 ): string | undefined {
-  const overrideSrc = assetUrlOverrides?.[node.plate.plateId]?.trim();
+  const overrideSrc = assetUrlOverrides?.[node.plate.illustrationId]?.trim();
   if (overrideSrc) {
     return overrideSrc;
   }
@@ -41,14 +41,14 @@ function PlateViewportFrame(props: {
 }) {
   const { plate } = props.node;
   const resolvedSrc = resolveNodeAssetSrc(props.node, props.apiBaseUrl, props.assetUrlOverrides);
-  const assetKey = resolvedSrc !== undefined ? `${plate.plateId}::${resolvedSrc}` : null;
+  const assetKey = resolvedSrc !== undefined ? `${plate.illustrationId}::${resolvedSrc}` : null;
   const showRaster =
     resolvedSrc !== undefined && (assetKey === null || !props.failedAssetKeys.has(assetKey));
 
   return (
     <figure
       className="gridlock-plate-viewport"
-      data-plate-id={plate.plateId}
+      data-plate-id={plate.illustrationId}
       data-branch={plate.isBranch ? "true" : "false"}
       data-comparison-slot={props.comparisonSlot}
     >
@@ -59,15 +59,15 @@ function PlateViewportFrame(props: {
           <span aria-hidden="true"> · </span>
           <time dateTime={plate.createdAt}>{plate.createdAt.slice(0, 10)}</time>
           <span aria-hidden="true"> · </span>
-          <code>{plate.plateId}</code>
+          <code>{plate.illustrationId}</code>
         </span>
       </figcaption>
       {showRaster ? (
         <motion.img
-          key={`${plate.plateId}::${resolvedSrc}`}
+          key={`${plate.illustrationId}::${resolvedSrc}`}
           className="gridlock-plate-img"
           src={resolvedSrc}
-          alt={`${plate.epistemicLabel} — Turn ${plate.turnNumber} (${plate.plateId})`}
+          alt={`${plate.epistemicLabel} — Turn ${plate.turnNumber} (${plate.illustrationId})`}
           loading="eager"
           decoding="async"
           onError={() => props.onAssetFailed(assetKey)}
@@ -82,7 +82,7 @@ function PlateViewportFrame(props: {
             <strong>Visual Plate preview unavailable</strong>
           </div>
           <p className="gridlock-plate-fallback-copy">
-            WebP asset for <code>{plate.plateId}</code> could not be loaded; verified Observations
+            WebP asset for <code>{plate.illustrationId}</code> could not be loaded; verified Observations
             and cryptographic Raw Capture provenance remain inspectable.
           </p>
         </div>
@@ -108,7 +108,7 @@ export function PlateComparisonStage(props: PlateComparisonStageProps) {
     nodes: props.nodes,
     activeNode: props.activeNode,
     edges: props.edges,
-    activeCanonicalPlateId: props.activeCanonicalPlateId,
+    activeCanonicalIllustrationId: props.activeCanonicalIllustrationId,
   });
 
   const activeViewport = (
@@ -132,7 +132,7 @@ export function PlateComparisonStage(props: PlateComparisonStageProps) {
         <span className="gridlock-plate-compare-context">
           <span>Baseline · Turn {baselineNode.plate.turnNumber}</span>
           <span aria-hidden="true"> · </span>
-          <code>{baselineNode.plate.plateId}</code>
+          <code>{baselineNode.plate.illustrationId}</code>
         </span>
         <button
           type="button"

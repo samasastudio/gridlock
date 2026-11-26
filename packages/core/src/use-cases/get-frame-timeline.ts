@@ -141,7 +141,7 @@ export async function hydrateTimelineNodes(
     });
     return FrameTimelineNodeSchema.safeParse({
       plate,
-      assetPath: `/api/illustrations/assets/${encodeURIComponent(plate.plateId)}.webp`,
+      assetPath: `/api/illustrations/assets/${encodeURIComponent(plate.illustrationId)}.webp`,
       triggeringObservations,
       rawCaptures,
     });
@@ -182,7 +182,7 @@ export async function getFrameTimeline(
     if (activePlates.length === 0) {
       const empty = FrameTimelineResponseSchema.safeParse({
         timelineId,
-        activeCanonicalPlateId: null,
+        activeCanonicalIllustrationId: null,
         nodes: [],
         edges: [],
       });
@@ -210,8 +210,8 @@ export async function getFrameTimeline(
         {
           parentInteractionId: parent.interactionId,
           childInteractionId: child.interactionId,
-          parentPlateId: parent.plateId,
-          childPlateId: child.plateId,
+          parentIllustrationId: parent.illustrationId,
+          childIllustrationId: child.illustrationId,
           isBranch: child.isBranch,
         },
       ];
@@ -219,7 +219,7 @@ export async function getFrameTimeline(
 
     const validated = FrameTimelineResponseSchema.safeParse({
       timelineId,
-      activeCanonicalPlateId: selectActiveCanonicalIllustration(activePlates)?.plateId ?? null,
+      activeCanonicalIllustrationId: selectActiveCanonicalIllustration(activePlates)?.illustrationId ?? null,
       nodes: hydrated.nodes,
       edges,
     });
@@ -234,18 +234,18 @@ export async function getFrameTimeline(
 }
 
 export async function getGeneratedIllustrationAsset(
-  input: { plateId: string; now?: Date },
+  input: { illustrationId: string; now?: Date },
   deps: { repository: Pick<GridlockRepository, "getGeneratedIllustrationById" | "readGeneratedIllustrationWebp"> }
 ): Promise<GetGeneratedIllustrationAssetResult> {
   const now = input.now ?? new Date();
   try {
-    const plateCandidate = await deps.repository.getGeneratedIllustrationById(input.plateId);
+    const plateCandidate = await deps.repository.getGeneratedIllustrationById(input.illustrationId);
     if (plateCandidate === null || plateCandidate === undefined) {
-      return assetErr("illustration_not_found", `GeneratedIllustration "${input.plateId}" not found`);
+      return assetErr("illustration_not_found", `GeneratedIllustration "${input.illustrationId}" not found`);
     }
 
     const parsedPlate = GeneratedIllustrationSchema.safeParse(plateCandidate);
-    if (!parsedPlate.success || parsedPlate.data.plateId !== input.plateId) {
+    if (!parsedPlate.success || parsedPlate.data.illustrationId !== input.illustrationId) {
       return assetErr(
         "illustration_asset_error",
         "Stored GeneratedIllustration metadata failed runtime schema validation"
@@ -254,15 +254,15 @@ export async function getGeneratedIllustrationAsset(
     if (!isGeneratedIllustrationActiveAt(parsedPlate.data, now)) {
       return assetErr(
         "illustration_not_found",
-        `GeneratedIllustration asset "${input.plateId}" not found or expired`
+        `GeneratedIllustration asset "${input.illustrationId}" not found or expired`
       );
     }
 
-    const webpCandidate = await deps.repository.readGeneratedIllustrationWebp(input.plateId);
+    const webpCandidate = await deps.repository.readGeneratedIllustrationWebp(input.illustrationId);
     if (webpCandidate === null || webpCandidate === undefined) {
       return assetErr(
         "illustration_not_found",
-        `GeneratedIllustration asset "${input.plateId}" not found or expired`
+        `GeneratedIllustration asset "${input.illustrationId}" not found or expired`
       );
     }
 

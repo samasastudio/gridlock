@@ -87,7 +87,7 @@ describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #
       });
       assert.equal(
         container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
-        seeded.t1.plateId
+        seeded.t1.illustrationId
       );
       assert.match(
         container.querySelector(".gridlock-plate-lead")?.textContent ?? "",
@@ -96,15 +96,15 @@ describe("<GridlockPlateWidget /> Citations & Ancestor Provenance Walk (Ticket #
 
       const agedOutParentLineage = PlateLineageResponseSchema.parse({
         timelineId: seeded.lineage.timelineId,
-        activeCanonicalPlateId: seeded.t1.plateId,
+        activeCanonicalIllustrationId: seeded.t1.illustrationId,
         nodes: [
-          seeded.lineage.nodes.find((n) => n.plate.plateId === seeded.t1.plateId)!,
-          seeded.lineage.nodes.find((n) => n.plate.plateId === seeded.b2.plateId)!,
+          seeded.lineage.nodes.find((n) => n.plate.illustrationId === seeded.t1.illustrationId)!,
+          seeded.lineage.nodes.find((n) => n.plate.illustrationId === seeded.b2.illustrationId)!,
         ],
         edges: [],
       });
       await act(async () => {
-        root.render(<GridlockPlateWidget lineage={agedOutParentLineage} selectedPlateId={seeded.b2.plateId} apiBaseUrl="" />);
+        root.render(<GridlockPlateWidget lineage={agedOutParentLineage} selectedPlateId={seeded.b2.illustrationId} apiBaseUrl="" />);
       });
       assert.match(container.textContent ?? "", /parent aged past 90d TTL/);
     });

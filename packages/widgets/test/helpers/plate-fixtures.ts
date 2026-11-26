@@ -112,15 +112,15 @@ export function buildBranchOnlyLineage(
   b1PlateId: string,
   b2PlateId: string
 ): PlateLineageResponse {
-  const b1Node = lineage.nodes.find((node) => node.plate.plateId === b1PlateId)!;
-  const b2Node = lineage.nodes.find((node) => node.plate.plateId === b2PlateId)!;
+  const b1Node = lineage.nodes.find((node) => node.plate.illustrationId === b1PlateId)!;
+  const b2Node = lineage.nodes.find((node) => node.plate.illustrationId === b2PlateId)!;
 
   return PlateLineageResponseSchema.parse({
     timelineId: lineage.timelineId,
-    activeCanonicalPlateId: null,
+    activeCanonicalIllustrationId: null,
     nodes: [b1Node, b2Node],
     edges: lineage.edges.filter(
-      (edge) => edge.parentPlateId === b1PlateId && edge.childPlateId === b2PlateId
+      (edge) => edge.parentIllustrationId === b1PlateId && edge.childIllustrationId === b2PlateId
     ),
   });
 }

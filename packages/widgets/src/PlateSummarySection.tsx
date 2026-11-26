@@ -29,8 +29,8 @@ export function PlateWidgetLoadingPlaceholder() {
 
 export function PlateHeadlineKpiStrip(props: { lineage: PlateLineageResponse }) {
   const kpis = computePlateLineageKpis(props.lineage);
-  const headSublabel = props.lineage.activeCanonicalPlateId
-    ? `head ${props.lineage.activeCanonicalPlateId}`
+  const headSublabel = props.lineage.activeCanonicalIllustrationId
+    ? `head ${props.lineage.activeCanonicalIllustrationId}`
     : "awaiting Turn 1 bootstrap";
   const items = [
     { label: "Canonical Milestones", value: kpis.canonicalMilestonesCount, sub: headSublabel, delay: 0.08 },
@@ -76,12 +76,12 @@ export function PlateSummarySection(props: {
   const parentNode = plate.isBranch
     ? orderedNodes.find(
         (candidate) =>
-          (plate.parentPlateId !== null && candidate.plate.plateId === plate.parentPlateId) ||
+          (plate.parentIllustrationId !== null && candidate.plate.illustrationId === plate.parentIllustrationId) ||
           (plate.parentInteractionId !== null && candidate.plate.interactionId === plate.parentInteractionId)
       )
     : undefined;
   const parentLabel = parentNode
-    ? `Forked from Turn ${parentNode.plate.turnNumber} (${parentNode.plate.plateId})`
+    ? `Forked from Turn ${parentNode.plate.turnNumber} (${parentNode.plate.illustrationId})`
     : plate.parentInteractionId
       ? `Forked from ${plate.parentInteractionId}`
       : "Scenario projection";
@@ -95,7 +95,7 @@ export function PlateSummarySection(props: {
   return (
     <div className="gridlock-plate-specimen">
       <motion.p
-        key={`lead-${plate.plateId}`}
+        key={`lead-${plate.illustrationId}`}
         className="gridlock-plate-lead"
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}

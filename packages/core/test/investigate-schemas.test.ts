@@ -71,13 +71,13 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
 
     const validTimelineNode = {
       plate: {
-        plateId: "plate_canonical_1",
+        illustrationId: "plate_canonical_1",
         timelineId: DEFAULT_TIMELINE_ID,
         turnNumber: 1,
         model: "gemini-3-pro-image",
         interactionId: "ix_canonical_1",
         parentInteractionId: null,
-        parentPlateId: null,
+        parentIllustrationId: null,
         projectNumbers: ["TABS2027003697"],
         triggeringObservationIds: [milestoneObs.id],
         rawCaptureHashes: [hashA],
@@ -100,10 +100,10 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
     const validScrubberNode = {
       nodeId: "valid-scrubber",
       component: "FrameTimelineScrubber" as const,
-      initialPlateId: "plate_canonical_1",
+      initialIllustrationId: "plate_canonical_1",
       timeline: {
         timelineId: DEFAULT_TIMELINE_ID,
-        activeCanonicalPlateId: "plate_canonical_1",
+        activeCanonicalIllustrationId: "plate_canonical_1",
         nodes: [validTimelineNode],
         edges: [],
       },
@@ -152,9 +152,9 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
           node: {
             ...validScrubberNode,
             nodeId: "invalid-initial-plate",
-            initialPlateId: "plate_absent_id",
+            initialIllustrationId: "plate_absent_id",
           },
-          expectedPath: "initialPlateId",
+          expectedPath: "initialIllustrationId",
         },
         {
           node: {

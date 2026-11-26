@@ -19,13 +19,13 @@ export type EpistemicIllustrationLabel = z.infer<typeof EpistemicIllustrationLab
 
 export const GeneratedIllustrationSchema = z
   .object({
-    plateId: SafeSegmentIdSchema,
+    illustrationId: SafeSegmentIdSchema,
     timelineId: SafeSegmentIdSchema,
     turnNumber: z.number().int().positive(),
     model: z.string().min(1),
     interactionId: z.string().min(1),
     parentInteractionId: z.string().min(1).nullable(),
-    parentPlateId: SafeSegmentIdSchema.nullable(),
+    parentIllustrationId: SafeSegmentIdSchema.nullable(),
     rebootstrappedFromParentWebp: z.boolean().default(false),
     projectNumbers: z.array(TdlrProjectNumberSchema),
     triggeringObservationIds: z.array(z.string().min(1)),
@@ -134,7 +134,7 @@ export const FrameTimelineNodeSchema = z
     rawCaptures: z.array(TimelineSourceCitationSchema),
   })
   .superRefine((node, ctx) => {
-    const expectedPath = `/api/illustrations/assets/${encodeURIComponent(node.plate.plateId)}.webp`;
+    const expectedPath = `/api/illustrations/assets/${encodeURIComponent(node.plate.illustrationId)}.webp`;
     if (node.assetPath !== expectedPath) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -171,8 +171,8 @@ export type FrameTimelineNode = z.infer<typeof FrameTimelineNodeSchema>;
 export const FrameTimelineEdgeSchema = z.object({
   parentInteractionId: z.string().min(1),
   childInteractionId: z.string().min(1),
-  parentPlateId: z.string().min(1),
-  childPlateId: z.string().min(1),
+  parentIllustrationId: z.string().min(1),
+  childIllustrationId: z.string().min(1),
   isBranch: z.boolean(),
 });
 
@@ -181,7 +181,7 @@ export type FrameTimelineEdge = z.infer<typeof FrameTimelineEdgeSchema>;
 export const FrameTimelineResponseSchema = z
   .object({
     timelineId: SafeSegmentIdSchema,
-    activeCanonicalPlateId: z.string().min(1).nullable(),
+    activeCanonicalIllustrationId: z.string().min(1).nullable(),
     nodes: z.array(FrameTimelineNodeSchema),
     edges: z.array(FrameTimelineEdgeSchema),
   })
@@ -193,7 +193,7 @@ export const FrameTimelineResponseSchema = z
       fail(["nodes"], "All FrameTimelineNodes must match timelineId");
     }
 
-    const uniquePlateIds = new Set(data.nodes.map((node) => node.plate.plateId));
+    const uniquePlateIds = new Set(data.nodes.map((node) => node.plate.illustrationId));
     const uniqueInteractionIds = new Set(
       data.nodes.map((node) => node.plate.interactionId)
     );
@@ -201,23 +201,23 @@ export const FrameTimelineResponseSchema = z
       uniquePlateIds.size !== data.nodes.length ||
       uniqueInteractionIds.size !== data.nodes.length
     ) {
-      fail(["nodes"], "Duplicate plateId or interactionId in FrameTimelineNodes");
+      fail(["nodes"], "Duplicate illustrationId or interactionId in FrameTimelineNodes");
     }
 
     const canonicalIds = new Set(
       data.nodes
         .filter((node) => !node.plate.isBranch)
-        .map((node) => node.plate.plateId)
+        .map((node) => node.plate.illustrationId)
     );
     const hasValidActiveHead =
       canonicalIds.size === 0
-        ? data.activeCanonicalPlateId === null
-        : data.activeCanonicalPlateId !== null &&
-          canonicalIds.has(data.activeCanonicalPlateId);
+        ? data.activeCanonicalIllustrationId === null
+        : data.activeCanonicalIllustrationId !== null &&
+          canonicalIds.has(data.activeCanonicalIllustrationId);
     if (!hasValidActiveHead) {
       fail(
-        ["activeCanonicalPlateId"],
-        "Invalid activeCanonicalPlateId for canonical nodes"
+        ["activeCanonicalIllustrationId"],
+        "Invalid activeCanonicalIllustrationId for canonical nodes"
       );
     }
 
@@ -231,8 +231,8 @@ export const FrameTimelineResponseSchema = z
         !parent ||
         !child ||
         edge.parentInteractionId === edge.childInteractionId ||
-        parent.plateId !== edge.parentPlateId ||
-        child.plateId !== edge.childPlateId ||
+        parent.illustrationId !== edge.parentIllustrationId ||
+        child.illustrationId !== edge.childIllustrationId ||
         child.parentInteractionId !== edge.parentInteractionId ||
         child.isBranch !== edge.isBranch
       );
@@ -278,7 +278,7 @@ export const BranchIllustrationResponseSchema = z
       });
     }
     if (
-      data.node.plate.plateId !== data.plate.plateId ||
+      data.node.plate.illustrationId !== data.plate.illustrationId ||
       data.plate.timelineId !== data.timelineId ||
       data.plate.rebootstrappedFromParentWebp !== data.rebootstrappedFromParentWebp
     ) {

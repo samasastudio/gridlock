@@ -3,7 +3,7 @@ import type { GeneratedIllustration, GridlockRepository } from "../interfaces/in
 import { isGeneratedIllustrationActiveAt } from "./helpers/painter-helpers.ts";
 
 interface BranchReservation {
-  plateId: string | null;
+  illustrationId: string | null;
 }
 
 interface TimelineSlotState {
@@ -12,7 +12,7 @@ interface TimelineSlotState {
 }
 
 export interface BranchSlotHandle {
-  markPersisting(plateId: string): void;
+  markPersisting(illustrationId: string): void;
   release(): Promise<void>;
 }
 
@@ -68,7 +68,7 @@ export function countOccupiedBranchSlots(
   const activeBranchIds = new Set(
     plates
       .filter((plate) => plate.isBranch && isGeneratedIllustrationActiveAt(plate, now))
-      .map((plate) => plate.plateId)
+      .map((plate) => plate.illustrationId)
   );
   const reservations =
     slotStatesByRepo.get(repo)?.get(timelineId)?.reservations;
@@ -76,7 +76,7 @@ export function countOccupiedBranchSlots(
     return activeBranchIds.size;
   }
   const unpersistedCount = Array.from(reservations.values()).filter(
-    (entry) => entry.plateId === null || !activeBranchIds.has(entry.plateId)
+    (entry) => entry.illustrationId === null || !activeBranchIds.has(entry.illustrationId)
   ).length;
   return activeBranchIds.size + unpersistedCount;
 }
@@ -90,11 +90,11 @@ export function withTimelineBranchAdmission<T>(
   return withSlotLock(state, () =>
     admit(() => {
       const token = Symbol("branchSlot");
-      const entry: BranchReservation = { plateId: null };
+      const entry: BranchReservation = { illustrationId: null };
       state.reservations.set(token, entry);
       return {
-        markPersisting: (plateId: string) => {
-          entry.plateId = plateId;
+        markPersisting: (illustrationId: string) => {
+          entry.illustrationId = illustrationId;
         },
         release: async () => {
           if (!state.reservations.has(token)) {
@@ -117,7 +117,7 @@ export function wrapRepositoryWithBranchSlot(
     get(target, prop, receiver: unknown): unknown {
       if (prop === "saveGeneratedIllustration") {
         return async (plate: GeneratedIllustration, webpBuffer: Buffer) => {
-          slot.markPersisting(plate.plateId);
+          slot.markPersisting(plate.illustrationId);
           try {
             await target.saveGeneratedIllustration(plate, webpBuffer);
           } finally {

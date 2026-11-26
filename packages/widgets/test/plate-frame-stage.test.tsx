@@ -13,10 +13,10 @@ import { seedTestPlateLineage } from "./helpers/plate-fixtures.ts";
 
 function ControlledStageHarness(props: {
   nodes: readonly LineageNode[];
-  initialPlateId: string;
+  initialIllustrationId: string;
   overrides?: Readonly<Record<string, string>>;
 }) {
-  const [activePlateId, setActivePlateId] = useState(props.initialPlateId);
+  const [activePlateId, setActivePlateId] = useState(props.initialIllustrationId);
   return (
     <PlateFrameStage
       nodes={props.nodes}
@@ -35,7 +35,7 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
     const shuffled = [nodes[2]!, nodes[0]!, nodes[3]!, nodes[1]!];
 
     const ssrHtml = renderToStaticMarkup(
-      <PlateFrameStage nodes={shuffled} activePlateId={seeded.t2.plateId} onSelectPlate={() => {}} apiBaseUrl="" />
+      <PlateFrameStage nodes={shuffled} activePlateId={seeded.t2.illustrationId} onSelectPlate={() => {}} apiBaseUrl="" />
     );
     const styleCss = ssrHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
     const remSizes = Array.from(styleCss.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
@@ -44,14 +44,14 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
     assert.match(styleCss, /:where\(\.gridlock-plate-stage code\)\s*\{[^}]*font-size:\s*max\(0\.75rem,\s*0\.875em\)/);
     assert.match(styleCss, /:where\(\.gridlock-plate-stage :is\(button, a, \[role="button"\], \[tabindex="0"\], summary\)\):focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/);
     assert.match(styleCss, /:where\(\.gridlock-plate-stage \.gridlock-status-badge\)\s*\{\s*padding-block:\s*0\.25rem/);
-    assert.match(ssrHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.plateId}\\.webp"`));
+    assert.match(ssrHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.illustrationId}\\.webp"`));
 
     const blankOverrideFallbackHtml = renderToStaticMarkup(
       <PlateFrameStage
         nodes={shuffled}
-        activePlateId={seeded.t2.plateId}
+        activePlateId={seeded.t2.illustrationId}
         onSelectPlate={() => {}}
-        assetUrlOverrides={{ [seeded.t2.plateId]: "   " }}
+        assetUrlOverrides={{ [seeded.t2.illustrationId]: "   " }}
       />
     );
     assert.match(blankOverrideFallbackHtml, /data-plate-fallback="true"/);
@@ -60,21 +60,21 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
     const blankOverrideSameOriginHtml = renderToStaticMarkup(
       <PlateFrameStage
         nodes={shuffled}
-        activePlateId={seeded.t2.plateId}
+        activePlateId={seeded.t2.illustrationId}
         onSelectPlate={() => {}}
         apiBaseUrl=""
-        assetUrlOverrides={{ [seeded.t2.plateId]: "   " }}
+        assetUrlOverrides={{ [seeded.t2.illustrationId]: "   " }}
       />
     );
-    assert.match(blankOverrideSameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.plateId}\\.webp"`));
+    assert.match(blankOverrideSameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.illustrationId}\\.webp"`));
 
     const omittedIdHtml = renderToStaticMarkup(<PlateFrameStage nodes={shuffled} onSelectPlate={() => {}} apiBaseUrl="" />);
-    assert.match(omittedIdHtml, new RegExp(`data-plate-id="${seeded.t2.plateId}"`));
+    assert.match(omittedIdHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
     assert.doesNotMatch(omittedIdHtml, new RegExp(SCENARIO_BRANCH_WATERMARK));
     const staleIdHtml = renderToStaticMarkup(<PlateFrameStage nodes={shuffled} activePlateId="plate_stale" onSelectPlate={() => {}} apiBaseUrl="" />);
-    assert.match(staleIdHtml, new RegExp(`data-plate-id="${seeded.t2.plateId}"`));
+    assert.match(staleIdHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
     const branchOnlyHtml = renderToStaticMarkup(<PlateFrameStage nodes={[nodes[2]!, nodes[3]!]} onSelectPlate={() => {}} apiBaseUrl="" />);
-    assert.match(branchOnlyHtml, new RegExp(`data-plate-id="${seeded.b2.plateId}"`));
+    assert.match(branchOnlyHtml, new RegExp(`data-plate-id="${seeded.b2.illustrationId}"`));
 
     const emptyHtml = renderToStaticMarkup(<PlateFrameStage nodes={[]} onSelectPlate={() => {}} />);
     assert.match(emptyHtml, /data-empty-lineage="true"/);
@@ -82,11 +82,11 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
 
     await withWidgetDom(async ({ window: win, container, root }) => {
       const overrides = {
-        [seeded.t1.plateId]: "https://cdn.example.com/t1-broken.webp",
-        [seeded.t2.plateId]: "https://cdn.example.com/t2-valid.webp",
+        [seeded.t1.illustrationId]: "https://cdn.example.com/t1-broken.webp",
+        [seeded.t2.illustrationId]: "https://cdn.example.com/t2-valid.webp",
       };
       await act(async () => {
-        root.render(<ControlledStageHarness nodes={shuffled} initialPlateId={seeded.t2.plateId} overrides={overrides} />);
+        root.render(<ControlledStageHarness nodes={shuffled} initialIllustrationId={seeded.t2.illustrationId} overrides={overrides} />);
       });
 
       const getTabs = () => Array.from(container.querySelectorAll('[role="tab"]'));
@@ -131,16 +131,16 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
       await pressKey(1, "ArrowLeft");
       assert.ok(container.querySelector('[data-plate-fallback="true"]'));
 
-      const recoveredOverrides = { ...overrides, [seeded.t1.plateId]: "https://cdn.example.com/t1-recovered.webp" };
+      const recoveredOverrides = { ...overrides, [seeded.t1.illustrationId]: "https://cdn.example.com/t1-recovered.webp" };
       await act(async () => {
-        root.render(<ControlledStageHarness nodes={shuffled} initialPlateId={seeded.t2.plateId} overrides={recoveredOverrides} />);
+        root.render(<ControlledStageHarness nodes={shuffled} initialIllustrationId={seeded.t2.illustrationId} overrides={recoveredOverrides} />);
       });
       assert.equal(container.querySelector('[data-plate-fallback="true"]'), null);
       assert.equal(container.querySelector("img")?.getAttribute("src"), "https://cdn.example.com/t1-recovered.webp");
 
       let singleFrameSelections = 0;
       await act(async () => {
-        root.render(<PlateFrameStage nodes={[nodes[0]!]} activePlateId={nodes[0]!.plate.plateId} onSelectPlate={() => { singleFrameSelections += 1; }} />);
+        root.render(<PlateFrameStage nodes={[nodes[0]!]} activePlateId={nodes[0]!.plate.illustrationId} onSelectPlate={() => { singleFrameSelections += 1; }} />);
       });
       await pressKey(0, "ArrowRight");
       await pressKey(0, "ArrowLeft");
@@ -151,7 +151,7 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
         ...b1WholeSec,
         plate: {
           ...b1WholeSec.plate,
-          plateId: "plate_branch_t3_sibling",
+          illustrationId: "plate_branch_t3_sibling",
           interactionId: "inter_plate_seed_sibling",
           createdAt: "2026-10-29T11:00:00.500Z",
         },
@@ -163,8 +163,8 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
       assert.deepEqual(getTabs().map((tab) => tab.textContent?.trim()), [
         "Turn 1", "Turn 2", "Branch 1 · Turn 3", "Branch 2 · Turn 3", "Branch · Turn 4",
       ]);
-      assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t2.plateId);
-      assert.match(getTabs()[2]?.id ?? "", new RegExp(`${seeded.b1.plateId}$`));
+      assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t2.illustrationId);
+      assert.match(getTabs()[2]?.id ?? "", new RegExp(`${seeded.b1.illustrationId}$`));
       assert.match(getTabs()[3]?.id ?? "", /plate_branch_t3_sibling$/);
     });
   });

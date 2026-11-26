@@ -194,7 +194,7 @@ async function saveTestIllustration(
   overrides: Partial<GeneratedIllustration> &
     Pick<
       GeneratedIllustration,
-      | "plateId"
+      | "illustrationId"
       | "timelineId"
       | "projectNumbers"
       | "triggeringObservationIds"
@@ -202,17 +202,17 @@ async function saveTestIllustration(
       | "sha256"
     >
 ): Promise<void> {
-  const webpBuf = createFixtureWebpBuffer(overrides.plateId);
+  const webpBuf = createFixtureWebpBuffer(overrides.illustrationId);
   const isBranch = overrides.isBranch ?? false;
   await repository.saveGeneratedIllustration(
     GeneratedIllustrationSchema.parse({
       turnNumber: 1,
       model: PAINTER_AGENT_MODEL,
-      interactionId: `ix_${overrides.plateId}`,
+      interactionId: `ix_${overrides.illustrationId}`,
       parentInteractionId: null,
-      parentPlateId: null,
-      prompt: `Fixture prompt ${overrides.plateId}`,
-      storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/${overrides.plateId}.webp`,
+      parentIllustrationId: null,
+      prompt: `Fixture prompt ${overrides.illustrationId}`,
+      storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/${overrides.illustrationId}.webp`,
       mimeType: "image/webp",
       byteLength: webpBuf.byteLength,
       isBranch,
@@ -341,11 +341,11 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
   }
 
   await saveTestIllustration(repository, {
-    plateId: "plate_expired_branch",
+    illustrationId: "plate_expired_branch",
     timelineId: DEFAULT_TIMELINE_ID,
     turnNumber: 2,
     parentInteractionId: bootstrapRes.illustration.interactionId,
-    parentPlateId: bootstrapRes.illustration.plateId,
+    parentIllustrationId: bootstrapRes.illustration.illustrationId,
     projectNumbers: ["TABS2027001001"],
     triggeringObservationIds: ["obs_1001_m1"],
     rawCaptureHashes: [HASH_ACTIVE_A],
@@ -365,7 +365,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
     )
   );
   await saveTestIllustration(repository, {
-    plateId: "plate_quarantined_1",
+    illustrationId: "plate_quarantined_1",
     timelineId: "quarantined-timeline",
     projectNumbers: ["TABS2027001003"],
     triggeringObservationIds: ["obs_quarantined_timeline"],
@@ -381,7 +381,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
     )
   );
   await saveTestIllustration(repository, {
-    plateId: "plate_expired_1",
+    illustrationId: "plate_expired_1",
     timelineId: "expired-timeline",
     projectNumbers: ["TABS2027001004"],
     triggeringObservationIds: ["obs_expired_timeline"],
@@ -392,7 +392,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
   return {
     repository,
     canonicalArtifactHash: HASH_ACTIVE_A,
-    branchPlateId: branchRes.illustration.plateId,
+    branchPlateId: branchRes.illustration.illustrationId,
   };
 }
 
@@ -420,7 +420,7 @@ export function createFiveCardLayoutSpec(
         nodeId: "scrubber-corridor",
         component: "FrameTimelineScrubber",
         timelineId: DEFAULT_TIMELINE_ID,
-        initialPlateId: branchPlateId,
+        initialIllustrationId: branchPlateId,
       },
       {
         nodeId: "health-tdlr",

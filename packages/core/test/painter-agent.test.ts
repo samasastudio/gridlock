@@ -38,13 +38,13 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(isWebpBuffer(webpBlob), true);
 
     const turn2Plate = GeneratedIllustrationSchema.parse({
-      plateId: "plate_texas-corridor-main_t2_abcd1234",
+      illustrationId: "plate_texas-corridor-main_t2_abcd1234",
       timelineId: "texas-corridor-main",
       turnNumber: 2,
       model: PAINTER_AGENT_MODEL,
       interactionId: "inter_turn_2",
       parentInteractionId: "inter_turn_1",
-      parentPlateId: "plate_texas-corridor-main_t1_00001111",
+      parentIllustrationId: "plate_texas-corridor-main_t1_00001111",
       rebootstrappedFromParentWebp: false,
       projectNumbers: [milestoneObs1.projectNumber],
       triggeringObservationIds: [milestoneObs1.id],
@@ -63,22 +63,22 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
 
     const turn10Plate = GeneratedIllustrationSchema.parse({
       ...turn2Plate,
-      plateId: "plate_texas-corridor-main_t10_99887766",
+      illustrationId: "plate_texas-corridor-main_t10_99887766",
       turnNumber: 10,
       interactionId: "inter_turn_10",
       parentInteractionId: "inter_turn_9",
-      parentPlateId: "plate_texas-corridor-main_t9_55443322",
+      parentIllustrationId: "plate_texas-corridor-main_t9_55443322",
       storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/texas-corridor-main/plate_texas-corridor-main_t10_99887766.webp`,
       createdAt: "2026-10-27T15:00:00.000Z",
     });
 
     const branchPlate = GeneratedIllustrationSchema.parse({
       ...turn2Plate,
-      plateId: "branch_texas-corridor-main_t11_ef567890",
+      illustrationId: "branch_texas-corridor-main_t11_ef567890",
       turnNumber: 11,
       interactionId: "inter_branch_1",
       parentInteractionId: turn10Plate.interactionId,
-      parentPlateId: turn10Plate.plateId,
+      parentIllustrationId: turn10Plate.illustrationId,
       triggeringObservationIds: ["obs_TABS2027009999_branch_only"],
       storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/texas-corridor-main/branch_texas-corridor-main_t11_ef567890.webp`,
       isBranch: true,
@@ -105,7 +105,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       (await repository.listGeneratedIllustrationsByTimeline("texas-corridor-main")).map((p) => p.turnNumber),
       [2, 10, 11]
     );
-    assert.deepEqual(await repository.readGeneratedIllustrationWebp(turn10Plate.plateId), webpBlob);
+    assert.deepEqual(await repository.readGeneratedIllustrationWebp(turn10Plate.illustrationId), webpBlob);
 
     // Caller-facing milestone gate skips routine + already-painted canonical milestones at 0 tokens
     const skippedGate = await evaluatePainterMilestoneGate(
@@ -116,7 +116,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(skippedGate.result.status, "skipped_no_milestone");
     assert.equal(skippedGate.result.tokensUsed, 0);
     assert.equal(skippedGate.result.imageGenerationsAvoided, 1);
-    assert.equal(skippedGate.result.activeIllustration?.plateId, turn10Plate.plateId);
+    assert.equal(skippedGate.result.activeIllustration?.illustrationId, turn10Plate.illustrationId);
 
     // Branch-only observation remains eligible for canonical painting
     const milestoneObsBranchOnly = ObservationSchema.parse({
@@ -135,7 +135,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       readyGate.milestoneObservations.map((o) => o.id),
       ["obs_TABS2027009999_branch_only"]
     );
-    assert.equal(readyGate.ctx.activeIllustration?.plateId, turn10Plate.plateId);
+    assert.equal(readyGate.ctx.activeIllustration?.illustrationId, turn10Plate.illustrationId);
 
     const t0 = new Date("2026-10-27T15:07:00.000Z");
     // Uncached painter run recomputes illustrationCacheEfficiencyPercentage (1 avoided / 2 demand = 50%)
@@ -332,13 +332,13 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     const branchOnlyBlob = createFixtureWebpBuffer("branch-only");
     await repository.saveGeneratedIllustration(
       GeneratedIllustrationSchema.parse({
-        plateId: "branch_texas-corridor-main_t1_deadbeef",
+        illustrationId: "branch_texas-corridor-main_t1_deadbeef",
         timelineId: "texas-corridor-main",
         turnNumber: 1,
         model: PAINTER_AGENT_MODEL,
         interactionId: "inter_branch_only",
         parentInteractionId: "inter_ext",
-        parentPlateId: "plate_ext",
+        parentIllustrationId: "plate_ext",
         rebootstrappedFromParentWebp: false,
         projectNumbers: [m1.projectNumber],
         triggeringObservationIds: ["obs_branch_only"],
@@ -376,7 +376,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(recordedRequests[2]?.previous_interaction_id, turn1.illustration.interactionId);
     assert.match(String(recordedRequests[2]?.input), /camera angle.*topography.*typography.*existing corridor infrastructure/i);
     assert.equal(turn2.illustration.turnNumber, 2);
-    assert.equal(turn2.illustration.parentPlateId, turn1.illustration.plateId);
+    assert.equal(turn2.illustration.parentIllustrationId, turn1.illustration.illustrationId);
     assert.equal(turn2.rebootstrappedFromParentWebp, false);
     assert.deepEqual(turn2.illustration.triggeringObservationIds, [m2.id]);
 
@@ -426,7 +426,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       assert.equal(failed.status, "painter_failed");
       assert.equal(failed.errorCode, "interaction_failed");
       assert.equal(failed.tokensUsed, item.expectedTokens);
-      assert.equal(failed.activeIllustration?.plateId, turn4.illustration.plateId);
+      assert.equal(failed.activeIllustration?.illustrationId, turn4.illustration.illustrationId);
       assert.equal(recordedRequests.length, callsBefore + 1);
     }, Promise.resolve());
 
@@ -439,7 +439,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     const corruptCacheFallback = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m5] }, { repository, geminiClient });
     assert.equal(corruptCacheFallback.status, "painter_failed");
     assert.equal(corruptCacheFallback.errorCode, "interaction_failed");
-    assert.equal(corruptCacheFallback.activeIllustration?.plateId, turn4.illustration.plateId);
+    assert.equal(corruptCacheFallback.activeIllustration?.illustrationId, turn4.illustration.illustrationId);
     assert.equal(recordedRequests.length, callsBeforeCorruptCache + 1);
 
     const missingBlobRepo = { ...repository, readGeneratedIllustrationWebp: async () => null };
@@ -450,7 +450,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     const missingCacheFallback = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m5] }, { repository: missingBlobRepo, geminiClient });
     assert.equal(missingCacheFallback.status, "painter_failed");
     assert.equal(missingCacheFallback.errorCode, "interaction_failed");
-    assert.equal(missingCacheFallback.activeIllustration?.plateId, turn4.illustration.plateId);
+    assert.equal(missingCacheFallback.activeIllustration?.illustrationId, turn4.illustration.illustrationId);
     assert.equal(recordedRequests.length, callsBeforeMissingCache + 1);
   });
 
@@ -566,7 +566,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(branchPlate.isBranch, true);
     assert.equal(branchPlate.turnNumber, 2);
     assert.equal(branchPlate.parentInteractionId, "inter_branch_parent_root");
-    assert.equal(branchPlate.parentPlateId, rootResult.illustration.plateId);
+    assert.equal(branchPlate.parentIllustrationId, rootResult.illustration.illustrationId);
     assert.equal(branchPlate.epistemicLabel, SCENARIO_BRANCH_WATERMARK);
     assert.equal(branchPlate.watermarkText, SCENARIO_BRANCH_WATERMARK);
     assert.equal(branchPlate.expiresAt, expectedExpiresAt);
@@ -575,7 +575,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.ok(branchResult.webpBuffer.toString("utf-8").includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`));
     assert.equal(decodeRenderedBannerText(branchResult.webpBuffer, 64, 3), SCENARIO_BRANCH_WATERMARK.toUpperCase());
 
-    // Sibling branch with identical output_image bytes must get a distinct plateId & storageUri without overwriting branch 1
+    // Sibling branch with identical output_image bytes must get a distinct illustrationId & storageUri without overwriting branch 1
     responseQueue.push({
       id: "inter_scenario_branch_02",
       status: "completed",
@@ -588,7 +588,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       { repository, geminiClient }
     );
     assert.equal(siblingBranch.status, "illustration_painted");
-    assert.notEqual(siblingBranch.illustration.plateId, branchPlate.plateId);
+    assert.notEqual(siblingBranch.illustration.illustrationId, branchPlate.illustrationId);
     assert.notEqual(siblingBranch.illustration.storageUri, branchPlate.storageUri);
     assert.equal((await repository.listGeneratedIllustrationsByTimeline("texas-corridor-main")).length, 3);
 

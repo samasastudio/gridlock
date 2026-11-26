@@ -204,8 +204,8 @@ async function seedFullFiveCardRepository(): Promise<{
 
   return {
     repository,
-    canonicalPlateId: bootstrapRes.illustration.plateId,
-    branchPlateId: branchRes.illustration.plateId,
+    canonicalPlateId: bootstrapRes.illustration.illustrationId,
+    branchPlateId: branchRes.illustration.illustrationId,
   };
 }
 
@@ -226,7 +226,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
             nodeId: "corridor-scrubber",
             component: "FrameTimelineScrubber",
             timelineId: DEFAULT_TIMELINE_ID,
-            initialPlateId: branchPlateId,
+            initialIllustrationId: branchPlateId,
           },
           {
             nodeId: "corridor-timeline",
@@ -276,9 +276,9 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       FrameTimelineScrubberNodeSchema.parse(scrubberNode),
       scrubberNode
     );
-    assert.equal(scrubberNode.initialPlateId, branchPlateId);
+    assert.equal(scrubberNode.initialIllustrationId, branchPlateId);
     assert.equal(
-      scrubberNode.timeline.activeCanonicalPlateId,
+      scrubberNode.timeline.activeCanonicalIllustrationId,
       canonicalPlateId
     );
     assert.equal(scrubberNode.timeline.nodes.length, 2);
@@ -337,7 +337,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
             nodeId: "max-prompt-scrubber",
             component: "FrameTimelineScrubber",
             timelineId: DEFAULT_TIMELINE_ID,
-            initialPlateId: maxBranchRes.illustration.plateId,
+            initialIllustrationId: maxBranchRes.illustration.illustrationId,
           },
         ],
       },
@@ -350,7 +350,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       maxScrubberNode && maxScrubberNode.component === "FrameTimelineScrubber"
     );
     const hydratedMaxBranch = maxScrubberNode.timeline.nodes.find(
-      (n) => n.plate.plateId === maxBranchRes.illustration.plateId
+      (n) => n.plate.illustrationId === maxBranchRes.illustration.illustrationId
     );
     assert.ok(hydratedMaxBranch?.plate.scenarioPrompt);
     assert.ok(
@@ -399,7 +399,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     );
   });
 
-  test("fails closed on empty or expired Frame Timelines, invalid initialPlateId, and unresolvable canonical illustration provenance", async () => {
+  test("fails closed on empty or expired Frame Timelines, invalid initialIllustrationId, and unresolvable canonical illustration provenance", async () => {
     const { repository, canonicalPlateId, branchPlateId } =
       await seedFullFiveCardRepository();
 
@@ -466,7 +466,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
               nodeId: "bad-initial-plate",
               component: "FrameTimelineScrubber",
               timelineId: DEFAULT_TIMELINE_ID,
-              initialPlateId: badInitialId,
+              initialIllustrationId: badInitialId,
             },
           ],
         },
@@ -478,7 +478,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     }
 
     const canonicalPlate = allPlates.find(
-      (plate) => plate.plateId === canonicalPlateId
+      (plate) => plate.illustrationId === canonicalPlateId
     );
     assert.ok(canonicalPlate);
     const canonicalArtifactHash = canonicalPlate.rawCaptureHashes[0];
@@ -650,7 +650,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         repository: {
           ...repository,
           listGeneratedIllustrationsByTimeline: async () =>
-            [{ plateId: "corrupt", timelineId: DEFAULT_TIMELINE_ID }] as never,
+            [{ illustrationId: "corrupt", timelineId: DEFAULT_TIMELINE_ID }] as never,
         },
       },
       { now: NOW }

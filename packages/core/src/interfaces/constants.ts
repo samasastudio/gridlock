@@ -162,7 +162,7 @@ export const ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
             "FrameTimelineScrubber",
             {
               timelineId: { type: "string" },
-              initialPlateId: { type: "string" },
+              initialIllustrationId: { type: "string" },
             },
             ["timelineId"]
           ),
