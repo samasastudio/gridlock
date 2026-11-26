@@ -6,7 +6,7 @@ import {
   type GridlockRepository,
   type HydrateWorkspaceErrorCode,
   type InvestigatePlanResponse,
-  type TelemetrySpanSink,
+  type RunSpanSink,
   type UiWorkspaceAst,
 } from "../interfaces/index.ts";
 import {
@@ -18,7 +18,7 @@ import {
 } from "./helpers/investigate-planner-prompt.ts";
 import { hydrateInvestigationWorkspace } from "./hydrate-investigation-workspace.ts";
 import { loadPlannerGroundingCatalog } from "./load-investigation-catalog.ts";
-import { recordAgenticStageTelemetry } from "./record-telemetry.ts";
+import { recordAgenticStageRun } from "./record-run.ts";
 
 export type InvestigationPlannerErrorCode =
   | "invalid_request_body"
@@ -36,7 +36,7 @@ export interface InvestigationPlannerInput {
 export interface InvestigationPlannerDeps {
   repository: GridlockRepository;
   geminiClient?: GeminiInteractionsClient;
-  spanSink?: TelemetrySpanSink;
+  spanSink?: RunSpanSink;
 }
 
 export type InvestigationPlannerResult =
@@ -104,13 +104,13 @@ export async function runInvestigationPlanner(
   }
 
   const hasCurrentAst = Boolean(parsedRequest.request.currentAst);
-  const recordTelemetry = async (params: {
+  const recordRun = async (params: {
     status: "agentic_completed" | "agentic_failed";
     tokensUsed: number;
     interactionId?: string;
     attributes: Record<string, string | number | boolean | null>;
   }): Promise<void> => {
-    await recordAgenticStageTelemetry(
+    await recordAgenticStageRun(
       {
         stage: "investigation_planner",
         ...params,
@@ -133,7 +133,7 @@ export async function runInvestigationPlanner(
     hydrateError?: HydrateWorkspaceErrorCode;
   }): Promise<InvestigationPlannerResult> => {
     try {
-      await recordTelemetry({
+      await recordRun({
         status: "agentic_failed",
         tokensUsed: params.tokensUsed,
         ...(params.interactionId !== undefined ? { interactionId: params.interactionId } : {}),
@@ -144,7 +144,7 @@ export async function runInvestigationPlanner(
         },
       });
     } catch {
-      // Preserve planner error response if repository telemetry persistence fails.
+      // Preserve planner error response if repository run-record persistence fails.
     }
     return plannerErr(params.status, params.error, params.message);
   };
@@ -198,7 +198,7 @@ export async function runInvestigationPlanner(
   }
 
   try {
-    await recordTelemetry({
+    await recordRun({
       status: "agentic_completed",
       tokensUsed: validated.tokensUsed,
       interactionId: validated.interactionId,
@@ -213,7 +213,7 @@ export async function runInvestigationPlanner(
     return plannerErr(
       500,
       "investigate_plan_error",
-      `Failed to persist investigation_planner telemetry: ${detail}`
+      `Failed to persist investigation_planner run record: ${detail}`
     );
   }
 

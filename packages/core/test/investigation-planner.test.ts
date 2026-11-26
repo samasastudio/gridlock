@@ -9,10 +9,10 @@ import {
   PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
   RepairChangelogEntrySchema,
   runInvestigationPlanner,
-  TelemetryStageSchema,
+  RunStageSchema,
   type GeminiInteractionResponse,
   type GridlockRepository,
-  type TelemetrySpan,
+  type RunSpan,
   type UiWorkspaceAst,
 } from "../src/index.ts";
 import { createTestProject } from "./helpers/fixtures.ts";
@@ -30,13 +30,13 @@ import {
 } from "./helpers/planner-test-helpers.ts";
 
 describe("runInvestigationPlanner (Core filing planner & preconditions)", () => {
-  test("TelemetryStageSchema accepts investigation_planner", () => {
-    assert.equal(TelemetryStageSchema.safeParse("investigation_planner").success, true);
+  test("RunStageSchema accepts investigation_planner", () => {
+    assert.equal(RunStageSchema.safeParse("investigation_planner").success, true);
   });
 
   test("hydrates filing cards, filters uncitable catalog projects, redacts PII, and records telemetry", async () => {
     const repository = await seedFilingPlannerRepository();
-    const spans: TelemetrySpan[] = [];
+    const spans: RunSpan[] = [];
     const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
       id: "ix_planner_200",
       status: "completed",
@@ -113,7 +113,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(String(geminiReq.input).includes("[REDACTED_EMAIL]"), true);
     assert.equal(String(geminiReq.input).includes("[REDACTED_PHONE]"), true);
 
-    const runs = await repository.listTelemetryRuns();
+    const runs = await repository.listRunRecords();
     assert.equal(runs.length, 1);
     assert.equal(runs[0]?.stage, "investigation_planner");
     assert.equal(runs[0]?.execution_mode, "agentic");
@@ -232,25 +232,25 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(outcome.response.workspace.isEmpty, true);
     assert.deepEqual(outcome.response.workspace.nodes, []);
 
-    const runs = await repository.listTelemetryRuns();
+    const runs = await repository.listRunRecords();
     assert.equal(runs.length, 1);
     assert.equal(runs[0]?.status, "agentic_completed");
     assert.equal(runs[0]?.tokensUsed, 120);
 
-    const brokenTelemetryRepo: GridlockRepository = {
+    const brokenRunRepo: GridlockRepository = {
       ...repository,
-      recordTelemetryRun: async () => {
-        throw new Error("Telemetry ledger write failed");
+      recordRunRecord: async () => {
+        throw new Error("Run record write failed");
       },
     };
-    const telemetryWriteErr = await runInvestigationPlanner(
+    const runWriteErr = await runInvestigationPlanner(
       { query: "Show El Paso geothermal filings", now: PLANNER_TEST_NOW },
-      { repository: brokenTelemetryRepo, geminiClient }
+      { repository: brokenRunRepo, geminiClient }
     );
-    assert.equal(telemetryWriteErr.ok, false);
-    if (!telemetryWriteErr.ok) {
-      assert.equal(telemetryWriteErr.status, 500);
-      assert.equal(telemetryWriteErr.error, "investigate_plan_error");
+    assert.equal(runWriteErr.ok, false);
+    if (!runWriteErr.ok) {
+      assert.equal(runWriteErr.status, 500);
+      assert.equal(runWriteErr.error, "investigate_plan_error");
     }
   });
 
@@ -324,7 +324,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     }
 
     assert.equal(recordedRequests.length, 0);
-    assert.equal((await repository.listTelemetryRuns()).length, 0);
+    assert.equal((await repository.listRunRecords()).length, 0);
   });
 
   test("maps upstream and structural AI failures to 502 with agentic_failed telemetry", async () => {
@@ -397,7 +397,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       }
     }
 
-    const runs = await repository.listTelemetryRuns();
+    const runs = await repository.listRunRecords();
     assert.equal(runs.length, 6);
     assert.equal(
       runs.every((run) => run.stage === "investigation_planner" && run.status === "agentic_failed"),
@@ -440,7 +440,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
       }
     }
 
-    const runs = await repository.listTelemetryRuns();
+    const runs = await repository.listRunRecords();
     assert.equal(runs.length, 2);
     assert.equal(runs[0]?.status, "agentic_failed");
     assert.equal(runs[0]?.tokensUsed, 90);
@@ -515,7 +515,7 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
     assert.equal(promptText.includes("[REDACTED_EMAIL]"), true);
   });
 
-  test("aborts with 500 at 0 Gemini calls and 0 TelemetryRun writes on corrupt VisualPlate, RepairChangelogEntry, or ConnectorConfig", async () => {
+  test("aborts with 500 at 0 Gemini calls and 0 RunRecord writes on corrupt VisualPlate, RepairChangelogEntry, or ConnectorConfig", async () => {
     const repository = await seedFilingPlannerRepository();
     const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
       id: "ix_unreachable",
@@ -599,14 +599,14 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
     }
 
     assert.equal(recordedRequests.length, 0);
-    assert.equal((await repository.listTelemetryRuns()).length, 0);
+    assert.equal((await repository.listRunRecords()).length, 0);
   });
 });
 
 describe("runInvestigationPlanner (In-place workspace refinement)", () => {
   test("passes compact currentWorkspace manifest on refinement without hydrated prose and rejects tampered currentAst at 0 tokens", async () => {
     const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
-    const spans: TelemetrySpan[] = [];
+    const spans: RunSpan[] = [];
     const { geminiClient, recordedRequests } = createQueuedLayoutClientStub(
       [
         createFiveCardLayoutSpec(branchPlateId),
@@ -709,7 +709,7 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
       nodes: createFiveCardLayoutSpec(branchPlateId).nodes,
     });
 
-    const runsBeforeTampered = (await repository.listTelemetryRuns()).length;
+    const runsBeforeTampered = (await repository.listRunRecords()).length;
     const firstDossier = initialWorkspace.nodes[0]!;
     assert.equal(firstDossier.component, "ProjectDossierCard");
     if (firstDossier.component !== "ProjectDossierCard") return;
@@ -754,6 +754,6 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
     }
 
     assert.equal(recordedRequests.length, 2);
-    assert.equal((await repository.listTelemetryRuns()).length, runsBeforeTampered);
+    assert.equal((await repository.listRunRecords()).length, runsBeforeTampered);
   });
 });

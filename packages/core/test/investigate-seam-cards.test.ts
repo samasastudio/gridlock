@@ -16,7 +16,7 @@ import {
   MAX_SCENARIO_PROMPT_LENGTH,
   MAX_WORKSPACE_NODES,
   NINETY_DAYS_MS,
-  recordStageTelemetry,
+  recordStageRun,
   runOutOfBandRepairAgent,
   UiWorkspaceAstSchema,
   VisualPlateScrubberNodeSchema,
@@ -185,7 +185,7 @@ async function seedFullFiveCardRepository(): Promise<{
 
   for (let idx = 0; idx < 15; idx += 1) {
     const start = new Date(NOW.getTime() - (20 - idx) * 1_000);
-    await recordStageTelemetry(
+    await recordStageRun(
       {
         stage: "tdlr_ingest",
         connectorId: "tdlr-tabs",

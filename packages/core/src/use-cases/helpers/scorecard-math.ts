@@ -4,18 +4,18 @@ import {
   NAIVE_COST_PER_TOKEN_USD,
   RepairChangelogEntrySchema,
   RawCaptureSchema,
-  TelemetryRunSchema,
-  TelemetrySpanSchema,
+  RunRecordSchema,
+  RunSpanSchema,
   type ConnectorConfig,
   type EfficiencyLedger,
   type ExecutionMode,
   type RepairChangelogEntry,
   type RawCapture,
-  type TelemetryPainterDeltas,
-  type TelemetryRun,
-  type TelemetryRunStatus,
-  type TelemetrySpan,
-  type TelemetryStage,
+  type RunPainterDeltas,
+  type RunRecord,
+  type RunRecordStatus,
+  type RunSpan,
+  type RunStage,
 } from "../../interfaces/index.ts";
 
 export function calculateNaiveTokensAvoided(rawByteLength: number): number {
@@ -34,10 +34,10 @@ export function calculateEstimatedCostSavedUsd(
   return Number((naiveTokensAvoided * NAIVE_COST_PER_TOKEN_USD).toFixed(8));
 }
 
-export function buildTelemetrySpan(params: {
-  stage: TelemetryStage;
+export function buildRunSpan(params: {
+  stage: RunStage;
   execution_mode: ExecutionMode;
-  status: TelemetryRunStatus;
+  status: RunRecordStatus;
   startedAt: Date;
   endedAt: Date;
   tokensUsed: number;
@@ -46,12 +46,12 @@ export function buildTelemetrySpan(params: {
   traceId?: string;
   spanId?: string;
   attributes?: Record<string, string | number | boolean | null>;
-}): TelemetrySpan {
+}): RunSpan {
   const durationMs = Math.max(
     0,
     params.endedAt.getTime() - params.startedAt.getTime()
   );
-  return TelemetrySpanSchema.parse({
+  return RunSpanSchema.parse({
     traceId: params.traceId ?? randomBytes(16).toString("hex"),
     spanId: params.spanId ?? randomBytes(8).toString("hex"),
     stage: params.stage,
@@ -71,14 +71,14 @@ export function buildTelemetrySpan(params: {
   });
 }
 
-export function buildTelemetryRun(params: {
+export function buildRunRecord(params: {
   runId?: string;
-  stage: TelemetryStage;
+  stage: RunStage;
   connectorId?: string;
   projectNumber?: string;
   rawCaptureHash?: string;
   execution_mode: ExecutionMode;
-  status: TelemetryRunStatus;
+  status: RunRecordStatus;
   durationMs: number;
   rawByteLength: number;
   tokensUsed: number;
@@ -86,11 +86,11 @@ export function buildTelemetryRun(params: {
   estimatedCostSavedUsd?: number;
   interactionId?: string;
   recordedAt: string;
-}): TelemetryRun {
+}): RunRecord {
   const estimatedCostSavedUsd =
     params.estimatedCostSavedUsd ??
     calculateEstimatedCostSavedUsd(params.naiveTokensAvoided);
-  return TelemetryRunSchema.parse({
+  return RunRecordSchema.parse({
     runId:
       params.runId ??
       `run_${params.stage}_${Date.parse(params.recordedAt) || Date.now()}_${randomBytes(4).toString("hex")}`,
@@ -119,11 +119,11 @@ export function buildTelemetryRun(params: {
   });
 }
 
-export function applyTelemetryRunToLedger(
+export function applyRunRecordToLedger(
   current: EfficiencyLedger,
-  run: TelemetryRun,
-  recentRuns: TelemetryRun[],
-  deltas?: TelemetryPainterDeltas
+  run: RunRecord,
+  recentRuns: RunRecord[],
+  deltas?: RunPainterDeltas
 ): EfficiencyLedger {
   const isSuccessDet =
     run.execution_mode === "deterministic" &&
@@ -196,7 +196,7 @@ export function applyTelemetryRunToLedger(
 }
 
 export function applyHealAmortization(params: {
-  run: TelemetryRun;
+  run: RunRecord;
   activeConfig: ConnectorConfig | undefined;
   repairChangelog: readonly RepairChangelogEntry[];
   ledger: EfficiencyLedger;

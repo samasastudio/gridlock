@@ -12,11 +12,11 @@ import {
   type RepairAgentResult,
   type SandboxReplayResult,
   type RawCapture,
-  type TelemetrySpanSink,
+  type RunSpanSink,
 } from "../interfaces/index.ts";
 import { evaluateSandboxReplayGate } from "./helpers/sandbox-replay.ts";
-import { applyConnectorPromotion } from "./helpers/telemetry-math.ts";
-import { recordAgenticStageTelemetry } from "./record-telemetry.ts";
+import { applyConnectorPromotion } from "./helpers/scorecard-math.ts";
+import { recordAgenticStageRun } from "./record-run.ts";
 
 function tryDecompressQuarantinedHtml(
   gzipBuffer: Buffer
@@ -79,7 +79,7 @@ export async function runOutOfBandRepairAgent(
   deps: {
     repository: GridlockRepository;
     geminiClient: GeminiInteractionsClient;
-    spanSink?: TelemetrySpanSink;
+    spanSink?: RunSpanSink;
   }
 ): Promise<RepairAgentResult> {
   const connectorId = input.connectorId ?? input.quarantinedArtifact.connectorId;
@@ -101,7 +101,7 @@ export async function runOutOfBandRepairAgent(
       "selector_anomaly",
       nowIso
     );
-    await recordAgenticStageTelemetry(
+    await recordAgenticStageRun(
       {
         stage: "repair_agent",
         connectorId,
@@ -248,7 +248,7 @@ export async function runOutOfBandRepairAgent(
     changelogEntry,
     promotion
   );
-  await recordAgenticStageTelemetry(
+  await recordAgenticStageRun(
     {
       stage: "repair_agent",
       connectorId,

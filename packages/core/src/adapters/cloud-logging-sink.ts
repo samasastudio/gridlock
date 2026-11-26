@@ -1,8 +1,8 @@
 import {
   DEFAULT_GCP_PROJECT_ID,
-  TelemetrySpanSchema,
-  type TelemetrySpan,
-  type TelemetrySpanSink,
+  RunSpanSchema,
+  type RunSpan,
+  type RunSpanSink,
 } from "../interfaces/index.ts";
 
 export function createCloudLoggingSpanSink(
@@ -10,9 +10,9 @@ export function createCloudLoggingSpanSink(
     process.stdout.write(`${line}\n`);
   },
   projectId: string = process.env.GOOGLE_CLOUD_PROJECT ?? DEFAULT_GCP_PROJECT_ID
-): TelemetrySpanSink {
-  return (span: TelemetrySpan) => {
-    const validated = TelemetrySpanSchema.parse(span);
+): RunSpanSink {
+  return (span: RunSpan) => {
+    const validated = RunSpanSchema.parse(span);
     const isError =
       validated.status === "blocked_by_waf" ||
       validated.status === "selector_anomaly" ||
@@ -21,7 +21,7 @@ export function createCloudLoggingSpanSink(
 
     const cloudLogEntry: Record<string, unknown> = {
       severity: isError ? "WARNING" : "INFO",
-      message: `[Gridlock Telemetry] stage=${validated.stage} mode=${validated.execution_mode} status=${validated.status} durationMs=${validated.durationMs} naiveTokensAvoided=${validated.naiveTokensAvoided} tokensUsed=${validated.tokensUsed}`,
+      message: `[Gridlock Run] stage=${validated.stage} mode=${validated.execution_mode} status=${validated.status} durationMs=${validated.durationMs} naiveTokensAvoided=${validated.naiveTokensAvoided} tokensUsed=${validated.tokensUsed}`,
       "logging.googleapis.com/trace": `projects/${projectId}/traces/${validated.traceId}`,
       "logging.googleapis.com/spanId": validated.spanId,
       stage: validated.stage,
@@ -44,4 +44,4 @@ export function createCloudLoggingSpanSink(
   };
 }
 
-export const defaultSpanSink: TelemetrySpanSink = createCloudLoggingSpanSink();
+export const defaultSpanSink: RunSpanSink = createCloudLoggingSpanSink();

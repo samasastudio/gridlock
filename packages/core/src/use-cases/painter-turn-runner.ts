@@ -10,7 +10,7 @@ import {
   type PainterErrorCode,
   type PainterImageEncoder,
   type StatefulPainterResult,
-  type TelemetrySpanSink,
+  type RunSpanSink,
   type VisualPlate,
 } from "../interfaces/index.ts";
 import {
@@ -32,7 +32,7 @@ import {
   defaultPainterImageEncoder,
   isWebpBuffer,
 } from "./helpers/webp-codec.ts";
-import { recordAgenticStageTelemetry, recordStageTelemetry } from "./record-telemetry.ts";
+import { recordAgenticStageRun, recordStageRun } from "./record-run.ts";
 
 export interface PainterTurnContext {
   lineageId: string;
@@ -41,7 +41,7 @@ export interface PainterTurnContext {
   startedWallMs: number;
   repository: GridlockRepository;
   imageEncoder: PainterImageEncoder;
-  spanSink?: TelemetrySpanSink;
+  spanSink?: RunSpanSink;
 }
 
 export type PainterMilestoneGateOutcome =
@@ -55,7 +55,7 @@ export type PainterMilestoneGateOutcome =
 
 export async function preparePainterTurn(
   input: { lineageId?: string; now?: Date },
-  deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: TelemetrySpanSink }
+  deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: RunSpanSink }
 ): Promise<{ ctx: PainterTurnContext; existingPlates: VisualPlate[] }> {
   const startedWallMs = Date.now();
   const lineageId = input.lineageId ?? DEFAULT_LINEAGE_ID;
@@ -80,11 +80,11 @@ function turnEndedAt(ctx: PainterTurnContext): Date {
   return new Date(ctx.now.getTime() + Math.max(0, Date.now() - ctx.startedWallMs));
 }
 
-function telemetryDeps(ctx: PainterTurnContext) {
+function runRecordDeps(ctx: PainterTurnContext) {
   return { repository: ctx.repository, ...(ctx.spanSink !== undefined ? { spanSink: ctx.spanSink } : {}) };
 }
 
-function observationTelemetryRef(observations: readonly Observation[]) {
+function observationRunRef(observations: readonly Observation[]) {
   const firstObs = observations[0];
   return firstObs !== undefined
     ? { projectNumber: firstObs.projectNumber, rawCaptureHash: firstObs.rawCaptureHash }
@@ -95,10 +95,10 @@ async function recordMilestoneSkip(
   ctx: PainterTurnContext,
   observations: readonly Observation[]
 ): Promise<StatefulPainterResult> {
-  const { ledger } = await recordStageTelemetry(
+  const { ledger } = await recordStageRun(
     {
       stage: "painter_milestone_gate",
-      ...observationTelemetryRef(observations),
+      ...observationRunRef(observations),
       execution_mode: "deterministic",
       status: "unchanged_artifact",
       rawByteLength: 0,
@@ -111,7 +111,7 @@ async function recordMilestoneSkip(
       recordedAt: ctx.now.toISOString(),
       attributes: { lineageId: ctx.lineageId, candidateObservationsCount: observations.length },
     },
-    telemetryDeps(ctx)
+    runRecordDeps(ctx)
   );
   return {
     status: "skipped_no_milestone",
@@ -124,7 +124,7 @@ async function recordMilestoneSkip(
 
 export async function evaluatePainterMilestoneGate(
   input: { lineageId?: string; observations: readonly Observation[]; now?: Date },
-  deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: TelemetrySpanSink }
+  deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: RunSpanSink }
 ): Promise<PainterMilestoneGateOutcome> {
   const { ctx, existingPlates } = await preparePainterTurn(input, deps);
   const milestoneObservations = evaluateMilestoneObservations(input.observations, existingPlates);
@@ -187,10 +187,10 @@ export async function failClosedPainter(
   ctx: PainterTurnContext,
   params: { stage: PainterStage; reason: string; errorCode: PainterErrorCode; tokensUsed: number; interactionId?: string; observations: readonly Observation[] }
 ): Promise<StatefulPainterResult> {
-  await recordAgenticStageTelemetry(
+  await recordAgenticStageRun(
     {
       stage: params.stage,
-      ...observationTelemetryRef(params.observations),
+      ...observationRunRef(params.observations),
       status: "agentic_failed",
       tokensUsed: params.tokensUsed,
       ...(params.interactionId !== undefined ? { interactionId: params.interactionId } : {}),
@@ -198,7 +198,7 @@ export async function failClosedPainter(
       endedAt: turnEndedAt(ctx),
       attributes: { lineageId: ctx.lineageId, errorCode: params.errorCode },
     },
-    telemetryDeps(ctx)
+    runRecordDeps(ctx)
   );
   return { status: "painter_failed", lineageId: ctx.lineageId, reason: params.reason, errorCode: params.errorCode, tokensUsed: params.tokensUsed, activePlate: ctx.activePlate };
 }
@@ -258,10 +258,10 @@ export async function finalizePaintedPlateTurn(
   const plate = buildVisualPlateRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: finalized.webpBuffer, sha256: finalized.sha256, createdAt: ctx.now.toISOString() });
   await ctx.repository.saveVisualPlate(plate, finalized.webpBuffer);
   if (finalized.pinCanonicalArtifacts) await pinMilestoneRawCaptures(ctx.repository, plate.rawCaptureHashes);
-  await recordAgenticStageTelemetry(
+  await recordAgenticStageRun(
     {
       stage: params.stage,
-      ...observationTelemetryRef(params.observations),
+      ...observationRunRef(params.observations),
       status: "agentic_completed",
       tokensUsed,
       interactionId,
@@ -271,7 +271,7 @@ export async function finalizePaintedPlateTurn(
       endedAt: turnEndedAt(ctx),
       attributes: { lineageId: ctx.lineageId, plateId: plate.plateId, turnNumber: plate.turnNumber, isBranch: plate.isBranch },
     },
-    telemetryDeps(ctx)
+    runRecordDeps(ctx)
   );
   return { status: "plate_painted", operation: params.operation, lineageId: ctx.lineageId, plate, webpBuffer: finalized.webpBuffer, tokensUsed, rebootstrappedFromParentWebp };
 }

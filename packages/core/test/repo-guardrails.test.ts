@@ -2,9 +2,9 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import ts from "typescript";
 import {
-  TelemetryRunSchema,
-  TelemetrySpanSchema,
-  TelemetryStageSchema,
+  RunRecordSchema,
+  RunSpanSchema,
+  RunStageSchema,
 } from "../src/index.ts";
 import {
   MAX_CORE_TS_LINES,
@@ -19,8 +19,8 @@ import {
   runTypeHygieneChecks,
 } from "../../../scripts/type-hygiene.mjs";
 
-describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Issue #27 & #35 Retros)", () => {
-  test("TelemetryStageSchema, TelemetryRunSchema, and TelemetrySpanSchema reject non-canonical stage strings", () => {
+describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #27 & #35 Retros)", () => {
+  test("RunStageSchema, RunRecordSchema, and RunSpanSchema reject non-canonical stage strings", () => {
     for (const stage of [
       "tdlr_ingest",
       "tdlr_discovery_sweep",
@@ -30,13 +30,13 @@ describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Is
       "painter_milestone_delta",
       "painter_branch_lineage",
     ]) {
-      assert.equal(TelemetryStageSchema.safeParse(stage).success, true);
+      assert.equal(RunStageSchema.safeParse(stage).success, true);
     }
-    assert.equal(TelemetryStageSchema.safeParse("out_of_band_repair_agent").success, false);
-    assert.equal(TelemetryStageSchema.safeParse("tdlr_filing_ingest").success, false);
+    assert.equal(RunStageSchema.safeParse("out_of_band_repair_agent").success, false);
+    assert.equal(RunStageSchema.safeParse("tdlr_filing_ingest").success, false);
 
     assert.equal(
-      TelemetryRunSchema.safeParse({
+      RunRecordSchema.safeParse({
         runId: "run_bad_stage",
         stage: "out_of_band_repair_agent",
         execution_mode: "agentic",
@@ -53,7 +53,7 @@ describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Is
     );
 
     assert.equal(
-      TelemetrySpanSchema.safeParse({
+      RunSpanSchema.safeParse({
         traceId: "a".repeat(32),
         spanId: "b".repeat(16),
         stage: "tdlr_filing_ingest",

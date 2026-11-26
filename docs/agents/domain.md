@@ -25,11 +25,11 @@ Consult this map before exploring so research and reviews open only the files fo
 
 - **Public entrypoints**: [`packages/core/src/index.ts`](../../packages/core/src/index.ts) (Composition Root), [`packages/core/src/interfaces/index.ts`](../../packages/core/src/interfaces/index.ts) (`@samasastudio/gridlock-core/schemas`, browser-safe), [`packages/widgets/src/index.ts`](../../packages/widgets/src/index.ts)
 - **Shared core contracts & adapters**:
-  - Schemas & ports: `packages/core/src/interfaces/` (`primitives.ts`, `constants.ts`, `adapter-contracts.ts`, `filing-models.ts`, `telemetry-models.ts`, `repair-models.ts`, `painter-models.ts`, `investigate-ast-models.ts`, `investigate-planner-models.ts`)
+  - Schemas & ports: `packages/core/src/interfaces/` (`primitives.ts`, `constants.ts`, `adapter-contracts.ts`, `filing-models.ts`, `run-record-models.ts`, `repair-models.ts`, `painter-models.ts`, `investigate-ast-models.ts`, `investigate-planner-models.ts`)
   - Adapters: `packages/core/src/adapters/` (`in-memory-repository.ts`, `http-loaders.ts`, `gemini-interactions-client.ts`, `sharp-image-encoder.ts`, `cloud-logging-sink.ts`)
   - HTTP server: `packages/core/src/controllers/` (`http-server.ts`, `http-utils.ts`, plus per-seam route controllers)
 - **Seam 1 (TDLR Ingestion, Discovery & Efficiency Scorecard)**:
-  - Core: `use-cases/ingest-tdlr-filing.ts`, `run-tdlr-discovery.ts`, `preflight-site-access.ts`, `record-telemetry.ts`, `get-efficiency-scorecard.ts`; `helpers/tdlr-parser.ts`, `tdlr-discovery-filter.ts`, `site-access.ts`, `pii-sanitizer.ts`, `telemetry-math.ts`; `controllers/telemetry-controller.ts`
+  - Core: `use-cases/ingest-tdlr-filing.ts`, `run-tdlr-discovery.ts`, `preflight-site-access.ts`, `record-run.ts`, `get-efficiency-scorecard.ts`; `helpers/tdlr-parser.ts`, `tdlr-discovery-filter.ts`, `site-access.ts`, `pii-sanitizer.ts`, `scorecard-math.ts`; `controllers/telemetry-controller.ts`
 - **Seam 2 (Out-of-Band Repair Agent & Repair Changelog Widget)**:
   - Core: `use-cases/run-repair-agent.ts`, `get-repair-changelog.ts`; `helpers/sandbox-replay.ts`, `repair-changelog-markdown.ts`; `controllers/repairs-controller.ts`
   - Widgets: `GridlockRepairLogWidget.tsx`, `RepairLogSections.tsx`, `RepairLogTimeline.tsx`, `EfficiencyLineChart.tsx`, `efficiency-chart-series.ts`, `repair-log-client.ts`, `repair-log-styles.ts`

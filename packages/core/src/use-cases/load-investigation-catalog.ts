@@ -4,7 +4,7 @@ import {
   type GridlockRepository,
   type PlateLineageResponse,
   type RawCapture,
-  type TelemetryRun,
+  type RunRecord,
 } from "../interfaces/index.ts";
 import { getEfficiencyScorecard } from "./get-efficiency-scorecard.ts";
 import { getPlateLineage } from "./get-plate-lineage.ts";
@@ -26,7 +26,7 @@ import {
 function collectCandidateConnectorIds(
   changelogConnectorIds: readonly string[],
   artifactsByHash: ReadonlyMap<string, RawCapture | null>,
-  recentRuns: readonly TelemetryRun[],
+  recentRuns: readonly RunRecord[],
   validLineages: readonly PlateLineageResponse[]
 ): string[] {
   return Array.from(

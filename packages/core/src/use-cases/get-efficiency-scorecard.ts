@@ -2,7 +2,7 @@ import {
   EfficiencyLedgerSchema,
   type EfficiencyLedger,
   type GridlockRepository,
-  type TelemetryLedgerQueryOptions,
+  type ScorecardQueryOptions,
 } from "../interfaces/index.ts";
 
 export type GetEfficiencyScorecardResult =
@@ -10,7 +10,7 @@ export type GetEfficiencyScorecardResult =
   | { ok: false; error: "telemetry_ledger_error"; message: string };
 
 export async function getEfficiencyScorecard(
-  query: TelemetryLedgerQueryOptions,
+  query: ScorecardQueryOptions,
   deps: {
     repository: Pick<GridlockRepository, "getEfficiencyLedger">;
   }

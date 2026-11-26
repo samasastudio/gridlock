@@ -8,12 +8,12 @@ import {
   VisualPlateSchema,
   type GeminiInteractionResponse,
   type Observation,
-  type TelemetryStage,
+  type RunStage,
   type VisualPlate,
 } from "../../interfaces/index.ts";
 import { applyScenarioBranchWatermarkToWebp } from "./webp-codec.ts";
 
-export type PainterStage = Extract<TelemetryStage, `painter_${string}`>;
+export type PainterStage = Extract<RunStage, `painter_${string}`>;
 
 export interface PainterCompletedTurn {
   interaction: GeminiInteractionResponse;

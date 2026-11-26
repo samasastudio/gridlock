@@ -4,7 +4,7 @@ import {
   type TdlrSearchFilter,
 } from "./filing-models.ts";
 import type { UiAstComponentType } from "./investigate-ast-models.ts";
-import type { EfficiencyLedger } from "./telemetry-models.ts";
+import type { EfficiencyLedger } from "./run-record-models.ts";
 
 export const GRIDLOCK_USER_AGENT =
   "GridlockCivicResearchBot/1.0 (+https://samasastudio.com; contact@samasastudio.com)";

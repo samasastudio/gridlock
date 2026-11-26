@@ -10,11 +10,11 @@ import {
   createInMemoryGridlockRepository,
   EfficiencyLedgerSchema,
   ingestTdlrFiling,
-  recordAgenticStageTelemetry,
+  recordAgenticStageRun,
   runTdlrDiscoverySweep,
-  TelemetryRunSchema,
-  TelemetrySpanSchema,
-  type TelemetrySpan,
+  RunRecordSchema,
+  RunSpanSchema,
+  type RunSpan,
 } from "../src/index.ts";
 import { FROZEN_TABS_2027003697_HTML } from "./helpers/fixtures.ts";
 import {
@@ -38,7 +38,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     await harness.close();
   });
 
-  test("Happy Path: fresh deterministic extraction and duplicate SHA-256 short-circuit atomically increment naiveTokensAvoided, deterministicRunsCount, and estimatedCostSavedUsd, write permanent telemetry_runs (expiresAt: null), and emit execution_mode: 'deterministic' spans", async () => {
+  test("Happy Path: fresh deterministic extraction and duplicate SHA-256 short-circuit atomically increment naiveTokensAvoided, deterministicRunsCount, and estimatedCostSavedUsd, write permanent run_records (expiresAt: null), and emit execution_mode: 'deterministic' spans", async () => {
     routeMap.set("/robots.txt", {
       status: 200,
       headers: { "content-type": "text/plain" },
@@ -50,12 +50,12 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     });
 
     const repository = createInMemoryGridlockRepository();
-    const emittedSpans: TelemetrySpan[] = [];
+    const emittedSpans: RunSpan[] = [];
     const structuredLogs: string[] = [];
     const cloudLogSink = createCloudLoggingSpanSink((line) => {
       structuredLogs.push(line);
     });
-    const spanSink = (span: TelemetrySpan) => {
+    const spanSink = (span: RunSpan) => {
       emittedSpans.push(span);
       cloudLogSink(span);
     };
@@ -108,11 +108,11 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     assert.equal(ledger.expiresAt, null);
     assert.equal(ledger.recentRuns.length, 2);
 
-    // Verify permanent telemetry_runs records (expiresAt: null)
-    const runs = await repository.listTelemetryRuns();
+    // Verify permanent run_records records (expiresAt: null)
+    const runs = await repository.listRunRecords();
     assert.equal(runs.length, 2);
     for (const run of runs) {
-      const parsedRun = TelemetryRunSchema.parse(run);
+      const parsedRun = RunRecordSchema.parse(run);
       assert.equal(parsedRun.execution_mode, "deterministic");
       assert.equal(parsedRun.tokensUsed, 0);
       assert.equal(parsedRun.naiveTokensAvoided, expectedTokensPerRun);
@@ -126,7 +126,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     // Verify structured Cloud Trace / Logging spans
     assert.equal(emittedSpans.length, 2);
     for (const span of emittedSpans) {
-      const parsedSpan = TelemetrySpanSchema.parse(span);
+      const parsedSpan = RunSpanSchema.parse(span);
       assert.equal(parsedSpan.execution_mode, "deterministic");
       assert.equal(parsedSpan.tokensUsed, 0);
       assert.equal(parsedSpan.naiveTokensAvoided, expectedTokensPerRun);
@@ -144,8 +144,8 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
 
   test("Sad Path & Agentic Spans: blocked_by_waf, selector_anomaly, and aborted runs record failure telemetry without inflating naiveTokensAvoided or deterministicRunsCount; agentic runs emit interactionId spans and update token reduction ratios", async () => {
     const repository = createInMemoryGridlockRepository();
-    const emittedSpans: TelemetrySpan[] = [];
-    const spanSink = (span: TelemetrySpan) => {
+    const emittedSpans: RunSpan[] = [];
+    const spanSink = (span: RunSpan) => {
       emittedSpans.push(span);
     };
 
@@ -213,7 +213,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
     assert.equal(ledgerAfterFailures.totalRunsCount, 3);
 
     // 4. Record an agentic stage run with interactionId
-    await recordAgenticStageTelemetry(
+    await recordAgenticStageRun(
       {
         stage: "repair_agent",
         connectorId: "tdlr-tabs",
@@ -273,7 +273,7 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
       },
       { repository }
     );
-    await recordAgenticStageTelemetry(
+    await recordAgenticStageRun(
       {
         stage: "repair_agent",
         connectorId: "tdlr-tabs",
@@ -385,8 +385,8 @@ describe("Efficiency Ledger & Cloud Trace Spans (Ticket #4)", () => {
 
   test("Discovery sweep telemetry: blocked_by_waf during POST /TABS/Search/SearchProjects records failure telemetry with 0 tokens avoided; successful sweep accumulates exact counterfactual math across discovered filings", async () => {
     const repository = createInMemoryGridlockRepository();
-    const emittedSpans: TelemetrySpan[] = [];
-    const spanSink = (span: TelemetrySpan) => {
+    const emittedSpans: RunSpan[] = [];
+    const spanSink = (span: RunSpan) => {
       emittedSpans.push(span);
     };
 

@@ -17,7 +17,7 @@ import {
   runOutOfBandRepairAgent,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionsClient,
-  type TelemetrySpan,
+  type RunSpan,
 } from "../src/index.ts";
 import {
   checkPullRequestDiffSize,
@@ -76,7 +76,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
 
     // 2. Out-of-Band Repair Agent synthesizes backward-compatible selector patch via gemini-3.8-flash
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
-    const emittedSpans: TelemetrySpan[] = [];
+    const emittedSpans: RunSpan[] = [];
     const candidatePatch = CandidateSelectorPatchSchema.parse({
       detailContainerSelector: ".project-details, .tabs-project-details-v2",
       fieldLabels: {
@@ -430,7 +430,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
 
     const dotDotSlashBypassViolations = evaluateSourceFileLintRules(
       "packages/core/src/use-cases/helpers/bad-helper-path.ts",
-      "import { recordStageTelemetry } from \"./../record-telemetry.ts\";"
+      "import { recordStageRun } from \"./../record-run.ts\";"
     );
     assert.ok(
       dotDotSlashBypassViolations.some((v) =>
@@ -440,7 +440,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
 
     const adapterUseCaseImportViolations = evaluateSourceFileLintRules(
       "packages/core/src/adapters/bad-adapter.ts",
-      "const mod = await import(\"../use-cases/helpers/telemetry-math.ts\");"
+      "const mod = await import(\"../use-cases/helpers/scorecard-math.ts\");"
     );
     assert.ok(
       adapterUseCaseImportViolations.some((v) =>

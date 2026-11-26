@@ -8,7 +8,7 @@ import type {
   GeminiInteractionsClient,
   GridlockRepository,
   PainterImageEncoder,
-  TelemetrySpanSink,
+  RunSpanSink,
 } from "../interfaces/index.ts";
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
 import { handlePostInvestigatePlan } from "./investigate-controller.ts";
@@ -25,7 +25,7 @@ export type GridlockHttpDeps = {
   repository: GridlockRepository;
   geminiClient?: GeminiInteractionsClient;
   imageEncoder?: PainterImageEncoder;
-  spanSink?: TelemetrySpanSink;
+  spanSink?: RunSpanSink;
   maxBranchesPerLineage?: number;
   now?: () => Date;
 };

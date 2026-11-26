@@ -11,7 +11,7 @@ import {
   type PainterErrorCode,
   type PainterImageEncoder,
   type StatefulPainterResult,
-  type TelemetrySpanSink,
+  type RunSpanSink,
   type VisualPlate,
 } from "../interfaces/index.ts";
 import {
@@ -42,7 +42,7 @@ export interface PainterDeps {
   repository: GridlockRepository;
   geminiClient: GeminiInteractionsClient;
   imageEncoder?: PainterImageEncoder;
-  spanSink?: TelemetrySpanSink;
+  spanSink?: RunSpanSink;
 }
 
 export interface BootstrapCanvasInput {

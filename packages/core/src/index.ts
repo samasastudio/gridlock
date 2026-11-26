@@ -12,7 +12,7 @@ import type {
   TdlrDiscoveryMode,
   TdlrDiscoverySweepResult,
   TdlrSearchFilter,
-  TelemetrySpanSink,
+  RunSpanSink,
 } from "./interfaces/index.ts";
 
 export {
@@ -80,10 +80,10 @@ export {
   TdlrFieldLabelsSchema,
   TdlrProjectNumberSchema,
   TdlrSearchRowSchema,
-  TelemetryRunSchema,
-  TelemetryRunStatusSchema,
-  TelemetrySpanSchema,
-  TelemetryStageSchema,
+  RunRecordSchema,
+  RunRecordStatusSchema,
+  RunSpanSchema,
+  RunStageSchema,
   UiAstComponentTypeSchema,
   UiWidgetNodeSchema,
   UiWorkspaceAstSchema,
@@ -133,7 +133,7 @@ export {
   applyHealAmortization,
   calculateEstimatedCostSavedUsd,
   calculateNaiveTokensAvoided,
-} from "./use-cases/helpers/telemetry-math.ts";
+} from "./use-cases/helpers/scorecard-math.ts";
 export {
   createCorridorBaseCanvasWebp,
   isWebpBuffer,
@@ -155,9 +155,9 @@ export {
   type PainterMilestoneGateOutcome,
 } from "./use-cases/painter-turn-runner.ts";
 export {
-  recordAgenticStageTelemetry,
-  recordStageTelemetry,
-} from "./use-cases/record-telemetry.ts";
+  recordAgenticStageRun,
+  recordStageRun,
+} from "./use-cases/record-run.ts";
 export {
   bootstrapCanvas,
   branchLineage,
@@ -186,7 +186,7 @@ export async function ingestTdlrFiling(
   deps: {
     repository: GridlockRepository;
     pageLoader?: PageLoader;
-    spanSink?: TelemetrySpanSink;
+    spanSink?: RunSpanSink;
   }
 ): Promise<IngestFilingResult> {
   return ingestTdlrFilingUseCase(input, {
@@ -214,7 +214,7 @@ export async function runTdlrDiscoverySweep(
     searchLoader?: SearchLoader;
     sleep?: (ms: number) => Promise<void>;
     jitterMs?: () => number;
-    spanSink?: TelemetrySpanSink;
+    spanSink?: RunSpanSink;
   }
 ): Promise<TdlrDiscoverySweepResult> {
   return runTdlrDiscoverySweepUseCase(input, {

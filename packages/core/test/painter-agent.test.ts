@@ -15,8 +15,8 @@ import {
   ObservationSchema,
   PAINTER_AGENT_MODEL,
   paintMilestoneDelta,
-  recordAgenticStageTelemetry,
-  recordStageTelemetry,
+  recordAgenticStageRun,
+  recordStageRun,
   SCENARIO_BRANCH_WATERMARK,
   RawCaptureSchema,
   VisualPlateSchema,
@@ -25,7 +25,7 @@ import {
   type GeminiInteractionsClient,
   type GridlockRepository,
   type PainterErrorCode,
-  type TelemetrySpan,
+  type RunSpan,
 } from "../src/index.ts";
 import { createFixtureWebpBuffer, createPainterTestObservations, createSamplePngBuffer, isWebpBuffer } from "./helpers/fixtures.ts";
 
@@ -139,7 +139,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
 
     const t0 = new Date("2026-10-27T15:07:00.000Z");
     // Uncached painter run recomputes visualPlateCacheEfficiencyPercentage (1 avoided / 2 demand = 50%)
-    const afterBootstrap = await recordAgenticStageTelemetry(
+    const afterBootstrap = await recordAgenticStageRun(
       {
         stage: "painter_bootstrap",
         status: "agentic_completed",
@@ -153,7 +153,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(afterBootstrap.ledger.visualPlateCacheEfficiencyPercentage, 50);
 
     // Failed/blocked runs must never inflate imageGenerationsAvoided or visualPlateCacheHits
-    await recordStageTelemetry(
+    await recordStageRun(
       {
         stage: "painter_milestone_gate",
         execution_mode: "deterministic",
@@ -168,7 +168,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       },
       { repository }
     );
-    await recordAgenticStageTelemetry(
+    await recordAgenticStageRun(
       {
         stage: "painter_milestone_delta",
         status: "agentic_failed",
@@ -185,7 +185,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       { lineageId: "texas-corridor-main", observations: [routineObs] },
       { repository }
     );
-    const { ledger } = await recordAgenticStageTelemetry(
+    const { ledger } = await recordAgenticStageRun(
       {
         stage: "painter_milestone_delta",
         status: "agentic_completed",
@@ -205,7 +205,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
   test("Part 2 (Turn 1 bootstrapCanvas, Real PNG->WebP Lossless Codec, Artifact Pinning & Fail-Closed Guards): validates corridor base canvas, transcodes PNG to RFC-9649 WebP, pins RawCapture retention, and fails closed across status/ID/image sad paths", async () => {
     const repository = createInMemoryGridlockRepository();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
-    const emittedSpans: TelemetrySpan[] = [];
+    const emittedSpans: RunSpan[] = [];
     const { routineObs, milestoneObs } = createPainterTestObservations();
 
     const fakeVp8lPayload = Buffer.from("5249464616000000574542505650384c0a000000574542505f46414b4521", "hex");
@@ -677,8 +677,8 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(rejectedBranchImg.status, "painter_failed");
     assert.equal(rejectedBranchImg.errorCode, "corrupt_or_empty_image");
 
-    // 4. Pre-Gemini validation & quota rejections write zero telemetry_runs and zero Gemini requests; +90d TTL frees quota & blocks expired parents
-    const runsBeforePreconditions = (await repository.listTelemetryRuns()).length;
+    // 4. Pre-Gemini validation & quota rejections write zero run_records and zero Gemini requests; +90d TTL frees quota & blocks expired parents
+    const runsBeforePreconditions = (await repository.listRunRecords()).length;
     const agenticBeforePreconditions = (await repository.getEfficiencyLedger()).agenticRunsCount;
     const callsBeforePreconditions = recordedRequests.length;
 
@@ -720,7 +720,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(expiredParentFork.errorCode, "parent_not_found");
 
     assert.equal(recordedRequests.length, callsBeforePreconditions);
-    assert.equal((await repository.listTelemetryRuns()).length, runsBeforePreconditions);
+    assert.equal((await repository.listRunRecords()).length, runsBeforePreconditions);
     assert.equal((await repository.getEfficiencyLedger()).agenticRunsCount, agenticBeforePreconditions);
 
     // After +90d TTL elapses, prior ephemeral branches no longer consume maxBranchesPerLineage=1
@@ -776,13 +776,13 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     const firstPlateSaved = new Promise<void>((resolve) => {
       notifyPlateSaved = resolve;
     });
-    let releaseTelemetry: (() => void) | undefined;
-    const telemetryGate = new Promise<void>((resolve) => {
-      releaseTelemetry = resolve;
+    let releaseRunGate: (() => void) | undefined;
+    const runGate = new Promise<void>((resolve) => {
+      releaseRunGate = resolve;
     });
 
     let branchSavedOnce = false;
-    let delayedFirstTelemetry = false;
+    let delayedFirstRun = false;
     const trackedRepo: GridlockRepository = {
       ...baseRepo,
       saveVisualPlate: async (plate, webpBuf) => {
@@ -792,12 +792,12 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
           notifyPlateSaved?.();
         }
       },
-      recordTelemetryRun: async (run, updates) => {
-        if (run.stage === "painter_branch_lineage" && !delayedFirstTelemetry) {
-          delayedFirstTelemetry = true;
-          await telemetryGate;
+      recordRunRecord: async (run, updates) => {
+        if (run.stage === "painter_branch_lineage" && !delayedFirstRun) {
+          delayedFirstRun = true;
+          await runGate;
         }
-        return baseRepo.recordTelemetryRun(run, updates);
+        return baseRepo.recordRunRecord(run, updates);
       },
     };
 
@@ -824,7 +824,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     );
     assert.equal(secondBranchResult.status, "plate_painted");
 
-    releaseTelemetry?.();
+    releaseRunGate?.();
     const firstBranchResult = await firstBranchPromise;
     assert.equal(firstBranchResult.status, "plate_painted");
 

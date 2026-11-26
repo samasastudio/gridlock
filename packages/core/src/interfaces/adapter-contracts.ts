@@ -9,18 +9,18 @@ import type {
 import type {
   EfficiencyLedger,
   ExecutionMode,
-  TelemetryRun,
-  TelemetrySpan,
-} from "./telemetry-models.ts";
+  RunRecord,
+  RunSpan,
+} from "./run-record-models.ts";
 import type { RepairChangelogEntry } from "./repair-models.ts";
 import type { VisualPlate } from "./painter-models.ts";
 
-export interface TelemetryPainterDeltas {
+export interface RunPainterDeltas {
   imageGenerationsAvoidedDelta?: number;
   visualPlateCacheHitsDelta?: number;
 }
 
-export interface TelemetryStateUpdate {
+export interface RunStateUpdate {
   updatedLedger: EfficiencyLedger;
   updatedChangelog?: readonly RepairChangelogEntry[];
 }
@@ -30,7 +30,7 @@ export interface ConnectorPromotionStateUpdate {
   promotedArtifact?: RawCapture;
 }
 
-export interface TelemetryLedgerQueryOptions {
+export interface ScorecardQueryOptions {
   limit?: number;
   executionMode?: ExecutionMode;
 }
@@ -53,16 +53,16 @@ export interface GridlockRepository {
   appendObservation(observation: Observation): Promise<void>;
   listObservationsByProject(projectNumber: string): Promise<Observation[]>;
   listProjects(): Promise<Project[]>;
-  recordTelemetryRun(
-    run: TelemetryRun,
-    stateUpdate: TelemetryStateUpdate
+  recordRunRecord(
+    run: RunRecord,
+    stateUpdate: RunStateUpdate
   ): Promise<EfficiencyLedger>;
   getEfficiencyLedger(
-    options?: TelemetryLedgerQueryOptions
+    options?: ScorecardQueryOptions
   ): Promise<EfficiencyLedger>;
-  listTelemetryRuns(
-    options?: TelemetryLedgerQueryOptions
-  ): Promise<TelemetryRun[]>;
+  listRunRecords(
+    options?: ScorecardQueryOptions
+  ): Promise<RunRecord[]>;
   promoteConnectorConfig(
     config: ConnectorConfig,
     changelogEntry: RepairChangelogEntry,
@@ -92,7 +92,7 @@ export type SearchLoader = (
   formBody: string
 ) => Promise<PageLoaderResponse>;
 
-export type TelemetrySpanSink = (span: TelemetrySpan) => void;
+export type RunSpanSink = (span: RunSpan) => void;
 
 export interface GeminiInteractionImageBlock {
   data?: string;
