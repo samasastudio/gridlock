@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { describe, test } from "node:test";
 import {
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
   InvestigatePlanResponseSchema,
   MAX_INVESTIGATE_BODY_BYTES,
   MAX_INVESTIGATE_QUERY_LENGTH,
@@ -369,26 +369,26 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
       [
         createFiveCardLayoutSpec(branchPlateId),
         singleNodeLayout({
-          nodeId: "scrubber-missing-lineage",
-          component: "VisualPlateScrubber",
-          lineageId: "fabricated-lineage",
+          nodeId: "scrubber-missing-timeline",
+          component: "FrameTimelineScrubber",
+          lineageId: "fabricated-timeline",
         }),
         singleNodeLayout({
           nodeId: "scrubber-unknown-plate",
-          component: "VisualPlateScrubber",
-          lineageId: DEFAULT_LINEAGE_ID,
+          component: "FrameTimelineScrubber",
+          lineageId: DEFAULT_TIMELINE_ID,
           initialPlateId: "plate_unknown_999",
         }),
         singleNodeLayout({
           nodeId: "scrubber-expired-plate",
-          component: "VisualPlateScrubber",
-          lineageId: DEFAULT_LINEAGE_ID,
+          component: "FrameTimelineScrubber",
+          lineageId: DEFAULT_TIMELINE_ID,
           initialPlateId: "plate_expired_branch",
         }),
         singleNodeLayout({
           nodeId: "scrubber-quarantined",
-          component: "VisualPlateScrubber",
-          lineageId: "quarantined-lineage",
+          component: "FrameTimelineScrubber",
+          lineageId: "quarantined-timeline",
         }),
         singleNodeLayout({
           nodeId: "connector-missing",
@@ -397,7 +397,7 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
         }),
         singleNodeLayout({
           nodeId: "scrubber-bad-id",
-          component: "VisualPlateScrubber",
+          component: "FrameTimelineScrubber",
           lineageId: "../bad/id",
         }),
         singleNodeLayout({
@@ -420,12 +420,12 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
         const okPayload = InvestigatePlanResponseSchema.parse(await okRes.json());
         assert.equal(okPayload.workspace.nodes.length, 5);
         const scrubberNode = okPayload.workspace.nodes.find(
-          (node) => node.component === "VisualPlateScrubber"
+          (node) => node.component === "FrameTimelineScrubber"
         );
-        assert.equal(scrubberNode?.component, "VisualPlateScrubber");
-        if (scrubberNode?.component === "VisualPlateScrubber") {
+        assert.equal(scrubberNode?.component, "FrameTimelineScrubber");
+        if (scrubberNode?.component === "FrameTimelineScrubber") {
           assert.equal(scrubberNode.initialPlateId, branchPlateId);
-          const frameIds = scrubberNode.lineage.nodes.map((n) => n.plate.plateId);
+          const frameIds = scrubberNode.timeline.nodes.map((n) => n.plate.plateId);
           assert.equal(frameIds.length, 2);
           assert.equal(frameIds.includes(branchPlateId), true);
           assert.equal(frameIds.includes("plate_expired_branch"), false);
@@ -486,8 +486,8 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
           nodes: [
             {
               nodeId: "scrubber-corridor",
-              component: "VisualPlateScrubber",
-              lineageId: DEFAULT_LINEAGE_ID,
+              component: "FrameTimelineScrubber",
+              lineageId: DEFAULT_TIMELINE_ID,
               initialPlateId: branchPlateId,
             },
             {

@@ -43,10 +43,10 @@ const MetricComparisonTableSpecSchema = z
   })
   .strict();
 
-const VisualPlateScrubberSpecSchema = z
+const FrameTimelineScrubberSpecSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
-    component: z.literal("VisualPlateScrubber"),
+    component: z.literal("FrameTimelineScrubber"),
     lineageId: SafeLayoutIdSchema,
     initialPlateId: SafeLayoutIdSchema.optional(),
   })
@@ -62,7 +62,7 @@ const ConnectorHealthCardSpecSchema = z
 
 export const OrchestrationNodeSpecSchema = z.discriminatedUnion("component", [
   ProjectDossierCardSpecSchema,
-  VisualPlateScrubberSpecSchema,
+  FrameTimelineScrubberSpecSchema,
   ObservationTimelineSpecSchema,
   MetricComparisonTableSpecSchema,
   ConnectorHealthCardSpecSchema,

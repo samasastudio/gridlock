@@ -10,7 +10,7 @@ import {
   CandidateSelectorPatchSchema,
   createGridlockHttpServer,
   createInMemoryGridlockRepository,
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
   GeneratedIllustrationSchema,
   ingestTdlrFiling,
   ObservationSchema,
@@ -189,7 +189,7 @@ export async function seedFilingOrchestrationRepository(): Promise<GridlockRepos
   return repository;
 }
 
-async function saveTestVisualPlate(
+async function saveTestIllustration(
   repository: GridlockRepository,
   overrides: Partial<GeneratedIllustration> &
     Pick<
@@ -314,7 +314,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
     await repository.listObservationsByProject("TABS2027001001");
   const bootstrapRes = await bootstrapCanvas(
     {
-      lineageId: DEFAULT_LINEAGE_ID,
+      lineageId: DEFAULT_TIMELINE_ID,
       observations: ellisObservations,
       prompt: "Bootstrap Ellis corridor plate",
       now: new Date("2026-10-27T15:00:00.000Z"),
@@ -328,7 +328,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
 
   const branchRes = await branchTimeline(
     {
-      lineageId: DEFAULT_LINEAGE_ID,
+      lineageId: DEFAULT_TIMELINE_ID,
       parentInteractionId: bootstrapRes.illustration.interactionId,
       scenarioPrompt: "Add 300MW switchyard for corridor_lead@example.com",
       now: new Date("2026-10-27T15:10:00.000Z"),
@@ -340,9 +340,9 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
     throw new Error("Expected illustration_painted for branchTimeline");
   }
 
-  await saveTestVisualPlate(repository, {
+  await saveTestIllustration(repository, {
     plateId: "plate_expired_branch",
-    lineageId: DEFAULT_LINEAGE_ID,
+    lineageId: DEFAULT_TIMELINE_ID,
     turnNumber: 2,
     parentInteractionId: bootstrapRes.illustration.interactionId,
     parentPlateId: bootstrapRes.illustration.plateId,
@@ -359,32 +359,32 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
 
   await repository.appendObservation(
     createOrchestrationObservation(
-      "obs_quarantined_lineage",
+      "obs_quarantined_timeline",
       "TABS2027001003",
       HASH_QUARANTINED
     )
   );
-  await saveTestVisualPlate(repository, {
+  await saveTestIllustration(repository, {
     plateId: "plate_quarantined_1",
-    lineageId: "quarantined-lineage",
+    lineageId: "quarantined-timeline",
     projectNumbers: ["TABS2027001003"],
-    triggeringObservationIds: ["obs_quarantined_lineage"],
+    triggeringObservationIds: ["obs_quarantined_timeline"],
     rawCaptureHashes: [HASH_QUARANTINED],
     sha256: "e".repeat(64),
   });
 
   await repository.appendObservation(
     createOrchestrationObservation(
-      "obs_expired_lineage",
+      "obs_expired_timeline",
       "TABS2027001004",
       HASH_EXPIRED
     )
   );
-  await saveTestVisualPlate(repository, {
+  await saveTestIllustration(repository, {
     plateId: "plate_expired_1",
-    lineageId: "expired-lineage",
+    lineageId: "expired-timeline",
     projectNumbers: ["TABS2027001004"],
-    triggeringObservationIds: ["obs_expired_lineage"],
+    triggeringObservationIds: ["obs_expired_timeline"],
     rawCaptureHashes: [HASH_EXPIRED],
     sha256: "f".repeat(64),
   });
@@ -418,8 +418,8 @@ export function createFiveCardLayoutSpec(
       },
       {
         nodeId: "scrubber-corridor",
-        component: "VisualPlateScrubber",
-        lineageId: DEFAULT_LINEAGE_ID,
+        component: "FrameTimelineScrubber",
+        lineageId: DEFAULT_TIMELINE_ID,
         initialPlateId: branchPlateId,
       },
       {

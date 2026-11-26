@@ -15,7 +15,7 @@ import {
 } from "./investigate-provenance.ts";
 import type {
   OrchestrationCatalogConnectorEntry,
-  OrchestrationCatalogLineageEntry,
+  OrchestrationCatalogTimelineEntry,
 } from "./investigate-orchestration-seam-catalog.ts";
 
 export interface OrchestrationCatalogProjectEntry {
@@ -35,7 +35,7 @@ export interface OrchestrationCatalogProjectEntry {
 
 export interface OrchestrationGroundingCatalog {
   projects: readonly OrchestrationCatalogProjectEntry[];
-  lineages: readonly OrchestrationCatalogLineageEntry[];
+  timelines: readonly OrchestrationCatalogTimelineEntry[];
   connectors: readonly OrchestrationCatalogConnectorEntry[];
 }
 

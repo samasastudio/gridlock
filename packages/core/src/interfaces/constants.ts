@@ -159,7 +159,7 @@ export const ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
             ["projectNumber"]
           ),
           buildOrchestrationCardJsonSchema(
-            "VisualPlateScrubber",
+            "FrameTimelineScrubber",
             {
               lineageId: { type: "string" },
               initialPlateId: { type: "string" },

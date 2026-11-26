@@ -94,7 +94,7 @@ export {
   RunStageSchema,
   UI_ORCHESTRATION_AGENT_MODEL,
   UnknownConnectorError,
-  VisualPlateScrubberNodeSchema,
+  FrameTimelineScrubberNodeSchema,
   WorkspaceCardNodeSchema,
   WorkspaceCardTypeSchema,
   WorkspaceLayoutSchema,

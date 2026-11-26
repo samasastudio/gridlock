@@ -1,18 +1,18 @@
 import {
   CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
   ConnectorHealthCardNodeSchema,
+  FrameTimelineScrubberNodeSchema,
   MAX_SCENARIO_PROMPT_LENGTH,
-  VisualPlateScrubberNodeSchema,
   type CitedProject,
   type ConnectorHealthCardNode,
   type EfficiencyScorecard,
-  type LineageNode,
+  type FrameTimelineNode,
+  type FrameTimelineResponse,
+  type FrameTimelineScrubberNode,
   type Observation,
   type OrchestrationNodeSpec,
-  type PlateLineageResponse,
   type RepairChangelogResponse,
   type RawCapture,
-  type VisualPlateScrubberNode,
   type WorkspaceCardNode,
 } from "../../interfaces/index.ts";
 import {
@@ -31,7 +31,7 @@ export interface WorkspaceLookupKeys {
   uniqueProjectNumbers: string[];
   uniqueCitedProjectNumbers: string[];
   uniqueTimelineProjectNumbers: string[];
-  uniqueLineageIds: string[];
+  uniqueTimelineIds: string[];
   uniqueConnectorIds: string[];
 }
 
@@ -39,7 +39,7 @@ export interface WorkspaceNodeHydrationContext {
   citedByNumber: ReadonlyMap<string, CitedProject>;
   observationsByProject: ReadonlyMap<string, Observation[]>;
   artifactsByHash: ReadonlyMap<string, RawCapture | null>;
-  lineageById: ReadonlyMap<string, PlateLineageResponse>;
+  timelineById: ReadonlyMap<string, FrameTimelineResponse>;
   changelogByConnector: ReadonlyMap<string, RepairChangelogResponse>;
   compactScorecard: EfficiencyScorecard | null;
   nowMs: number;
@@ -57,7 +57,7 @@ export function extractWorkspaceLookupKeys(
           case "MetricComparisonTable":
             return node.projectNumbers;
           case "ObservationTimeline":
-          case "VisualPlateScrubber":
+          case "FrameTimelineScrubber":
           case "ConnectorHealthCard":
             return [];
         }
@@ -77,10 +77,10 @@ export function extractWorkspaceLookupKeys(
     new Set([...uniqueCitedProjectNumbers, ...uniqueTimelineProjectNumbers])
   );
 
-  const uniqueLineageIds = Array.from(
+  const uniqueTimelineIds = Array.from(
     new Set(
       nodes.flatMap((node) =>
-        node.component === "VisualPlateScrubber" ? [node.lineageId] : []
+        node.component === "FrameTimelineScrubber" ? [node.lineageId] : []
       )
     )
   );
@@ -97,7 +97,7 @@ export function extractWorkspaceLookupKeys(
     uniqueProjectNumbers,
     uniqueCitedProjectNumbers,
     uniqueTimelineProjectNumbers,
-    uniqueLineageIds,
+    uniqueTimelineIds,
     uniqueConnectorIds,
   };
 }
@@ -114,7 +114,7 @@ function sanitizeScenarioPrompt(raw: string): string {
   return `${safePrefix}...`;
 }
 
-function sanitizeLineageNode(node: LineageNode): LineageNode {
+function sanitizeTimelineNode(node: FrameTimelineNode): FrameTimelineNode {
   return {
     ...node,
     plate: {
@@ -130,29 +130,29 @@ function sanitizeLineageNode(node: LineageNode): LineageNode {
   };
 }
 
-function buildVisualPlateScrubberNode(
+function buildFrameTimelineScrubberNode(
   nodeId: string,
-  lineage: PlateLineageResponse,
+  timeline: FrameTimelineResponse,
   initialPlateId?: string
-): { ok: true; node: VisualPlateScrubberNode } | HydratorStepFailure {
-  if (lineage.nodes.length === 0) {
+): { ok: true; node: FrameTimelineScrubberNode } | HydratorStepFailure {
+  if (timeline.nodes.length === 0) {
     return stepFailure(
       "entity_not_found",
-      `Visual Plate lineage "${lineage.lineageId}" has no active plates`
+      `Frame Timeline "${timeline.lineageId}" has no active illustrations`
     );
   }
 
   if (
     initialPlateId !== undefined &&
-    !lineage.nodes.some((node) => node.plate.plateId === initialPlateId)
+    !timeline.nodes.some((node) => node.plate.plateId === initialPlateId)
   ) {
     return stepFailure(
       "entity_not_found",
-      `Visual Plate "${initialPlateId}" was not found in active lineage "${lineage.lineageId}"`
+      `Generated Illustration "${initialPlateId}" was not found in active timeline "${timeline.lineageId}"`
     );
   }
 
-  const unresolvableNode = lineage.nodes.find((node) => {
+  const unresolvableNode = timeline.nodes.find((node) => {
     const hasInvalidUrl = node.rawCaptures.some(
       (art) => !/^https?:\/\//i.test(art.sourceUrl)
     );
@@ -171,23 +171,23 @@ function buildVisualPlateScrubberNode(
   if (unresolvableNode) {
     return stepFailure(
       "unresolvable_provenance",
-      `Visual Plate "${unresolvableNode.plate.plateId}" in lineage "${lineage.lineageId}" lacks resolvable Raw Capture provenance`
+      `Generated Illustration "${unresolvableNode.plate.plateId}" in timeline "${timeline.lineageId}" lacks resolvable Raw Capture provenance`
     );
   }
 
-  const parsedNode = VisualPlateScrubberNodeSchema.safeParse({
+  const parsedNode = FrameTimelineScrubberNodeSchema.safeParse({
     nodeId,
-    component: "VisualPlateScrubber",
-    lineage: {
-      ...lineage,
-      nodes: lineage.nodes.map(sanitizeLineageNode),
+    component: "FrameTimelineScrubber",
+    timeline: {
+      ...timeline,
+      nodes: timeline.nodes.map(sanitizeTimelineNode),
     },
     ...(initialPlateId !== undefined ? { initialPlateId } : {}),
   });
   if (!parsedNode.success) {
     return stepFailure(
       "repository_integrity_error",
-      `VisualPlateScrubberNode "${nodeId}" failed runtime schema validation`
+      `FrameTimelineScrubberNode "${nodeId}" failed runtime schema validation`
     );
   }
 
@@ -241,17 +241,17 @@ export function hydrateWorkspaceNodes(
           specNode.projectNumber,
           ctx.citedByNumber
         );
-      case "VisualPlateScrubber": {
-        const lineage = ctx.lineageById.get(specNode.lineageId);
-        return lineage
-          ? buildVisualPlateScrubberNode(
+      case "FrameTimelineScrubber": {
+        const timeline = ctx.timelineById.get(specNode.lineageId);
+        return timeline
+          ? buildFrameTimelineScrubberNode(
               specNode.nodeId,
-              lineage,
+              timeline,
               specNode.initialPlateId
             )
           : stepFailure(
               "entity_not_found",
-              `Visual Plate lineage "${specNode.lineageId}" was not found`
+              `Frame Timeline "${specNode.lineageId}" was not found`
             );
       }
       case "ObservationTimeline":

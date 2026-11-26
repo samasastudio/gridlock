@@ -3,7 +3,7 @@ import {
   ProjectSchema,
   RawCaptureSchema,
   type HydrateWorkspaceErrorCode,
-  type LineageSourceCitation,
+  type TimelineSourceCitation,
   type Observation,
   type Project,
   type RawCapture,
@@ -241,7 +241,7 @@ export function resolveLiveCitation(
   artifactsByHash: ReadonlyMap<string, RawCapture | null>,
   nowMs: number
 ):
-  | { ok: true; citation: LineageSourceCitation }
+  | { ok: true; citation: TimelineSourceCitation }
   | {
       ok: false;
       reason: "missing" | "quarantined" | "invalid_url" | "expired";

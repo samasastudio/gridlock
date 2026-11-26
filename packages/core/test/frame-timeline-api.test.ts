@@ -198,7 +198,7 @@ async function seedLineageGraph() {
 }
 
 describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", () => {
-  test("Empty lineage returns 200 across default and explicit unknown timeline_id, and schema rejects broken cross-record invariants", async () => {
+  test("Empty timeline returns 200 across default and explicit unknown timeline_id, and schema rejects broken cross-record invariants", async () => {
     await withPlatesServer(
       { repository: createInMemoryGridlockRepository() },
       async (baseUrl) => {
@@ -421,12 +421,12 @@ describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Tic
     await withPlatesServer(
       { repository: proxyRepo, now: () => clock },
       async (baseUrl) => {
-        const lineage = FrameTimelineResponseSchema.parse(
+        const timeline = FrameTimelineResponseSchema.parse(
           await (await fetch(`${baseUrl}/api/illustrations/timeline`)).json()
         );
-        assert.equal(lineage.nodes.length, 4);
+        assert.equal(timeline.nodes.length, 4);
 
-        for (const node of lineage.nodes) {
+        for (const node of timeline.nodes) {
           const res = await fetch(`${baseUrl}${node.assetPath}`);
           assert.equal(res.status, 200);
           assert.equal(res.headers.get("content-type"), "image/webp");
@@ -677,15 +677,15 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
             .includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`)
         );
 
-        const lineage = FrameTimelineResponseSchema.parse(
+        const timeline = FrameTimelineResponseSchema.parse(
           await (await fetch(`${baseUrl}/api/illustrations/timeline`)).json()
         );
-        assert.equal(lineage.activeCanonicalPlateId, t2.plateId);
+        assert.equal(timeline.activeCanonicalPlateId, t2.plateId);
         assert.ok(
-          lineage.nodes.some((node) => node.plate.plateId === created.plate.plateId)
+          timeline.nodes.some((node) => node.plate.plateId === created.plate.plateId)
         );
         assert.ok(
-          lineage.edges.some(
+          timeline.edges.some(
             (edge) =>
               edge.parentInteractionId === t2.interactionId &&
               edge.childInteractionId === created.plate.interactionId &&
@@ -872,7 +872,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
   test("Orders 500/400/404/429 ahead of 503 unconfigured Gemini and maps Gemini/image faults to 502 with clean recovery", async () => {
     const { repository, t2, b1 } = await seedLineageGraph();
     let clock = new Date("2026-11-01T00:00:00.000Z");
-    let fault: "none" | "parent" | "lineage" | "obs" | "art" = "none";
+    let fault: "none" | "parent" | "timeline" | "obs" | "art" = "none";
 
     const proxyRepo: GridlockRepository = {
       ...repository,
@@ -881,7 +881,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
           ? ({ ...t2, interactionId: "mismatch" } as never)
           : repository.getGeneratedIllustrationByInteractionId(id),
       listGeneratedIllustrationsByTimeline: async (id) =>
-        fault === "lineage"
+        fault === "timeline"
           ? ([{ plateId: "corrupt" }] as never)
           : repository.listGeneratedIllustrationsByTimeline(id),
       listObservationsByProject: async (projectNumber) =>
@@ -902,7 +902,7 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
         now: () => clock,
       },
       async (baseUrl) => {
-        for (const mode of ["parent", "lineage"] as const) {
+        for (const mode of ["parent", "timeline"] as const) {
           fault = mode;
           await assertErr(
             postJson(

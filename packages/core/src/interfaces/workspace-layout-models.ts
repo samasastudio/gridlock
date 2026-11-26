@@ -29,7 +29,7 @@ const HttpSourceCitationSchema = TimelineSourceCitationSchema.refine(
 
 export const WorkspaceCardTypeSchema = z.enum([
   "ProjectDossierCard",
-  "VisualPlateScrubber",
+  "FrameTimelineScrubber",
   "ObservationTimeline",
   "MetricComparisonTable",
   "ConnectorHealthCard",
@@ -158,62 +158,62 @@ export type MetricComparisonTableNode = z.infer<
   typeof MetricComparisonTableNodeSchema
 >;
 
-const NonEmptyPlateLineageSchema = FrameTimelineResponseSchema.refine(
-  (lineage) => lineage.nodes.length > 0,
+const NonEmptyFrameTimelineSchema = FrameTimelineResponseSchema.refine(
+  (timeline) => timeline.nodes.length > 0,
   {
     path: ["nodes"],
-    message: "VisualPlateScrubber requires at least one active LineageNode",
+    message: "FrameTimelineScrubber requires at least one active FrameTimelineNode",
   }
 )
   .refine(
-    (lineage) => lineage.nodes.every((node) => node.rawCaptures.length > 0),
+    (timeline) => timeline.nodes.every((node) => node.rawCaptures.length > 0),
     {
       path: ["nodes"],
       message:
-        "Every LineageNode in VisualPlateScrubber requires at least one RawCapture citation",
+        "Every FrameTimelineNode in FrameTimelineScrubber requires at least one RawCapture citation",
     }
   )
   .refine(
-    (lineage) =>
-      lineage.nodes.every((node) =>
+    (timeline) =>
+      timeline.nodes.every((node) =>
         node.rawCaptures.every((art) => /^https?:\/\//i.test(art.sourceUrl))
       ),
     {
       path: ["nodes"],
-      message: "Lineage rawCaptures must use http:// or https:// sourceUrl",
+      message: "FrameTimeline rawCaptures must use http:// or https:// sourceUrl",
     }
   );
 
-const VisualPlateScrubberNodeBaseSchema = z
+const FrameTimelineScrubberNodeBaseSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
-    component: z.literal("VisualPlateScrubber"),
-    lineage: NonEmptyPlateLineageSchema,
+    component: z.literal("FrameTimelineScrubber"),
+    timeline: NonEmptyFrameTimelineSchema,
     initialPlateId: SafeLayoutIdSchema.optional(),
   })
   .strict();
 
-function refineVisualPlateScrubberNode(
-  node: z.infer<typeof VisualPlateScrubberNodeBaseSchema>,
+function refineFrameTimelineScrubberNode(
+  node: z.infer<typeof FrameTimelineScrubberNodeBaseSchema>,
   ctx: z.RefinementCtx
 ): void {
   if (
     node.initialPlateId !== undefined &&
-    !node.lineage.nodes.some((n) => n.plate.plateId === node.initialPlateId)
+    !node.timeline.nodes.some((n) => n.plate.plateId === node.initialPlateId)
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["initialPlateId"],
-      message: "initialPlateId must reference an active node in lineage.nodes",
+      message: "initialPlateId must reference an active node in timeline.nodes",
     });
   }
 }
 
-export const VisualPlateScrubberNodeSchema =
-  VisualPlateScrubberNodeBaseSchema.superRefine(refineVisualPlateScrubberNode);
+export const FrameTimelineScrubberNodeSchema =
+  FrameTimelineScrubberNodeBaseSchema.superRefine(refineFrameTimelineScrubberNode);
 
-export type VisualPlateScrubberNode = z.infer<
-  typeof VisualPlateScrubberNodeSchema
+export type FrameTimelineScrubberNode = z.infer<
+  typeof FrameTimelineScrubberNodeSchema
 >;
 
 const CompactEfficiencyScorecardSchema = EfficiencyScorecardSchema.refine(
@@ -240,7 +240,7 @@ export type ConnectorHealthCardNode = z.infer<
 export const WorkspaceCardNodeSchema = z
   .discriminatedUnion("component", [
     ProjectDossierCardNodeSchema,
-    VisualPlateScrubberNodeBaseSchema,
+    FrameTimelineScrubberNodeBaseSchema,
     ObservationTimelineNodeBaseSchema,
     MetricComparisonTableNodeSchema,
     ConnectorHealthCardNodeSchema,
@@ -249,8 +249,8 @@ export const WorkspaceCardNodeSchema = z
     if (node.component === "ObservationTimeline") {
       refineObservationTimelineNode(node, ctx);
     }
-    if (node.component === "VisualPlateScrubber") {
-      refineVisualPlateScrubberNode(node, ctx);
+    if (node.component === "FrameTimelineScrubber") {
+      refineFrameTimelineScrubberNode(node, ctx);
     }
   });
 

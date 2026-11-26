@@ -81,14 +81,14 @@ export async function hydrateInvestigationWorkspace(
       uniqueProjectNumbers,
       uniqueCitedProjectNumbers,
       uniqueTimelineProjectNumbers,
-      uniqueLineageIds,
+      uniqueTimelineIds,
       uniqueConnectorIds,
     } = extractWorkspaceLookupKeys(parsedSpec.data.nodes);
 
     const [
       rawProjects,
       rawObservationsByProject,
-      lineageEntries,
+      timelineEntries,
       changelogEntries,
       scorecardResult,
     ] = await Promise.all([
@@ -105,7 +105,7 @@ export async function hydrateInvestigationWorkspace(
         }))
       ),
       Promise.all(
-        uniqueLineageIds.map(async (lineageId) => ({
+        uniqueTimelineIds.map(async (lineageId) => ({
           lineageId,
           result: await getFrameTimeline(
             { lineageId, now },
@@ -142,11 +142,11 @@ export async function hydrateInvestigationWorkspace(
       return observationsResult;
     }
 
-    const failedLineage = lineageEntries.find((entry) => !entry.result.ok);
-    if (failedLineage && !failedLineage.result.ok) {
+    const failedTimeline = timelineEntries.find((entry) => !entry.result.ok);
+    if (failedTimeline && !failedTimeline.result.ok) {
       return stepFailure(
         "repository_integrity_error",
-        failedLineage.result.message
+        failedTimeline.result.message
       );
     }
 
@@ -193,8 +193,8 @@ export async function hydrateInvestigationWorkspace(
       return citedResult;
     }
 
-    const lineageById = new Map(
-      lineageEntries.flatMap(({ lineageId, result }) =>
+    const timelineById = new Map(
+      timelineEntries.flatMap(({ lineageId, result }) =>
         result.ok ? [[lineageId, result.timeline] as const] : []
       )
     );
@@ -212,7 +212,7 @@ export async function hydrateInvestigationWorkspace(
       citedByNumber: citedResult.citedByNumber,
       observationsByProject: observationsResult.observationsByProject,
       artifactsByHash: artifactsResult.artifactsByHash,
-      lineageById,
+      timelineById,
       changelogByConnector,
       compactScorecard,
       nowMs,

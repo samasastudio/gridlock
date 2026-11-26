@@ -30,7 +30,7 @@ type CompactWorkspaceNodeSummary =
     }
   | {
       nodeId: string;
-      component: "VisualPlateScrubber";
+      component: "FrameTimelineScrubber";
       lineageId: string;
       initialPlateId?: string;
     }
@@ -129,11 +129,11 @@ function summarizeWorkspaceNode(node: WorkspaceCardNode): CompactWorkspaceNodeSu
         component: node.component,
         projectNumbers: node.rows.map((row) => row.project.projectNumber),
       };
-    case "VisualPlateScrubber":
+    case "FrameTimelineScrubber":
       return {
         nodeId: node.nodeId,
         component: node.component,
-        lineageId: node.lineage.lineageId,
+        lineageId: node.timeline.lineageId,
         ...(node.initialPlateId !== undefined
           ? { initialPlateId: node.initialPlateId }
           : {}),
@@ -171,7 +171,7 @@ export function buildUiOrchestrationPrompt(input: {
     task: "Plan a bounded Gridlock Workspace Layout matching the civic researcher query.",
     rules: [
       `Emit JSON matching { "nodes": [...] } with 0 to ${MAX_WORKSPACE_NODES} unique nodeId strings.`,
-      `Component keys: ProjectDossierCard requires projectNumber; ObservationTimeline and MetricComparisonTable require 1 to ${MAX_PROJECTS_PER_CARD} unique projectNumbers; VisualPlateScrubber requires lineageId and optional initialPlateId; ConnectorHealthCard requires connectorId.`,
+      `Component keys: ProjectDossierCard requires projectNumber; ObservationTimeline and MetricComparisonTable require 1 to ${MAX_PROJECTS_PER_CARD} unique projectNumbers; FrameTimelineScrubber requires lineageId and optional initialPlateId; ConnectorHealthCard requires connectorId.`,
       "Reference only verified identifiers present in catalog; select ObservationTimeline only for projects with timelineHydratable === true.",
       'Return { "nodes": [] } when no catalog records match query.',
       ...refinementRules,

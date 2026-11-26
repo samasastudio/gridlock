@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import {
   ARTIFACT_BUCKET_URI,
   CANONICAL_MILESTONE_LABEL,
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
   InvestigatePlanRequestSchema,
   InvestigatePlanResponseSchema,
   MAX_INVESTIGATE_QUERY_LENGTH,
@@ -20,7 +20,7 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
   test("validates WorkspaceCardTypeSchema, WorkspaceCardNodeSchema cross-field invariants, and InvestigatePlan bounds", () => {
     assert.deepEqual(WorkspaceCardTypeSchema.options, [
       "ProjectDossierCard",
-      "VisualPlateScrubber",
+      "FrameTimelineScrubber",
       "ObservationTimeline",
       "MetricComparisonTable",
       "ConnectorHealthCard",
@@ -69,10 +69,10 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
     };
     assert.equal(WorkspaceCardNodeSchema.safeParse(validDossierNode).success, true);
 
-    const validLineageNode = {
+    const validTimelineNode = {
       plate: {
         plateId: "plate_canonical_1",
-        lineageId: DEFAULT_LINEAGE_ID,
+        lineageId: DEFAULT_TIMELINE_ID,
         turnNumber: 1,
         model: "gemini-3-pro-image",
         interactionId: "ix_canonical_1",
@@ -99,12 +99,12 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
 
     const validScrubberNode = {
       nodeId: "valid-scrubber",
-      component: "VisualPlateScrubber" as const,
+      component: "FrameTimelineScrubber" as const,
       initialPlateId: "plate_canonical_1",
-      lineage: {
-        lineageId: DEFAULT_LINEAGE_ID,
+      timeline: {
+        lineageId: DEFAULT_TIMELINE_ID,
         activeCanonicalPlateId: "plate_canonical_1",
-        nodes: [validLineageNode],
+        nodes: [validTimelineNode],
         edges: [],
       },
     };
@@ -160,18 +160,18 @@ describe("Workspace Layout & Orchestration Zod Contracts", () => {
           node: {
             ...validScrubberNode,
             nodeId: "zero-citation-scrubber",
-            lineage: {
-              ...validScrubberNode.lineage,
+            timeline: {
+              ...validScrubberNode.timeline,
               nodes: [
                 {
-                  ...validLineageNode,
-                  plate: { ...validLineageNode.plate, rawCaptureHashes: [] },
+                  ...validTimelineNode,
+                  plate: { ...validTimelineNode.plate, rawCaptureHashes: [] },
                   rawCaptures: [],
                 },
               ],
             },
           },
-          expectedPath: "lineage.nodes",
+          expectedPath: "timeline.nodes",
         },
       ];
 
