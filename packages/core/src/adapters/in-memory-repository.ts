@@ -218,10 +218,10 @@ export function createInMemoryGridlockRepository(
     },
 
     async listGeneratedIllustrationsByTimeline(
-      lineageId?: string
+      timelineId?: string
     ): Promise<GeneratedIllustration[]> {
       return Array.from(generatedIllustrations.values())
-        .filter((plate) => (lineageId ? plate.lineageId === lineageId : true))
+        .filter((plate) => (timelineId ? plate.timelineId === timelineId : true))
         .sort((a, b) =>
           a.turnNumber !== b.turnNumber
             ? a.turnNumber - b.turnNumber

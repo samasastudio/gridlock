@@ -116,7 +116,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
     });
 
     const boot = await bootstrapCanvas(
-      { lineageId: "texas-corridor-main", observations: [milestoneObs] },
+      { timelineId: "texas-corridor-main", observations: [milestoneObs] },
       { repository, geminiClient, imageEncoder: sharpImageEncoder }
     );
     assert.equal(boot.status, "illustration_painted");
@@ -221,7 +221,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
     const repository = createInMemoryGridlockRepository();
     const { milestoneObs } = createPainterTestObservations();
     const failedBoot = await bootstrapCanvas(
-      { lineageId: "sad-corridor", observations: [milestoneObs] },
+      { timelineId: "sad-corridor", observations: [milestoneObs] },
       {
         repository,
         imageEncoder: sharpImageEncoder,
@@ -263,7 +263,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
       });
 
       const turn1 = await bootstrapCanvas(
-        { lineageId: "smoke-corridor", observations: [milestoneObs] },
+        { timelineId: "smoke-corridor", observations: [milestoneObs] },
         { repository, geminiClient, imageEncoder: sharpImageEncoder }
       );
       assert.equal(
@@ -276,7 +276,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
       assert.equal(isWebpBuffer(turn1.webpBuffer), true);
 
       const turn2 = await paintMilestoneDelta(
-        { lineageId: "smoke-corridor", observations: [secondMilestone] },
+        { timelineId: "smoke-corridor", observations: [secondMilestone] },
         { repository, geminiClient, imageEncoder: sharpImageEncoder }
       );
       assert.equal(

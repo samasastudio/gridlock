@@ -26,7 +26,7 @@ export type GridlockHttpDeps = {
   geminiClient?: GeminiInteractionsClient;
   imageEncoder?: PainterImageEncoder;
   spanSink?: RunSpanSink;
-  maxBranchesPerLineage?: number;
+  maxBranchesPerTimeline?: number;
   now?: () => Date;
 };
 

@@ -32,7 +32,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
   test("Omits Scenario Branch form in static snapshots and 0-plate empty lineages", async () => {
     const seeded = await seedTestPlateLineage();
     const emptyLineage = PlateLineageResponseSchema.parse({
-      lineageId: "empty-corridor",
+      timelineId: "empty-corridor",
       activeCanonicalPlateId: null,
       nodes: [],
       edges: [],

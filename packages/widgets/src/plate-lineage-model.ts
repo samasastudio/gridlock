@@ -281,8 +281,8 @@ export function mergeBranchedNodeIntoLineage(
   branch: BranchPlateResponse
 ): PlateLineageResponse {
   if (
-    branch.lineageId !== lineage.lineageId ||
-    branch.node.plate.lineageId !== lineage.lineageId
+    branch.timelineId !== lineage.timelineId ||
+    branch.node.plate.timelineId !== lineage.timelineId
   ) {
     return lineage;
   }

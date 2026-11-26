@@ -23,7 +23,7 @@ export interface OrchestrationCatalogIllustrationSummary {
 }
 
 export interface OrchestrationCatalogTimelineEntry {
-  lineageId: string;
+  timelineId: string;
   activeCanonicalPlateId: string | null;
   plates: readonly OrchestrationCatalogIllustrationSummary[];
 }
@@ -52,7 +52,7 @@ function isTimelineNodeHydratable(node: FrameTimelineNode): boolean {
 
 function isFrameTimelineHydratable(timeline: FrameTimelineResponse): boolean {
   return (
-    SafeLayoutIdSchema.safeParse(timeline.lineageId).success &&
+    SafeLayoutIdSchema.safeParse(timeline.timelineId).success &&
     timeline.nodes.length > 0 &&
     timeline.nodes.every(isTimelineNodeHydratable)
   );
@@ -60,7 +60,7 @@ function isFrameTimelineHydratable(timeline: FrameTimelineResponse): boolean {
 
 export function extractValidatedTimelineIds(
   rawAllPlates: unknown
-): { ok: true; lineageIds: string[] } | HydratorStepFailure {
+): { ok: true; timelineIds: string[] } | HydratorStepFailure {
   if (!Array.isArray(rawAllPlates)) {
     return stepFailure(
       "repository_integrity_error",
@@ -98,10 +98,10 @@ export function extractValidatedTimelineIds(
     );
   }
 
-  const lineageIds = Array.from(new Set(parsedPlates.map((plate) => plate.lineageId))).sort(
+  const timelineIds = Array.from(new Set(parsedPlates.map((plate) => plate.timelineId))).sort(
     (left, right) => left.localeCompare(right)
   );
-  return { ok: true, lineageIds };
+  return { ok: true, timelineIds };
 }
 
 export function extractValidatedChangelogConnectorIds(
@@ -168,9 +168,9 @@ export function buildTimelineCatalogEntries(
     ok: true,
     timelines: timelines
       .filter(isFrameTimelineHydratable)
-      .sort((left, right) => left.lineageId.localeCompare(right.lineageId))
+      .sort((left, right) => left.timelineId.localeCompare(right.timelineId))
       .map((timeline) => ({
-        lineageId: timeline.lineageId,
+        timelineId: timeline.timelineId,
         activeCanonicalPlateId: timeline.activeCanonicalPlateId,
         plates: timeline.nodes.map((node): OrchestrationCatalogIllustrationSummary => ({
           plateId: node.plate.plateId,

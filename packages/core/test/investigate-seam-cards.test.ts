@@ -161,7 +161,7 @@ async function seedFullFiveCardRepository(): Promise<{
 
   const bootstrapRes = await bootstrapCanvas(
     {
-      lineageId: DEFAULT_TIMELINE_ID,
+      timelineId: DEFAULT_TIMELINE_ID,
       observations: dfwObservations,
       prompt:
         "Bootstrap <svg>\ncanvas for [corridor](https://example.test) contact grid_ops@example.com",
@@ -173,7 +173,7 @@ async function seedFullFiveCardRepository(): Promise<{
 
   const branchRes = await branchTimeline(
     {
-      lineageId: DEFAULT_TIMELINE_ID,
+      timelineId: DEFAULT_TIMELINE_ID,
       parentInteractionId: bootstrapRes.illustration.interactionId,
       scenarioPrompt:
         "Add *300MW* switchyard\nfor corridor_lead@example.com <marquee>",
@@ -225,7 +225,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           {
             nodeId: "corridor-scrubber",
             component: "FrameTimelineScrubber",
-            lineageId: DEFAULT_TIMELINE_ID,
+            timelineId: DEFAULT_TIMELINE_ID,
             initialPlateId: branchPlateId,
           },
           {
@@ -304,7 +304,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
 
     const maxBranchRes = await branchTimeline(
       {
-        lineageId: DEFAULT_TIMELINE_ID,
+        timelineId: DEFAULT_TIMELINE_ID,
         parentInteractionId: canonicalNode.plate.interactionId,
         scenarioPrompt: maxScenarioPrompt,
         now: new Date("2026-10-27T15:12:00.000Z"),
@@ -336,7 +336,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           {
             nodeId: "max-prompt-scrubber",
             component: "FrameTimelineScrubber",
-            lineageId: DEFAULT_TIMELINE_ID,
+            timelineId: DEFAULT_TIMELINE_ID,
             initialPlateId: maxBranchRes.illustration.plateId,
           },
         ],
@@ -404,7 +404,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       await seedFullFiveCardRepository();
 
     const unknownTimelineCheck = await getFrameTimeline(
-      { lineageId: "unknown-corridor-timeline", now: NOW },
+      { timelineId: "unknown-corridor-timeline", now: NOW },
       { repository }
     );
     assert.equal(unknownTimelineCheck.ok, true);
@@ -416,7 +416,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           {
             nodeId: "missing-timeline",
             component: "FrameTimelineScrubber",
-            lineageId: "unknown-corridor-timeline",
+            timelineId: "unknown-corridor-timeline",
           },
         ],
       },
@@ -440,7 +440,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           {
             nodeId: "expired-timeline",
             component: "FrameTimelineScrubber",
-            lineageId: DEFAULT_TIMELINE_ID,
+            timelineId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -465,7 +465,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
             {
               nodeId: "bad-initial-plate",
               component: "FrameTimelineScrubber",
-              lineageId: DEFAULT_TIMELINE_ID,
+              timelineId: DEFAULT_TIMELINE_ID,
               initialPlateId: badInitialId,
             },
           ],
@@ -500,7 +500,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
             {
               nodeId: "scrubber-bad-prov",
               component: "FrameTimelineScrubber",
-              lineageId: DEFAULT_TIMELINE_ID,
+              timelineId: DEFAULT_TIMELINE_ID,
             },
           ],
         },
@@ -524,7 +524,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
             {
               nodeId: "branch-scrubber-bad-prov",
               component: "FrameTimelineScrubber",
-              lineageId: DEFAULT_TIMELINE_ID,
+              timelineId: DEFAULT_TIMELINE_ID,
             },
           ],
         },
@@ -550,7 +550,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           {
             nodeId: "scrubber-missing-obs",
             component: "FrameTimelineScrubber",
-            lineageId: DEFAULT_TIMELINE_ID,
+            timelineId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -571,7 +571,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           {
             nodeId: "scrubber-zero-citations",
             component: "FrameTimelineScrubber",
-            lineageId: DEFAULT_TIMELINE_ID,
+            timelineId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -642,7 +642,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           {
             nodeId: "corrupt-scrubber",
             component: "FrameTimelineScrubber",
-            lineageId: DEFAULT_TIMELINE_ID,
+            timelineId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -650,7 +650,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         repository: {
           ...repository,
           listGeneratedIllustrationsByTimeline: async () =>
-            [{ plateId: "corrupt", lineageId: DEFAULT_TIMELINE_ID }] as never,
+            [{ plateId: "corrupt", timelineId: DEFAULT_TIMELINE_ID }] as never,
         },
       },
       { now: NOW }

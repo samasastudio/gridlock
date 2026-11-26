@@ -225,10 +225,10 @@ const repository = {
       ? [{ malformedSimulatedCorruption: true }]
       : baseRepo.listRepairChangelog(connectorId);
   },
-  async listGeneratedIllustrationsByTimeline(lineageId) {
+  async listGeneratedIllustrationsByTimeline(timelineId) {
     return force500
       ? [{ malformedSimulatedCorruption: true }]
-      : baseRepo.listGeneratedIllustrationsByTimeline(lineageId);
+      : baseRepo.listGeneratedIllustrationsByTimeline(timelineId);
   },
 };
 

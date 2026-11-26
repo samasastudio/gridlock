@@ -161,10 +161,10 @@ export const ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
           buildOrchestrationCardJsonSchema(
             "FrameTimelineScrubber",
             {
-              lineageId: { type: "string" },
+              timelineId: { type: "string" },
               initialPlateId: { type: "string" },
             },
-            ["lineageId"]
+            ["timelineId"]
           ),
           buildOrchestrationCardJsonSchema(
             "ObservationTimeline",

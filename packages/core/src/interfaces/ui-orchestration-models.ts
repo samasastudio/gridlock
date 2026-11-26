@@ -47,7 +47,7 @@ const FrameTimelineScrubberSpecSchema = z
   .object({
     nodeId: SafeLayoutIdSchema,
     component: z.literal("FrameTimelineScrubber"),
-    lineageId: SafeLayoutIdSchema,
+    timelineId: SafeLayoutIdSchema,
     initialPlateId: SafeLayoutIdSchema.optional(),
   })
   .strict();

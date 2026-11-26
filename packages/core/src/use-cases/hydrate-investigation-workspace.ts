@@ -105,10 +105,10 @@ export async function hydrateInvestigationWorkspace(
         }))
       ),
       Promise.all(
-        uniqueTimelineIds.map(async (lineageId) => ({
-          lineageId,
+        uniqueTimelineIds.map(async (timelineId) => ({
+          timelineId,
           result: await getFrameTimeline(
-            { lineageId, now },
+            { timelineId, now },
             { repository: deps.repository }
           ),
         }))
@@ -194,8 +194,8 @@ export async function hydrateInvestigationWorkspace(
     }
 
     const timelineById = new Map(
-      timelineEntries.flatMap(({ lineageId, result }) =>
-        result.ok ? [[lineageId, result.timeline] as const] : []
+      timelineEntries.flatMap(({ timelineId, result }) =>
+        result.ok ? [[timelineId, result.timeline] as const] : []
       )
     );
     const changelogByConnector = new Map(

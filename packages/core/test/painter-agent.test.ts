@@ -39,7 +39,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
 
     const turn2Plate = GeneratedIllustrationSchema.parse({
       plateId: "plate_texas-corridor-main_t2_abcd1234",
-      lineageId: "texas-corridor-main",
+      timelineId: "texas-corridor-main",
       turnNumber: 2,
       model: PAINTER_AGENT_MODEL,
       interactionId: "inter_turn_2",
@@ -109,7 +109,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
 
     // Caller-facing milestone gate skips routine + already-painted canonical milestones at 0 tokens
     const skippedGate = await evaluatePainterMilestoneGate(
-      { lineageId: "texas-corridor-main", observations: [routineObs, milestoneObs1] },
+      { timelineId: "texas-corridor-main", observations: [routineObs, milestoneObs1] },
       { repository }
     );
     assert.equal(skippedGate.shouldPaint, false);
@@ -125,7 +125,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     });
     const readyGate = await evaluatePainterMilestoneGate(
       {
-        lineageId: "texas-corridor-main",
+        timelineId: "texas-corridor-main",
         observations: [routineObs, milestoneObs1, milestoneObsBranchOnly],
       },
       { repository }
@@ -182,7 +182,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
 
     // Valid skip (+1 avoided -> 2) and cached fallback (+1 cache hit) -> (2 + 1) / (2 + 1 + 1) = 75%
     await evaluatePainterMilestoneGate(
-      { lineageId: "texas-corridor-main", observations: [routineObs] },
+      { timelineId: "texas-corridor-main", observations: [routineObs] },
       { repository }
     );
     const { scorecard } = await recordAgenticStageRun(
@@ -246,13 +246,13 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       },
     };
 
-    const skipped = await bootstrapCanvas({ lineageId: "texas-corridor-main", observations: [routineObs] }, { repository, geminiClient });
+    const skipped = await bootstrapCanvas({ timelineId: "texas-corridor-main", observations: [routineObs] }, { repository, geminiClient });
     assert.equal(skipped.status, "skipped_no_milestone");
     assert.equal(recordedRequests.length, 0);
 
     const decodeStartedAtMs = performance.now();
     const painted = await bootstrapCanvas(
-      { lineageId: "texas-corridor-main", observations: [routineObs, milestoneObs] },
+      { timelineId: "texas-corridor-main", observations: [routineObs, milestoneObs] },
       { repository, geminiClient, spanSink: (s) => emittedSpans.push(s) }
     );
     assert.ok(performance.now() - decodeStartedAtMs < 500);
@@ -268,21 +268,21 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(pinnedArtifact?.referencedByMilestone, true);
 
     const milestoneObsNext = ObservationSchema.parse({ ...milestoneObs, id: "obs_TABS2027003697_m2" });
-    const sadCases: Array<{ lineageId: string; obs?: typeof milestoneObs; baseCanvasWebp?: Buffer; expectedCode: PainterErrorCode; expectedTokens: number }> = [
-      { lineageId: "texas-corridor-main", obs: milestoneObsNext, expectedCode: "timeline_already_bootstrapped", expectedTokens: 0 },
-      { lineageId: "corridor-bad-canvas", baseCanvasWebp: fakeVp8lPayload, expectedCode: "invalid_base_canvas", expectedTokens: 0 },
-      { lineageId: "corridor-incomplete", expectedCode: "interaction_failed", expectedTokens: 320 },
-      { lineageId: "corridor-missing-id", expectedCode: "interaction_failed", expectedTokens: 150 },
-      { lineageId: "corridor-thrown", expectedCode: "interaction_failed", expectedTokens: 0 },
-      { lineageId: "corridor-null-img", expectedCode: "corrupt_or_empty_image", expectedTokens: 210 },
-      { lineageId: "corridor-empty-img", expectedCode: "corrupt_or_empty_image", expectedTokens: 190 },
-      { lineageId: "corridor-corrupt-img", expectedCode: "corrupt_or_empty_image", expectedTokens: 410 },
+    const sadCases: Array<{ timelineId: string; obs?: typeof milestoneObs; baseCanvasWebp?: Buffer; expectedCode: PainterErrorCode; expectedTokens: number }> = [
+      { timelineId: "texas-corridor-main", obs: milestoneObsNext, expectedCode: "timeline_already_bootstrapped", expectedTokens: 0 },
+      { timelineId: "corridor-bad-canvas", baseCanvasWebp: fakeVp8lPayload, expectedCode: "invalid_base_canvas", expectedTokens: 0 },
+      { timelineId: "corridor-incomplete", expectedCode: "interaction_failed", expectedTokens: 320 },
+      { timelineId: "corridor-missing-id", expectedCode: "interaction_failed", expectedTokens: 150 },
+      { timelineId: "corridor-thrown", expectedCode: "interaction_failed", expectedTokens: 0 },
+      { timelineId: "corridor-null-img", expectedCode: "corrupt_or_empty_image", expectedTokens: 210 },
+      { timelineId: "corridor-empty-img", expectedCode: "corrupt_or_empty_image", expectedTokens: 190 },
+      { timelineId: "corridor-corrupt-img", expectedCode: "corrupt_or_empty_image", expectedTokens: 410 },
     ];
 
     await sadCases.reduce<Promise<void>>(async (prev, sc) => {
       await prev;
       const res = await bootstrapCanvas(
-        { lineageId: sc.lineageId, observations: [sc.obs ?? milestoneObs], ...(sc.baseCanvasWebp !== undefined ? { baseCanvasWebp: sc.baseCanvasWebp } : {}) },
+        { timelineId: sc.timelineId, observations: [sc.obs ?? milestoneObs], ...(sc.baseCanvasWebp !== undefined ? { baseCanvasWebp: sc.baseCanvasWebp } : {}) },
         { repository, geminiClient, spanSink: (s) => emittedSpans.push(s) }
       );
       assert.equal(res.status, "painter_failed");
@@ -325,7 +325,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     };
 
     // 1. Sad Path: empty timeline, branch-only timeline, and cross-timeline isolation all fail closed with parent_not_found at 0 calls
-    const orphanDelta = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    const orphanDelta = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
     assert.equal(orphanDelta.status, "painter_failed");
     assert.equal(orphanDelta.errorCode, "parent_not_found");
 
@@ -333,7 +333,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     await repository.saveGeneratedIllustration(
       GeneratedIllustrationSchema.parse({
         plateId: "branch_texas-corridor-main_t1_deadbeef",
-        lineageId: "texas-corridor-main",
+        timelineId: "texas-corridor-main",
         turnNumber: 1,
         model: PAINTER_AGENT_MODEL,
         interactionId: "inter_branch_only",
@@ -357,21 +357,21 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       }),
       branchOnlyBlob
     );
-    const branchOnlyDelta = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    const branchOnlyDelta = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
     assert.equal(branchOnlyDelta.status, "painter_failed");
     assert.equal(branchOnlyDelta.errorCode, "parent_not_found");
 
-    await bootstrapCanvas({ lineageId: "other-corridor", observations: [m1] }, { repository, geminiClient });
-    const crossLineageDelta = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    await bootstrapCanvas({ timelineId: "other-corridor", observations: [m1] }, { repository, geminiClient });
+    const crossLineageDelta = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
     assert.equal(crossLineageDelta.status, "painter_failed");
     assert.equal(crossLineageDelta.errorCode, "parent_not_found");
     assert.equal(recordedRequests.length, 1);
 
     // 2. Happy Path: Turn 1 bootstrap + Turn 2 delta chaining with visual continuity prompt
-    const turn1 = await bootstrapCanvas({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
+    const turn1 = await bootstrapCanvas({ timelineId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
     assert.equal(turn1.status, "illustration_painted");
 
-    const turn2 = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1, m2] }, { repository, geminiClient });
+    const turn2 = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m1, m2] }, { repository, geminiClient });
     assert.equal(turn2.status, "illustration_painted");
     assert.equal(recordedRequests[2]?.previous_interaction_id, turn1.illustration.interactionId);
     assert.match(String(recordedRequests[2]?.input), /camera angle.*topography.*typography.*existing corridor infrastructure/i);
@@ -380,7 +380,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(turn2.rebootstrappedFromParentWebp, false);
     assert.deepEqual(turn2.illustration.triggeringObservationIds, [m2.id]);
 
-    const repeatSkip = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1, m2] }, { repository, geminiClient });
+    const repeatSkip = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m1, m2] }, { repository, geminiClient });
     assert.equal(repeatSkip.status, "skipped_no_milestone");
     assert.equal(recordedRequests.length, 3);
 
@@ -388,7 +388,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     faultQueue.push(() => {
       throw Object.assign(new Error("Requested entity was not found."), { status: 404 });
     });
-    const turn3 = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m3] }, { repository, geminiClient });
+    const turn3 = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m3] }, { repository, geminiClient });
     assert.equal(turn3.status, "illustration_painted");
     assert.equal(recordedRequests.length, 5);
     assert.equal(recordedRequests[3]?.previous_interaction_id, turn2.illustration.interactionId);
@@ -404,7 +404,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       errors: [{ code: "previous_interaction_expired", message: "Stored interaction TTL elapsed" }],
       usage: { total_tokens: 45 },
     }));
-    const turn4 = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m4] }, { repository, geminiClient });
+    const turn4 = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m4] }, { repository, geminiClient });
     assert.equal(turn4.status, "illustration_painted");
     assert.equal(turn4.rebootstrappedFromParentWebp, true);
     assert.equal(turn4.tokensUsed, 45 + 1200);
@@ -422,7 +422,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       await prev;
       const callsBefore = recordedRequests.length;
       faultQueue.push(item.fault);
-      const failed = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m5] }, { repository, geminiClient });
+      const failed = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m5] }, { repository, geminiClient });
       assert.equal(failed.status, "painter_failed");
       assert.equal(failed.errorCode, "interaction_failed");
       assert.equal(failed.tokensUsed, item.expectedTokens);
@@ -436,7 +436,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     faultQueue.push(() => {
       throw Object.assign(new Error("Requested entity was not found."), { status: 404 });
     });
-    const corruptCacheFallback = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m5] }, { repository, geminiClient });
+    const corruptCacheFallback = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m5] }, { repository, geminiClient });
     assert.equal(corruptCacheFallback.status, "painter_failed");
     assert.equal(corruptCacheFallback.errorCode, "interaction_failed");
     assert.equal(corruptCacheFallback.activeIllustration?.plateId, turn4.illustration.plateId);
@@ -447,7 +447,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     faultQueue.push(() => {
       throw Object.assign(new Error("Requested entity was not found."), { status: 404 });
     });
-    const missingCacheFallback = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m5] }, { repository: missingBlobRepo, geminiClient });
+    const missingCacheFallback = await paintMilestoneDelta({ timelineId: "texas-corridor-main", observations: [m5] }, { repository: missingBlobRepo, geminiClient });
     assert.equal(missingCacheFallback.status, "painter_failed");
     assert.equal(missingCacheFallback.errorCode, "interaction_failed");
     assert.equal(missingCacheFallback.activeIllustration?.plateId, turn4.illustration.plateId);
@@ -537,7 +537,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       usage: { total_tokens: 1250 },
     });
     const rootResult = await bootstrapCanvas(
-      { lineageId: "texas-corridor-main", observations: [rootObs], now: new Date("2026-10-27T18:05:00.000Z") },
+      { timelineId: "texas-corridor-main", observations: [rootObs], now: new Date("2026-10-27T18:05:00.000Z") },
       { repository, geminiClient }
     );
     assert.equal(rootResult.status, "illustration_painted");
@@ -658,7 +658,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     const brokenVp8x = Buffer.from(branchResult.webpBuffer);
     brokenVp8x[20] = 0x00;
     const rejectedCanvas = await bootstrapCanvas(
-      { lineageId: "corridor-corrupt-vp8x", observations: [rootObs], baseCanvasWebp: brokenVp8x },
+      { timelineId: "corridor-corrupt-vp8x", observations: [rootObs], baseCanvasWebp: brokenVp8x },
       { repository, geminiClient }
     );
     assert.equal(rejectedCanvas.status, "painter_failed");
@@ -698,14 +698,14 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(unknownParent.errorCode, "parent_not_found");
 
     const crossLineage = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", lineageId: "other-corridor", scenarioPrompt: "Cross timeline fork", now: branchNow },
+      { parentInteractionId: "inter_branch_parent_root", timelineId: "other-corridor", scenarioPrompt: "Cross timeline fork", now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(crossLineage.status, "painter_failed");
     assert.equal(crossLineage.errorCode, "parent_not_found");
 
     const quotaExceeded = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Exceeding active branch cap", maxBranchesPerLineage: 5, now: branchNow },
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Exceeding active branch cap", maxBranchesPerTimeline: 5, now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(quotaExceeded.status, "painter_failed");
@@ -723,7 +723,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal((await repository.listRunRecords()).length, runsBeforePreconditions);
     assert.equal((await repository.getEfficiencyScorecard()).agenticRunsCount, agenticBeforePreconditions);
 
-    // After +90d TTL elapses, prior ephemeral branches no longer consume maxBranchesPerLineage=1
+    // After +90d TTL elapses, prior ephemeral branches no longer consume maxBranchesPerTimeline=1
     responseQueue.push({
       id: "inter_post_expiry_fresh_branch",
       status: "completed",
@@ -732,7 +732,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       usage: { total_tokens: 1100 },
     });
     const postExpiryBranch = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Fresh branch after +90d TTL expiry", maxBranchesPerLineage: 1, now: postExpiryNow },
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Fresh branch after +90d TTL expiry", maxBranchesPerTimeline: 1, now: postExpiryNow },
       { repository, geminiClient }
     );
     assert.equal(postExpiryBranch.status, "illustration_painted");
@@ -764,7 +764,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
 
     const rootRelease = await bootstrapCanvas(
       {
-        lineageId: "corridor-slot-release",
+        timelineId: "corridor-slot-release",
         observations: [obs],
         now: new Date("2026-10-27T18:05:00.000Z"),
       },
@@ -806,7 +806,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       {
         parentInteractionId: rootRelease.illustration.interactionId,
         scenarioPrompt: "Slot release branch 1",
-        maxBranchesPerLineage: 2,
+        maxBranchesPerTimeline: 2,
         now: nowRelease,
       },
       { repository: trackedRepo, geminiClient }
@@ -817,7 +817,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       {
         parentInteractionId: rootRelease.illustration.interactionId,
         scenarioPrompt: "Slot release branch 2 during scorecard write",
-        maxBranchesPerLineage: 2,
+        maxBranchesPerTimeline: 2,
         now: nowRelease,
       },
       { repository: trackedRepo, geminiClient }
@@ -830,7 +830,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
 
     const rootSerialize = await bootstrapCanvas(
       {
-        lineageId: "corridor-slot-serialize",
+        timelineId: "corridor-slot-serialize",
         observations: [obs],
         now: new Date("2026-10-27T18:05:00.000Z"),
       },
@@ -841,9 +841,9 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     const callsBeforeRace = interSeq;
     const delayedReadRepo: GridlockRepository = {
       ...baseRepo,
-      listGeneratedIllustrationsByTimeline: async (lineageId) => {
+      listGeneratedIllustrationsByTimeline: async (timelineId) => {
         await new Promise((resolve) => setTimeout(resolve, 15));
-        return baseRepo.listGeneratedIllustrationsByTimeline(lineageId);
+        return baseRepo.listGeneratedIllustrationsByTimeline(timelineId);
       },
     };
 
@@ -852,7 +852,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
         {
           parentInteractionId: rootSerialize.illustration.interactionId,
           scenarioPrompt: "Serialized admission A",
-          maxBranchesPerLineage: 1,
+          maxBranchesPerTimeline: 1,
           now: nowRelease,
         },
         { repository: delayedReadRepo, geminiClient }
@@ -861,7 +861,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
         {
           parentInteractionId: rootSerialize.illustration.interactionId,
           scenarioPrompt: "Serialized admission B",
-          maxBranchesPerLineage: 1,
+          maxBranchesPerTimeline: 1,
           now: nowRelease,
         },
         { repository: delayedReadRepo, geminiClient }

@@ -6,7 +6,7 @@ interface BranchReservation {
   plateId: string | null;
 }
 
-interface LineageSlotState {
+interface TimelineSlotState {
   tail: Promise<void>;
   reservations: Map<symbol, BranchReservation>;
 }
@@ -18,32 +18,32 @@ export interface BranchSlotHandle {
 
 const slotStatesByRepo = new WeakMap<
   GridlockRepository,
-  Map<string, LineageSlotState>
+  Map<string, TimelineSlotState>
 >();
 
-function getLineageSlotState(
+function getTimelineSlotState(
   repo: GridlockRepository,
-  lineageId: string
-): LineageSlotState {
+  timelineId: string
+): TimelineSlotState {
   const byLineage =
-    slotStatesByRepo.get(repo) ?? new Map<string, LineageSlotState>();
+    slotStatesByRepo.get(repo) ?? new Map<string, TimelineSlotState>();
   if (!slotStatesByRepo.has(repo)) {
     slotStatesByRepo.set(repo, byLineage);
   }
-  const existing = byLineage.get(lineageId);
+  const existing = byLineage.get(timelineId);
   if (existing) {
     return existing;
   }
-  const created: LineageSlotState = {
+  const created: TimelineSlotState = {
     tail: Promise.resolve(),
     reservations: new Map<symbol, BranchReservation>(),
   };
-  byLineage.set(lineageId, created);
+  byLineage.set(timelineId, created);
   return created;
 }
 
 async function withSlotLock<T>(
-  state: LineageSlotState,
+  state: TimelineSlotState,
   run: () => Promise<T>
 ): Promise<T> {
   const prior = state.tail;
@@ -62,7 +62,7 @@ async function withSlotLock<T>(
 export function countOccupiedBranchSlots(
   plates: readonly GeneratedIllustration[],
   repo: GridlockRepository,
-  lineageId: string,
+  timelineId: string,
   now: Date
 ): number {
   const activeBranchIds = new Set(
@@ -71,7 +71,7 @@ export function countOccupiedBranchSlots(
       .map((plate) => plate.plateId)
   );
   const reservations =
-    slotStatesByRepo.get(repo)?.get(lineageId)?.reservations;
+    slotStatesByRepo.get(repo)?.get(timelineId)?.reservations;
   if (!reservations) {
     return activeBranchIds.size;
   }
@@ -83,10 +83,10 @@ export function countOccupiedBranchSlots(
 
 export function withTimelineBranchAdmission<T>(
   repo: GridlockRepository,
-  lineageId: string,
+  timelineId: string,
   admit: (reserve: () => BranchSlotHandle) => Promise<T>
 ): Promise<T> {
-  const state = getLineageSlotState(repo, lineageId);
+  const state = getTimelineSlotState(repo, timelineId);
   return withSlotLock(state, () =>
     admit(() => {
       const token = Symbol("branchSlot");

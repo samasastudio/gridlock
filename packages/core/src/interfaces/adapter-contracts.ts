@@ -74,7 +74,7 @@ export interface GridlockRepository {
   getGeneratedIllustrationByInteractionId(
     interactionId: string
   ): Promise<GeneratedIllustration | null>;
-  listGeneratedIllustrationsByTimeline(lineageId?: string): Promise<GeneratedIllustration[]>;
+  listGeneratedIllustrationsByTimeline(timelineId?: string): Promise<GeneratedIllustration[]>;
   readGeneratedIllustrationWebp(plateId: string): Promise<Buffer | null>;
 }
 

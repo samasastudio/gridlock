@@ -20,21 +20,21 @@ function readKpiValues(html: string): number[] {
 
 describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Ticket #34 Phase 2)", () => {
   test("Loading placeholder, static prop validation, theme cascade, and rejected snapshotPromise error boundary", async () => {
-    const loadingHtml = renderToStaticMarkup(<GridlockPlateWidget apiBaseUrl="https://api.example.com" lineageId="texas-corridor-main" />);
+    const loadingHtml = renderToStaticMarkup(<GridlockPlateWidget apiBaseUrl="https://api.example.com" timelineId="texas-corridor-main" />);
     assert.match(loadingHtml, /data-gridlock-theme="inherit"/);
     assert.match(loadingHtml, /data-loading-placeholder="plate-lineage"/);
     assert.match(loadingHtml, /Corridor Plate Lineage/);
     assert.match(loadingHtml, /texas-corridor-main/);
     assert.doesNotMatch(loadingHtml, /<progress/);
 
-    const malformedStaticHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={{ broken: true } as never} lineageId="texas-corridor-main" />);
+    const malformedStaticHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={{ broken: true } as never} timelineId="texas-corridor-main" />);
     assert.match(malformedStaticHtml, /role="alert"/);
     assert.match(malformedStaticHtml, /Unable to load Plate Lineage:/);
     assert.match(malformedStaticHtml, /Malformed Plate Lineage props/);
     assert.doesNotMatch(malformedStaticHtml, /<button[^>]*>Retry<\/button>/);
 
     const rejectedPromiseHtml = await streamHtml(
-      <GridlockPlateWidget apiBaseUrl="" lineageId="texas-corridor-main" snapshotPromise={Promise.reject(new Error("Lineage upstream socket hang up"))} />
+      <GridlockPlateWidget apiBaseUrl="" timelineId="texas-corridor-main" snapshotPromise={Promise.reject(new Error("Lineage upstream socket hang up"))} />
     );
     assert.match(rejectedPromiseHtml, /role="alert"/);
     assert.match(rejectedPromiseHtml, /Lineage upstream socket hang up/);
@@ -98,7 +98,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
 
     const t1Node = seeded.lineage.nodes.find((node) => node.plate.plateId === seeded.t1.plateId)!;
     const zeroObsLineage = PlateLineageResponseSchema.parse({
-      lineageId: seeded.lineage.lineageId,
+      timelineId: seeded.lineage.timelineId,
       activeCanonicalPlateId: t1Node.plate.plateId,
       nodes: [{ ...t1Node, plate: { ...t1Node.plate, projectNumbers: [], triggeringObservationIds: [], rawCaptureHashes: [] }, triggeringObservations: [], rawCaptures: [] }],
       edges: [],
@@ -108,7 +108,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     assert.match(baselineHtml, /Baseline Turn 1/);
     assert.match(baselineHtml, /1 Visual Plate(?!s)/);
 
-    const emptyLineage = PlateLineageResponseSchema.parse({ lineageId: "empty-corridor", activeCanonicalPlateId: null, nodes: [], edges: [] });
+    const emptyLineage = PlateLineageResponseSchema.parse({ timelineId: "empty-corridor", activeCanonicalPlateId: null, nodes: [], edges: [] });
     const emptyHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={emptyLineage} />);
     assert.deepEqual(readKpiValues(emptyHtml), [0, 0, 0]);
     assert.match(emptyHtml, /awaiting Turn 1 bootstrap/);
@@ -118,14 +118,14 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     let force500 = true;
     const flakyRepo: GridlockRepository = {
       ...seeded.repository,
-      async listGeneratedIllustrationsByTimeline(lineageId) {
-        return force500 ? ([{ broken: true }] as never) : seeded.repository.listGeneratedIllustrationsByTimeline(lineageId);
+      async listGeneratedIllustrationsByTimeline(timelineId) {
+        return force500 ? ([{ broken: true }] as never) : seeded.repository.listGeneratedIllustrationsByTimeline(timelineId);
       },
     };
 
     await withTestPlatesServer({ repository: flakyRepo }, async (apiBaseUrl) => {
       const err400Html = await streamHtml(
-        <GridlockPlateWidget apiBaseUrl={apiBaseUrl} lineageId="bad/id" snapshotPromise={fetchPlateLineageSnapshot({ apiBaseUrl, lineageId: "bad/id" })} />
+        <GridlockPlateWidget apiBaseUrl={apiBaseUrl} timelineId="bad/id" snapshotPromise={fetchPlateLineageSnapshot({ apiBaseUrl, timelineId: "bad/id" })} />
       );
       assert.match(err400Html, /role="alert"/);
       assert.match(err400Html, /<button[^>]*type="button"[^>]*>Retry<\/button>/);

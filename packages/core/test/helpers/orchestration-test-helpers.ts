@@ -195,7 +195,7 @@ async function saveTestIllustration(
     Pick<
       GeneratedIllustration,
       | "plateId"
-      | "lineageId"
+      | "timelineId"
       | "projectNumbers"
       | "triggeringObservationIds"
       | "rawCaptureHashes"
@@ -314,7 +314,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
     await repository.listObservationsByProject("TABS2027001001");
   const bootstrapRes = await bootstrapCanvas(
     {
-      lineageId: DEFAULT_TIMELINE_ID,
+      timelineId: DEFAULT_TIMELINE_ID,
       observations: ellisObservations,
       prompt: "Bootstrap Ellis corridor plate",
       now: new Date("2026-10-27T15:00:00.000Z"),
@@ -328,7 +328,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
 
   const branchRes = await branchTimeline(
     {
-      lineageId: DEFAULT_TIMELINE_ID,
+      timelineId: DEFAULT_TIMELINE_ID,
       parentInteractionId: bootstrapRes.illustration.interactionId,
       scenarioPrompt: "Add 300MW switchyard for corridor_lead@example.com",
       now: new Date("2026-10-27T15:10:00.000Z"),
@@ -342,7 +342,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
 
   await saveTestIllustration(repository, {
     plateId: "plate_expired_branch",
-    lineageId: DEFAULT_TIMELINE_ID,
+    timelineId: DEFAULT_TIMELINE_ID,
     turnNumber: 2,
     parentInteractionId: bootstrapRes.illustration.interactionId,
     parentPlateId: bootstrapRes.illustration.plateId,
@@ -366,7 +366,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
   );
   await saveTestIllustration(repository, {
     plateId: "plate_quarantined_1",
-    lineageId: "quarantined-timeline",
+    timelineId: "quarantined-timeline",
     projectNumbers: ["TABS2027001003"],
     triggeringObservationIds: ["obs_quarantined_timeline"],
     rawCaptureHashes: [HASH_QUARANTINED],
@@ -382,7 +382,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
   );
   await saveTestIllustration(repository, {
     plateId: "plate_expired_1",
-    lineageId: "expired-timeline",
+    timelineId: "expired-timeline",
     projectNumbers: ["TABS2027001004"],
     triggeringObservationIds: ["obs_expired_timeline"],
     rawCaptureHashes: [HASH_EXPIRED],
@@ -419,7 +419,7 @@ export function createFiveCardLayoutSpec(
       {
         nodeId: "scrubber-corridor",
         component: "FrameTimelineScrubber",
-        lineageId: DEFAULT_TIMELINE_ID,
+        timelineId: DEFAULT_TIMELINE_ID,
         initialPlateId: branchPlateId,
       },
       {
