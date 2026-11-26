@@ -5,7 +5,7 @@ import type {
   Observation,
 } from "@samasastudio/gridlock-core/schemas";
 
-const ESCAPED_AST_METACHAR_PATTERN = /\\([\\<>{}`*_~[\]])/g;
+const ESCAPED_WORKSPACE_METACHAR_PATTERN = /\\([\\<>{}`*_~[\]])/g;
 const MS_PER_DAY = 86_400_000;
 const AVG_DAYS_PER_MONTH = 30.4375;
 
@@ -45,8 +45,8 @@ export interface ComparisonBenchmarkModel {
   readonly rows: readonly ComparisonRowViewModel[];
 }
 
-export function unescapeAstProse(value: string): string {
-  return value.replace(ESCAPED_AST_METACHAR_PATTERN, "$1");
+export function unescapeWorkspaceProse(value: string): string {
+  return value.replace(ESCAPED_WORKSPACE_METACHAR_PATTERN, "$1");
 }
 
 export function computeCostPerSqFtUsd(estimatedCostUsd: number, squareFootage: number): number {
@@ -107,7 +107,7 @@ function computeObservationDeltas(
     ...(costDelta !== 0 ? [formatSignedDelta(costDelta, "$", " capital")] : []),
     ...(sqftDelta !== 0 ? [formatSignedDelta(sqftDelta, "", " sq ft")] : []),
     ...(statusChanged
-      ? [`${unescapeAstProse(previous.status)} → ${unescapeAstProse(current.status)}`]
+      ? [`${unescapeWorkspaceProse(previous.status)} → ${unescapeWorkspaceProse(current.status)}`]
       : []),
   ];
 
@@ -202,7 +202,7 @@ export function buildComparisonBenchmarkModel(
     (min, item) => Math.min(min, item.project.estimatedCostUsd),
     Infinity
   );
-  const uniqueCounties = Array.from(new Set(rows.map((item) => unescapeAstProse(item.project.county))));
+  const uniqueCounties = Array.from(new Set(rows.map((item) => unescapeWorkspaceProse(item.project.county))));
   const mappedRows = rows.map((item) => {
     const { project } = item;
     const costPerSqFtUsd = computeCostPerSqFtUsd(project.estimatedCostUsd, project.squareFootage);

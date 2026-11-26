@@ -12,8 +12,8 @@ import {
   type PlateLineageResponse,
   type RepairChangelogResponse,
   type RawCapture,
-  type UiWidgetNode,
   type VisualPlateScrubberNode,
+  type WorkspaceCardNode,
 } from "../../interfaces/index.ts";
 import {
   buildMetricComparisonTableNode,
@@ -21,8 +21,8 @@ import {
   buildProjectDossierCardNode,
 } from "./investigate-hydrator.ts";
 import {
-  sanitizeAstProse,
   sanitizeObservationRecord,
+  sanitizeWorkspaceProse,
   stepFailure,
   type HydratorStepFailure,
 } from "./investigate-provenance.ts";
@@ -103,7 +103,7 @@ export function extractWorkspaceLookupKeys(
 }
 
 function sanitizeScenarioPrompt(raw: string): string {
-  const escaped = sanitizeAstProse(raw);
+  const escaped = sanitizeWorkspaceProse(raw);
   if (escaped.length <= MAX_SCENARIO_PROMPT_LENGTH) {
     return escaped;
   }
@@ -119,7 +119,7 @@ function sanitizeLineageNode(node: LineageNode): LineageNode {
     ...node,
     plate: {
       ...node.plate,
-      prompt: sanitizeAstProse(node.plate.prompt),
+      prompt: sanitizeWorkspaceProse(node.plate.prompt),
       ...(node.plate.scenarioPrompt !== undefined
         ? { scenarioPrompt: sanitizeScenarioPrompt(node.plate.scenarioPrompt) }
         : {}),
@@ -203,8 +203,8 @@ function buildConnectorHealthCardNode(
     ...changelog,
     entries: changelog.entries.map((entry) => ({
       ...entry,
-      rootCauseSummary: sanitizeAstProse(entry.rootCauseSummary),
-      brokenInvariants: entry.brokenInvariants.map(sanitizeAstProse),
+      rootCauseSummary: sanitizeWorkspaceProse(entry.rootCauseSummary),
+      brokenInvariants: entry.brokenInvariants.map(sanitizeWorkspaceProse),
     })),
   };
 
@@ -232,7 +232,7 @@ function buildConnectorHealthCardNode(
 export function hydrateWorkspaceNodes(
   specNodes: readonly PlannerNodeSpec[],
   ctx: WorkspaceNodeHydrationContext
-): { ok: true; nodes: UiWidgetNode[] } | HydratorStepFailure {
+): { ok: true; nodes: WorkspaceCardNode[] } | HydratorStepFailure {
   const nodeResults = specNodes.map((specNode) => {
     switch (specNode.component) {
       case "ProjectDossierCard":

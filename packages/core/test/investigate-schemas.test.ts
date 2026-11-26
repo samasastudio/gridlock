@@ -8,17 +8,17 @@ import {
   InvestigatePlanResponseSchema,
   MAX_INVESTIGATE_QUERY_LENGTH,
   ProjectSchema,
-  UiAstComponentTypeSchema,
-  UiWidgetNodeSchema,
-  UiWorkspaceAstSchema,
+  WorkspaceCardNodeSchema,
+  WorkspaceCardTypeSchema,
+  WorkspaceLayoutSchema,
 } from "../src/index.ts";
 import { createPainterTestObservations } from "./helpers/fixtures.ts";
 
 const NOW_ISO = "2026-10-28T15:00:00.000Z";
 
-describe("UI AST & Planner Zod Contracts", () => {
-  test("validates UiAstComponentTypeSchema, UiWidgetNodeSchema cross-field invariants, and InvestigatePlan bounds", () => {
-    assert.deepEqual(UiAstComponentTypeSchema.options, [
+describe("Workspace Layout & Planner Zod Contracts", () => {
+  test("validates WorkspaceCardTypeSchema, WorkspaceCardNodeSchema cross-field invariants, and InvestigatePlan bounds", () => {
+    assert.deepEqual(WorkspaceCardTypeSchema.options, [
       "ProjectDossierCard",
       "VisualPlateScrubber",
       "ObservationTimeline",
@@ -26,11 +26,11 @@ describe("UI AST & Planner Zod Contracts", () => {
       "ConnectorHealthCard",
     ]);
     assert.equal(
-      UiAstComponentTypeSchema.safeParse("ProjectDossierCard").success,
+      WorkspaceCardTypeSchema.safeParse("ProjectDossierCard").success,
       true
     );
     assert.equal(
-      UiAstComponentTypeSchema.safeParse("HallucinatedChart").success,
+      WorkspaceCardTypeSchema.safeParse("HallucinatedChart").success,
       false
     );
 
@@ -67,7 +67,7 @@ describe("UI AST & Planner Zod Contracts", () => {
       component: "ProjectDossierCard" as const,
       citedProject: { project: projectA, citation: citationA },
     };
-    assert.equal(UiWidgetNodeSchema.safeParse(validDossierNode).success, true);
+    assert.equal(WorkspaceCardNodeSchema.safeParse(validDossierNode).success, true);
 
     const validLineageNode = {
       plate: {
@@ -108,7 +108,7 @@ describe("UI AST & Planner Zod Contracts", () => {
         edges: [],
       },
     };
-    assert.equal(UiWidgetNodeSchema.safeParse(validScrubberNode).success, true);
+    assert.equal(WorkspaceCardNodeSchema.safeParse(validScrubberNode).success, true);
 
     const invalidCases: ReadonlyArray<{ node: unknown; expectedPath: string }> =
       [
@@ -176,14 +176,14 @@ describe("UI AST & Planner Zod Contracts", () => {
       ];
 
     for (const { node, expectedPath } of invalidCases) {
-      const parsed = UiWidgetNodeSchema.safeParse(node);
+      const parsed = WorkspaceCardNodeSchema.safeParse(node);
       assert.equal(parsed.success, false);
       assert.ok(
         parsed.error.issues.some((issue) => issue.path.join(".") === expectedPath)
       );
     }
 
-    const emptyWorkspace = UiWorkspaceAstSchema.parse({
+    const emptyWorkspace = WorkspaceLayoutSchema.parse({
       version: 1,
       generatedAt: NOW_ISO,
       isEmpty: true,

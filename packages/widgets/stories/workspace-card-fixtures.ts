@@ -9,7 +9,7 @@ import {
   type ProjectDossierCardNode,
 } from "@samasastudio/gridlock-core/schemas";
 
-export type AstPreviewNode =
+export type WorkspacePreviewNode =
   | ProjectDossierCardNode
   | ObservationTimelineNode
   | MetricComparisonTableNode;
@@ -187,7 +187,7 @@ export const STORY_INTERLEAVED_OBSERVATIONS: CitedObservation[] = [
   }),
 ];
 
-export const DEFAULT_BRIEF_NODES: readonly AstPreviewNode[] = [
+export const DEFAULT_BRIEF_NODES: readonly WorkspacePreviewNode[] = [
   {
     nodeId: "brief-lead-dossier",
     component: "ProjectDossierCard",

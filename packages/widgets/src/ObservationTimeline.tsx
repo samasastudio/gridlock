@@ -7,12 +7,12 @@ import {
   type CitedObservation,
   type TdlrProjectNumber,
 } from "@samasastudio/gridlock-core/schemas";
-import { buildObservationTimelineEntries, summarizeObservationTrajectory, unescapeAstProse, type TimelineEntryViewModel } from "./ast-card-model.ts";
-import { GRIDLOCK_AST_CARD_STYLESHEET } from "./ast-card-styles.ts";
+import { buildObservationTimelineEntries, summarizeObservationTrajectory, unescapeWorkspaceProse, type TimelineEntryViewModel } from "./workspace-card-model.ts";
+import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "./workspace-card-styles.ts";
 import { CopyCitationButton, DossierNumber, DossierStatusBadge, EDITORIAL_EASE, EXPORT_ARROW_ICON, RELIEF_RETICLE_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 
-const AST_CARD_STYLESHEET_NODE = <style href="gridlock-ast-cards" precedence="default">{GRIDLOCK_AST_CARD_STYLESHEET}</style>;
+const WORKSPACE_CARD_STYLESHEET_NODE = <style href="gridlock-workspace-cards" precedence="default">{GRIDLOCK_WORKSPACE_CARD_STYLESHEET}</style>;
 const META_DOT_NODE = <span aria-hidden="true">·</span>;
 const INTEGER_FORMAT = { maximumFractionDigits: 0 } as const;
 const MILESTONE_MILLIONS_PREFIX = `$${Math.round(MILESTONE_COST_THRESHOLD_USD / 1_000_000)}M+`;
@@ -50,7 +50,7 @@ function ObservationTimelineItem(props: { entry: TimelineEntryViewModel; nodeId?
           <span key={delta} className="gridlock-delta-pill">{delta}</span>
         ))}
       </div>
-      <p className="gridlock-ast-lead">{unescapeAstProse(obs.scopeOfWork)}</p>
+      <p className="gridlock-workspace-lead">{unescapeWorkspaceProse(obs.scopeOfWork)}</p>
       <div className="gridlock-inline-meta">
         <span>{`$${obs.estimatedCostUsd.toLocaleString("en-US")}`}</span>
         {META_DOT_NODE}
@@ -58,7 +58,7 @@ function ObservationTimelineItem(props: { entry: TimelineEntryViewModel; nodeId?
         {META_DOT_NODE}
         <span>{`$${entry.costPerSqFtUsd.toLocaleString("en-US")} / sq ft`}</span>
         {META_DOT_NODE}
-        <span>{unescapeAstProse(obs.status)}</span>
+        <span>{unescapeWorkspaceProse(obs.status)}</span>
       </div>
       <div className="gridlock-citations-row" aria-label="Raw Capture citation">
         <span className="gridlock-citation-item">
@@ -186,12 +186,12 @@ export function ObservationTimeline(props: ObservationTimelineProps) {
       <section
         ref={ref}
         aria-labelledby={`${baseId}-title`}
-        className="gridlock-dossier-surface gridlock-ast-card gridlock-observation-timeline"
+        className="gridlock-dossier-surface gridlock-workspace-card gridlock-observation-timeline"
         data-gridlock-theme={theme}
-        data-ast-card="ObservationTimeline"
+        data-workspace-card="ObservationTimeline"
         data-node-id={nodeId}
       >
-        {AST_CARD_STYLESHEET_NODE}
+        {WORKSPACE_CARD_STYLESHEET_NODE}
         {!parsed.success ? (
           <DossierErrorShell
             baseId={baseId}

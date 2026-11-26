@@ -4,19 +4,19 @@ import { act, createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CANONICAL_MILESTONE_LABEL } from "@samasastudio/gridlock-core";
 import { ObservationTimeline } from "../src/index.ts";
-import { makeCitedObservation, makeInterleavedObservations } from "./helpers/ast-card-fixtures.ts";
+import { makeCitedObservation, makeInterleavedObservations } from "./helpers/workspace-card-fixtures.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 const TWO_TRACKED_PROJECTS = ["TABS2027003697", "TABS2027004112"] as const;
 
-describe("<ObservationTimeline /> Seam 4 UI AST Card (Ticket #38 Phase 2)", () => {
+describe("<ObservationTimeline /> Seam 4 Workspace Card (Ticket #38 Phase 2)", () => {
   test("Isolates per-project filing deltas across interleaved multi-project timelines and renders milestone vs. routine markers", () => {
     const observations = makeInterleavedObservations();
     const html = renderToStaticMarkup(
       <ObservationTimeline projectNumbers={TWO_TRACKED_PROJECTS} observations={observations} nodeId="timeline-corridor" />
     );
 
-    assert.match(html, /data-ast-card="ObservationTimeline"/);
+    assert.match(html, /data-workspace-card="ObservationTimeline"/);
     assert.match(html, /data-node-id="timeline-corridor"/);
     assert.match(html, /2 \$25M\+ milestones/);
     assert.match(html, /latest \$148,000,000/);
@@ -116,7 +116,7 @@ describe("<ObservationTimeline /> Seam 4 UI AST Card (Ticket #38 Phase 2)", () =
     );
     assert.match(
       styleBlock,
-      /\.gridlock-ast-card :where\(\.gridlock-timeline-item\[data-milestone="true"\] \.gridlock-timeline-marker\)\s*\{[^}]*background-color:\s*var\(--gridlock-accent\);/
+      /\.gridlock-workspace-card :where\(\.gridlock-timeline-item\[data-milestone="true"\] \.gridlock-timeline-marker\)\s*\{[^}]*background-color:\s*var\(--gridlock-accent\);/
     );
   });
 

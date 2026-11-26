@@ -9,7 +9,7 @@ import {
   ObservationSchema,
   ObservationTimelineNodeSchema,
   PlannerLayoutSpecSchema,
-  UiWorkspaceAstSchema,
+  WorkspaceLayoutSchema,
   type GridlockRepository,
   type RawCapture,
 } from "../src/index.ts";
@@ -90,7 +90,7 @@ async function seedTwoProjects(repository: GridlockRepository): Promise<void> {
   );
 }
 
-describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () => {
+describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phase 2", () => {
   test("hydrates sorted multi-project ObservationTimeline, ordered MetricComparisonTable, and empty standalone card schemas", async () => {
     const repository = createInMemoryGridlockRepository();
     await seedTwoProjects(repository);
@@ -116,7 +116,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
 
     assert.equal(result.ok, true);
     assert.deepEqual(
-      UiWorkspaceAstSchema.parse(result.workspace),
+      WorkspaceLayoutSchema.parse(result.workspace),
       result.workspace
     );
 

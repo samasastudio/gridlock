@@ -7,8 +7,8 @@ import {
   type HydrateWorkspaceErrorCode,
   type InvestigatePlanRequest,
   type PlannerLayoutSpec,
-  type UiWidgetNode,
-  type UiWorkspaceAst,
+  type WorkspaceCardNode,
+  type WorkspaceLayout,
 } from "../../interfaces/index.ts";
 import type { PlannerGroundingCatalog } from "./investigate-planner-catalog.ts";
 
@@ -106,7 +106,7 @@ export function mapHydrationErrorToPlannerStatus(error: HydrateWorkspaceErrorCod
   return { status: 500, error: "investigate_plan_error" };
 }
 
-function summarizeWorkspaceNode(node: UiWidgetNode): CompactWorkspaceNodeSummary {
+function summarizeWorkspaceNode(node: WorkspaceCardNode): CompactWorkspaceNodeSummary {
   switch (node.component) {
     case "ProjectDossierCard":
       return {
@@ -144,28 +144,28 @@ function summarizeWorkspaceNode(node: UiWidgetNode): CompactWorkspaceNodeSummary
   }
 }
 
-function summarizeCurrentWorkspaceAst(
-  currentAst: UiWorkspaceAst
+function summarizeCurrentWorkspaceLayout(
+  currentLayout: WorkspaceLayout
 ): CompactWorkspaceSummary {
   return {
-    isEmpty: currentAst.isEmpty,
-    nodes: currentAst.nodes.map(summarizeWorkspaceNode),
+    isEmpty: currentLayout.isEmpty,
+    nodes: currentLayout.nodes.map(summarizeWorkspaceNode),
   };
 }
 
 export function buildInvestigationPlannerPrompt(input: {
   query: string;
   catalog: PlannerGroundingCatalog;
-  currentAst?: UiWorkspaceAst;
+  currentLayout?: WorkspaceLayout;
 }): string {
   const refinementRules =
-    input.currentAst !== undefined
+    input.currentLayout !== undefined
       ? [
           "Refine currentWorkspace in place: preserve existing nodeId values for retained or updated cards, add, remove, reorder, or filter nodes as requested by query, and drop any entity no longer present in catalog.",
         ]
       : [];
   return JSON.stringify({
-    task: "Plan a bounded Gridlock UI AST workspace layout matching the civic researcher query.",
+    task: "Plan a bounded Gridlock Workspace Layout matching the civic researcher query.",
     rules: [
       `Emit JSON matching { "nodes": [...] } with 0 to ${MAX_WORKSPACE_NODES} unique nodeId strings.`,
       `Component keys: ProjectDossierCard requires projectNumber; ObservationTimeline and MetricComparisonTable require 1 to ${MAX_PROJECTS_PER_CARD} unique projectNumbers; VisualPlateScrubber requires lineageId and optional initialPlateId; ConnectorHealthCard requires connectorId.`,
@@ -174,8 +174,8 @@ export function buildInvestigationPlannerPrompt(input: {
       ...refinementRules,
     ],
     query: input.query,
-    ...(input.currentAst !== undefined
-      ? { currentWorkspace: summarizeCurrentWorkspaceAst(input.currentAst) }
+    ...(input.currentLayout !== undefined
+      ? { currentWorkspace: summarizeCurrentWorkspaceLayout(input.currentLayout) }
       : {}),
     catalog: input.catalog,
   });

@@ -1,10 +1,10 @@
 import {
   CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
   PlannerLayoutSpecSchema,
-  UiWorkspaceAstSchema,
+  WorkspaceLayoutSchema,
   type GridlockRepository,
   type HydrateWorkspaceErrorCode,
-  type UiWorkspaceAst,
+  type WorkspaceLayout,
 } from "../interfaces/index.ts";
 import { getEfficiencyScorecard } from "./get-efficiency-scorecard.ts";
 import { getPlateLineage } from "./get-plate-lineage.ts";
@@ -42,7 +42,7 @@ export interface HydrateInvestigationWorkspaceDeps {
 }
 
 export type HydrateWorkspaceResult =
-  | { ok: true; workspace: UiWorkspaceAst }
+  | { ok: true; workspace: WorkspaceLayout }
   | { ok: false; error: HydrateWorkspaceErrorCode; message: string };
 
 export async function hydrateInvestigationWorkspace(
@@ -62,7 +62,7 @@ export async function hydrateInvestigationWorkspace(
   }
 
   if (parsedSpec.data.nodes.length === 0) {
-    const emptyParsed = UiWorkspaceAstSchema.safeParse({
+    const emptyParsed = WorkspaceLayoutSchema.safeParse({
       version: 1,
       generatedAt: now.toISOString(),
       isEmpty: true,
@@ -72,7 +72,7 @@ export async function hydrateInvestigationWorkspace(
       ? { ok: true, workspace: emptyParsed.data }
       : stepFailure(
           "repository_integrity_error",
-          "Empty UiWorkspaceAst failed runtime schema validation"
+          "Empty WorkspaceLayout failed runtime schema validation"
         );
   }
 
@@ -221,7 +221,7 @@ export async function hydrateInvestigationWorkspace(
       return hydratedNodes;
     }
 
-    const parsedWorkspace = UiWorkspaceAstSchema.safeParse({
+    const parsedWorkspace = WorkspaceLayoutSchema.safeParse({
       version: 1,
       generatedAt: now.toISOString(),
       isEmpty: false,
@@ -231,13 +231,13 @@ export async function hydrateInvestigationWorkspace(
       ? { ok: true, workspace: parsedWorkspace.data }
       : stepFailure(
           "repository_integrity_error",
-          "Hydrated UiWorkspaceAst failed runtime schema validation"
+          "Hydrated WorkspaceLayout failed runtime schema validation"
         );
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     return stepFailure(
       "repository_integrity_error",
-      `Repository lookup failed during UI AST hydration: ${detail}`
+      `Repository lookup failed during Workspace Layout hydration: ${detail}`
     );
   }
 }

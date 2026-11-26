@@ -13,7 +13,7 @@ import {
   type GeminiInteractionResponse,
   type GridlockRepository,
   type RunSpan,
-  type UiWorkspaceAst,
+  type WorkspaceLayout,
 } from "../src/index.ts";
 import { createTestProject } from "./helpers/fixtures.ts";
 import {
@@ -604,7 +604,7 @@ describe("runInvestigationPlanner (Cross-seam grounding)", () => {
 });
 
 describe("runInvestigationPlanner (In-place workspace refinement)", () => {
-  test("passes compact currentWorkspace manifest on refinement without hydrated prose and rejects tampered currentAst at 0 tokens", async () => {
+  test("passes compact currentWorkspace manifest on refinement without hydrated prose and rejects tampered currentLayout at 0 tokens", async () => {
     const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
     const spans: RunSpan[] = [];
     const { geminiClient, recordedRequests } = createQueuedLayoutClientStub(
@@ -650,7 +650,7 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
     );
     assert.equal(freshOutcome.ok, true);
     if (!freshOutcome.ok) return;
-    assert.equal(spans[0]?.attributes?.hasCurrentAst, false);
+    assert.equal(spans[0]?.attributes?.hasCurrentLayout, false);
 
     const freshPromptObj = JSON.parse(String(recordedRequests[0]?.input)) as Record<
       string,
@@ -663,14 +663,14 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
       {
         query:
           "Move visual plate first, add TABS2027001002 dossier, remove connector health, and filter timeline and metrics to TABS2027001001",
-        currentAst: initialWorkspace,
+        currentLayout: initialWorkspace,
         now: PLANNER_TEST_NOW,
       },
       { repository, geminiClient, spanSink: (span) => spans.push(span) }
     );
     assert.equal(refineOutcome.ok, true);
     if (!refineOutcome.ok) return;
-    assert.equal(spans[1]?.attributes?.hasCurrentAst, true);
+    assert.equal(spans[1]?.attributes?.hasCurrentLayout, true);
     assert.deepEqual(
       refineOutcome.response.workspace.nodes.map((node) => node.nodeId),
       [
@@ -714,7 +714,7 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
     assert.equal(firstDossier.component, "ProjectDossierCard");
     if (firstDossier.component !== "ProjectDossierCard") return;
 
-    const tamperedAsts: UiWorkspaceAst[] = [
+    const tamperedLayouts: WorkspaceLayout[] = [
       { ...initialWorkspace, isEmpty: true },
       {
         ...initialWorkspace,
@@ -741,9 +741,9 @@ describe("runInvestigationPlanner (In-place workspace refinement)", () => {
       },
     ];
 
-    for (const tamperedAst of tamperedAsts) {
+    for (const tamperedLayout of tamperedLayouts) {
       const tamperedRes = await runInvestigationPlanner(
-        { query: "Refine tampered workspace", currentAst: tamperedAst, now: PLANNER_TEST_NOW },
+        { query: "Refine tampered workspace", currentLayout: tamperedLayout, now: PLANNER_TEST_NOW },
         { repository, geminiClient }
       );
       assert.equal(tamperedRes.ok, false);

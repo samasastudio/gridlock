@@ -5,14 +5,14 @@ import {
   MAX_WORKSPACE_NODES,
 } from "./constants.ts";
 import {
-  SafeAstIdSchema,
-  UiWorkspaceAstSchema,
-} from "./investigate-ast-models.ts";
+  SafeLayoutIdSchema,
+  WorkspaceLayoutSchema,
+} from "./workspace-layout-models.ts";
 import { TdlrProjectNumberSchema } from "./primitives.ts";
 
 const ProjectDossierCardPlanSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("ProjectDossierCard"),
     projectNumber: TdlrProjectNumberSchema,
   })
@@ -29,7 +29,7 @@ const PlannedProjectNumberListSchema = z
 
 const ObservationTimelinePlanSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("ObservationTimeline"),
     projectNumbers: PlannedProjectNumberListSchema,
   })
@@ -37,7 +37,7 @@ const ObservationTimelinePlanSchema = z
 
 const MetricComparisonTablePlanSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("MetricComparisonTable"),
     projectNumbers: PlannedProjectNumberListSchema,
   })
@@ -45,18 +45,18 @@ const MetricComparisonTablePlanSchema = z
 
 const VisualPlateScrubberPlanSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("VisualPlateScrubber"),
-    lineageId: SafeAstIdSchema,
-    initialPlateId: SafeAstIdSchema.optional(),
+    lineageId: SafeLayoutIdSchema,
+    initialPlateId: SafeLayoutIdSchema.optional(),
   })
   .strict();
 
 const ConnectorHealthCardPlanSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("ConnectorHealthCard"),
-    connectorId: SafeAstIdSchema,
+    connectorId: SafeLayoutIdSchema,
   })
   .strict();
 
@@ -91,7 +91,7 @@ export type PlannerLayoutSpec = z.infer<typeof PlannerLayoutSpecSchema>;
 export const InvestigatePlanRequestSchema = z
   .object({
     query: z.string().trim().min(1).max(MAX_INVESTIGATE_QUERY_LENGTH),
-    currentAst: UiWorkspaceAstSchema.optional(),
+    currentLayout: WorkspaceLayoutSchema.optional(),
   })
   .strict();
 
@@ -101,7 +101,7 @@ export type InvestigatePlanRequest = z.infer<
 
 export const InvestigatePlanResponseSchema = z
   .object({
-    workspace: UiWorkspaceAstSchema,
+    workspace: WorkspaceLayoutSchema,
     interactionId: z.string().min(1),
     tokensUsed: z.number().int().nonnegative(),
   })

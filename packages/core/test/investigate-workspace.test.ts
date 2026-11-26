@@ -10,7 +10,7 @@ import {
   InvestigatePlanRequestSchema,
   InvestigatePlanResponseSchema,
   MAX_WORKSPACE_NODES,
-  UiWorkspaceAstSchema,
+  WorkspaceLayoutSchema,
 } from "../src/index.ts";
 import {
   createTestProject,
@@ -21,7 +21,7 @@ import {
 
 const NOW = new Date("2026-10-28T15:00:00.000Z");
 
-describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () => {
+describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phase 1", () => {
   test("hydrates ProjectDossierCard from ingested TDLR filing and round-trips InvestigatePlan envelopes", async () => {
     const repository = createInMemoryGridlockRepository();
     const ingestResult = await ingestTdlrFiling(
@@ -83,7 +83,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
 
     const planReq = InvestigatePlanRequestSchema.parse({
       query: "  Show me the Compass Red Oak Building 10 filing  ",
-      currentAst: result.workspace,
+      currentLayout: result.workspace,
     });
     assert.equal(
       planReq.query,
@@ -96,7 +96,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 1", () =
       tokensUsed: 412,
     });
     assert.deepEqual(
-      UiWorkspaceAstSchema.parse(planRes.workspace),
+      WorkspaceLayoutSchema.parse(planRes.workspace),
       result.workspace
     );
   });

@@ -47,12 +47,12 @@ function escapeProseOutsidePlaceholders(value: string): string {
     .join("");
 }
 
-export function sanitizeAstProse(raw: string): string {
+export function sanitizeWorkspaceProse(raw: string): string {
   const singleLine = raw.replace(/\s*\r?\n\s*/g, " ").trim();
   return escapeProseOutsidePlaceholders(sanitizeTextPii(singleLine));
 }
 
-function sanitizeAstAddressProse(raw: string): string {
+function sanitizeWorkspaceAddressProse(raw: string): string {
   const singleLine = raw.replace(/\s*\r?\n\s*/g, " ").trim();
   return escapeProseOutsidePlaceholders(sanitizeLocationAddressPii(singleLine));
 }
@@ -60,25 +60,25 @@ function sanitizeAstAddressProse(raw: string): string {
 function sanitizeProjectRecord(project: Project): Project {
   return {
     ...project,
-    projectName: sanitizeAstProse(project.projectName),
-    facilityName: sanitizeAstProse(project.facilityName),
-    ownerName: sanitizeAstProse(project.ownerName),
+    projectName: sanitizeWorkspaceProse(project.projectName),
+    facilityName: sanitizeWorkspaceProse(project.facilityName),
+    ownerName: sanitizeWorkspaceProse(project.ownerName),
     ...(project.designFirmName !== undefined
-      ? { designFirmName: sanitizeAstProse(project.designFirmName) }
+      ? { designFirmName: sanitizeWorkspaceProse(project.designFirmName) }
       : {}),
-    locationAddress: sanitizeAstAddressProse(project.locationAddress),
-    county: sanitizeAstProse(project.county),
-    typeOfWork: sanitizeAstProse(project.typeOfWork),
-    scopeOfWork: sanitizeAstProse(project.scopeOfWork),
-    currentStatus: sanitizeAstProse(project.currentStatus),
+    locationAddress: sanitizeWorkspaceAddressProse(project.locationAddress),
+    county: sanitizeWorkspaceProse(project.county),
+    typeOfWork: sanitizeWorkspaceProse(project.typeOfWork),
+    scopeOfWork: sanitizeWorkspaceProse(project.scopeOfWork),
+    currentStatus: sanitizeWorkspaceProse(project.currentStatus),
   };
 }
 
 export function sanitizeObservationRecord(obs: Observation): Observation {
   return {
     ...obs,
-    status: sanitizeAstProse(obs.status),
-    scopeOfWork: sanitizeAstProse(obs.scopeOfWork),
+    status: sanitizeWorkspaceProse(obs.status),
+    scopeOfWork: sanitizeWorkspaceProse(obs.scopeOfWork),
   };
 }
 
@@ -259,7 +259,7 @@ export function resolveLiveCitation(
     return {
       ok: false,
       reason: "quarantined",
-      message: `Raw Capture "${sha256}" is quarantined and cannot back a UI AST citation`,
+      message: `Raw Capture "${sha256}" is quarantined and cannot back a Workspace Layout citation`,
     };
   }
   if (!/^https?:\/\//i.test(artifact.sourceUrl)) {
@@ -273,7 +273,7 @@ export function resolveLiveCitation(
     return {
       ok: false,
       reason: "expired",
-      message: `Raw Capture "${sha256}" has expired and cannot back a required UI AST citation`,
+      message: `Raw Capture "${sha256}" has expired and cannot back a required Workspace Layout citation`,
     };
   }
   return {

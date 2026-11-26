@@ -18,8 +18,8 @@ import {
   NINETY_DAYS_MS,
   recordStageRun,
   runOutOfBandRepairAgent,
-  UiWorkspaceAstSchema,
   VisualPlateScrubberNodeSchema,
+  WorkspaceLayoutSchema,
   type GeminiInteractionsClient,
   type GridlockRepository,
 } from "../src/index.ts";
@@ -209,7 +209,7 @@ async function seedFullFiveCardRepository(): Promise<{
   };
 }
 
-describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () => {
+describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phase 3", () => {
   test("hydrates a full 6-node workspace across all 5 canonical card types with bounded scorecard runs and escaped prose", async () => {
     const { repository, canonicalPlateId, branchPlateId } =
       await seedFullFiveCardRepository();
@@ -257,7 +257,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
     assert.equal(result.ok, true);
     assert.equal(result.workspace.nodes.length, MAX_WORKSPACE_NODES);
     assert.deepEqual(
-      UiWorkspaceAstSchema.parse(result.workspace),
+      WorkspaceLayoutSchema.parse(result.workspace),
       result.workspace
     );
 
@@ -267,7 +267,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
     );
     assert.ok(
       serializedBytes < 16_384,
-      `Expected compact UiWorkspaceAst (< 16384 bytes), got ${serializedBytes}`
+      `Expected compact WorkspaceLayout (< 16384 bytes), got ${serializedBytes}`
     );
 
     const scrubberNode = result.workspace.nodes[1];
