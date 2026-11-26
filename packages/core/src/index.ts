@@ -84,12 +84,12 @@ export {
   RunRecordStatusSchema,
   RunSpanSchema,
   RunStageSchema,
-  UiAstComponentTypeSchema,
-  UiWidgetNodeSchema,
-  UiWorkspaceAstSchema,
   UnknownConnectorError,
   VisualPlateSchema,
   VisualPlateScrubberNodeSchema,
+  WorkspaceCardNodeSchema,
+  WorkspaceCardTypeSchema,
+  WorkspaceLayoutSchema,
 } from "./interfaces/index.ts";
 export type * from "./interfaces/index.ts";
 

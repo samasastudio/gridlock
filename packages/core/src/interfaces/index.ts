@@ -109,10 +109,10 @@ export {
   MetricComparisonTableNodeSchema,
   ObservationTimelineNodeSchema,
   ProjectDossierCardNodeSchema,
-  UiAstComponentTypeSchema,
-  UiWidgetNodeSchema,
-  UiWorkspaceAstSchema,
   VisualPlateScrubberNodeSchema,
+  WorkspaceCardNodeSchema,
+  WorkspaceCardTypeSchema,
+  WorkspaceLayoutSchema,
   type CitedObservation,
   type CitedProject,
   type ConnectorHealthCardNode,
@@ -120,11 +120,11 @@ export {
   type MetricComparisonTableNode,
   type ObservationTimelineNode,
   type ProjectDossierCardNode,
-  type UiAstComponentType,
-  type UiWidgetNode,
-  type UiWorkspaceAst,
   type VisualPlateScrubberNode,
-} from "./investigate-ast-models.ts";
+  type WorkspaceCardNode,
+  type WorkspaceCardType,
+  type WorkspaceLayout,
+} from "./workspace-layout-models.ts";
 
 export {
   InvestigatePlanRequestSchema,

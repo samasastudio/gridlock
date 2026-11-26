@@ -3,7 +3,7 @@ import {
   type ConnectorConfig,
   type TdlrSearchFilter,
 } from "./filing-models.ts";
-import type { UiAstComponentType } from "./investigate-ast-models.ts";
+import type { WorkspaceCardType } from "./workspace-layout-models.ts";
 import type { EfficiencyScorecard } from "./run-record-models.ts";
 
 export const GRIDLOCK_USER_AGENT =
@@ -128,7 +128,7 @@ const PLANNED_PROJECT_NUMBERS_JSON_SCHEMA: Record<string, unknown> = {
 };
 
 function buildPlannerCardJsonSchema(
-  component: UiAstComponentType,
+  component: WorkspaceCardType,
   extraProperties: Record<string, unknown>,
   requiredExtraKeys: readonly string[]
 ): Record<string, unknown> {

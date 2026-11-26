@@ -6,9 +6,9 @@ import {
   type PlateLineageResponse,
   type RepairChangelogResponse,
 } from "../../interfaces/index.ts";
-import { SafeAstIdSchema } from "../../interfaces/investigate-ast-models.ts";
+import { SafeLayoutIdSchema } from "../../interfaces/workspace-layout-models.ts";
 import {
-  sanitizeAstProse,
+  sanitizeWorkspaceProse,
   stepFailure,
   type HydratorStepFailure,
 } from "./investigate-provenance.ts";
@@ -42,7 +42,7 @@ function isLineageNodeHydratable(node: LineageNode): boolean {
     /^https?:\/\//i.test(artifact.sourceUrl)
   );
   return (
-    SafeAstIdSchema.safeParse(node.plate.plateId).success &&
+    SafeLayoutIdSchema.safeParse(node.plate.plateId).success &&
     expectedCitationCount > 0 &&
     allHttpUrls &&
     node.rawCaptures.length === expectedCitationCount &&
@@ -52,7 +52,7 @@ function isLineageNodeHydratable(node: LineageNode): boolean {
 
 function isPlateLineageHydratable(lineage: PlateLineageResponse): boolean {
   return (
-    SafeAstIdSchema.safeParse(lineage.lineageId).success &&
+    SafeLayoutIdSchema.safeParse(lineage.lineageId).success &&
     lineage.nodes.length > 0 &&
     lineage.nodes.every(isLineageNodeHydratable)
   );
@@ -87,9 +87,9 @@ export function extractValidatedLineageIds(
 
   const hasBlankPlateProse = parsedPlates.some(
     (plate) =>
-      sanitizeAstProse(plate.prompt).length === 0 ||
+      sanitizeWorkspaceProse(plate.prompt).length === 0 ||
       (plate.scenarioPrompt !== undefined &&
-        sanitizeAstProse(plate.scenarioPrompt).length === 0)
+        sanitizeWorkspaceProse(plate.scenarioPrompt).length === 0)
   );
   if (hasBlankPlateProse) {
     return stepFailure(
@@ -127,9 +127,9 @@ export function extractValidatedChangelogConnectorIds(
   const parsedEntries = parsedItems.flatMap((parsed) => (parsed.success ? [parsed.data] : []));
   const hasBlankChangelogProse = parsedEntries.some(
     (entry) =>
-      sanitizeAstProse(entry.rootCauseSummary).length === 0 ||
+      sanitizeWorkspaceProse(entry.rootCauseSummary).length === 0 ||
       entry.brokenInvariants.some(
-        (invariant) => sanitizeAstProse(invariant).length === 0
+        (invariant) => sanitizeWorkspaceProse(invariant).length === 0
       )
   );
   if (hasBlankChangelogProse) {
@@ -152,8 +152,8 @@ export function buildLineageCatalogEntries(
     lineage.nodes.some((node) =>
       node.triggeringObservations.some(
         (obs) =>
-          sanitizeAstProse(obs.status).length === 0 ||
-          sanitizeAstProse(obs.scopeOfWork).length === 0
+          sanitizeWorkspaceProse(obs.status).length === 0 ||
+          sanitizeWorkspaceProse(obs.scopeOfWork).length === 0
       )
     )
   );
@@ -179,7 +179,7 @@ export function buildLineageCatalogEntries(
           epistemicLabel: node.plate.epistemicLabel,
           projectNumbers: node.plate.projectNumbers,
           ...(node.plate.scenarioPrompt !== undefined
-            ? { scenarioPrompt: sanitizeAstProse(node.plate.scenarioPrompt) }
+            ? { scenarioPrompt: sanitizeWorkspaceProse(node.plate.scenarioPrompt) }
             : {}),
         })),
       })),
@@ -190,7 +190,7 @@ export function buildConnectorCatalogEntries(
   changelogs: readonly RepairChangelogResponse[]
 ): PlannerCatalogConnectorEntry[] {
   return changelogs
-    .filter((changelog) => SafeAstIdSchema.safeParse(changelog.connectorId).success)
+    .filter((changelog) => SafeLayoutIdSchema.safeParse(changelog.connectorId).success)
     .sort((left, right) => left.connectorId.localeCompare(right.connectorId))
     .map((changelog) => ({
       connectorId: changelog.connectorId,

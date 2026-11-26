@@ -8,10 +8,10 @@ import {
   makeArtifactHash,
   makeCitedProject,
   makeEscapedShellCitedProject,
-} from "./helpers/ast-card-fixtures.ts";
+} from "./helpers/workspace-card-fixtures.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 
-describe("<ProjectDossierCard /> Seam 4 UI AST Card (Ticket #38 Phase 1)", () => {
+describe("<ProjectDossierCard /> Seam 4 Workspace Card (Ticket #38 Phase 1)", () => {
   test("SSR renders inherit, diurnal, and nocturnal themes, enforces >= 0.75rem CSS floor, and defines standalone + nested hairline rules", () => {
     const computeProject = makeCitedProject();
     const inheritHtml = renderToStaticMarkup(
@@ -25,7 +25,7 @@ describe("<ProjectDossierCard /> Seam 4 UI AST Card (Ticket #38 Phase 1)", () =>
     );
 
     assert.match(inheritHtml, /data-gridlock-theme="inherit"/);
-    assert.match(inheritHtml, /data-ast-card="ProjectDossierCard"/);
+    assert.match(inheritHtml, /data-workspace-card="ProjectDossierCard"/);
     assert.match(inheritHtml, /data-node-id="dossier-lead"/);
     assert.match(diurnalHtml, /data-gridlock-theme="diurnal"/);
     assert.match(nocturnalHtml, /data-gridlock-theme="nocturnal"/);
@@ -41,11 +41,11 @@ describe("<ProjectDossierCard /> Seam 4 UI AST Card (Ticket #38 Phase 1)", () =>
     );
     assert.match(
       styleBlock,
-      /\.gridlock-ast-card:where\(\.gridlock-dossier-surface\)\s*\{[^}]*border:\s*1px solid var\(--gridlock-border-strong\);/
+      /\.gridlock-workspace-card:where\(\.gridlock-dossier-surface\)\s*\{[^}]*border:\s*1px solid var\(--gridlock-border-strong\);/
     );
     assert.match(
       styleBlock,
-      /\.gridlock-dossier-surface \.gridlock-ast-card\s*\{[^}]*border:\s*0;[\s\S]*?border-block-start:\s*1px solid var\(--gridlock-border\);/
+      /\.gridlock-dossier-surface \.gridlock-workspace-card\s*\{[^}]*border:\s*0;[\s\S]*?border-block-start:\s*1px solid var\(--gridlock-border\);/
     );
   });
 

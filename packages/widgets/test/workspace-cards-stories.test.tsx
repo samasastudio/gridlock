@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { GridlockPlateWidget, GridlockRepairChangelogWidget } from "../src/index.ts";
-import astCardsMeta, * as astCardsStories from "../stories/GridlockAstCards.stories.tsx";
+import workspaceCardsMeta, * as workspaceCardsStories from "../stories/GridlockWorkspaceCards.stories.tsx";
 import { CanonicalAndBranchLineage } from "../stories/GridlockPlateWidget.stories.tsx";
 import { HealedWithAmortization } from "../stories/GridlockRepairChangelogWidget.stories.tsx";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
@@ -17,7 +17,7 @@ const {
   InvestigativeBriefNocturnal,
   MultiProjectObservationTimeline,
   StandaloneProjectDossier,
-} = astCardsStories;
+} = workspaceCardsStories;
 
 function extractZeroSpecificityWhereRules(css: string): ReadonlyMap<string, string> {
   return new Map(
@@ -28,7 +28,7 @@ function extractZeroSpecificityWhereRules(css: string): ReadonlyMap<string, stri
   );
 }
 
-describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Ticket #38)", () => {
+describe("GridlockWorkspaceCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Ticket #38)", () => {
   test("Browser-safe runtime boundary: widget barrel and Seam 4 CSF3 stories import zero node:* modules", () => {
     const guardScript = `
       import { registerHooks } from "node:module";
@@ -41,7 +41,7 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
         },
       });
       await import("./packages/widgets/src/index.ts");
-      await import("./packages/widgets/stories/GridlockAstCards.stories.tsx");
+      await import("./packages/widgets/stories/GridlockWorkspaceCards.stories.tsx");
     `;
 
     assert.doesNotThrow(() => {
@@ -54,8 +54,8 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
   });
 
   test("CSF3 story suite exports exact 7 stories, renders Live API and empty-brief fallbacks cleanly, and keeps disclosures closed", () => {
-    const StoryComponent = astCardsMeta.component;
-    const namedStoryKeys = Object.keys(astCardsStories)
+    const StoryComponent = workspaceCardsMeta.component;
+    const namedStoryKeys = Object.keys(workspaceCardsStories)
       .filter((key) => key !== "default")
       .sort();
 
@@ -73,9 +73,9 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
       <StoryComponent {...InvestigativeBriefDiurnal.args} />
     );
     assert.match(briefDiurnalHtml, /<article[^>]*class="gridlock-dossier-surface"[^>]*data-gridlock-theme="diurnal"/);
-    assert.match(briefDiurnalHtml, /data-ast-card="ProjectDossierCard"/);
-    assert.match(briefDiurnalHtml, /data-ast-card="ObservationTimeline"/);
-    assert.match(briefDiurnalHtml, /data-ast-card="MetricComparisonTable"/);
+    assert.match(briefDiurnalHtml, /data-workspace-card="ProjectDossierCard"/);
+    assert.match(briefDiurnalHtml, /data-workspace-card="ObservationTimeline"/);
+    assert.match(briefDiurnalHtml, /data-workspace-card="MetricComparisonTable"/);
     assert.match(briefDiurnalHtml, /<article[^>]*><header(?![^>]*gridlock-repair-header)(?![^>]*border)/);
     assert.doesNotMatch(briefDiurnalHtml, /<details[^>]*open/);
 
@@ -83,7 +83,7 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
       <StoryComponent nodes={[]} surfaceMode="brief-sheet" theme="diurnal" />
     );
     assert.match(emptyBriefHtml, /<style[^>]*>[\s\S]*?\.gridlock-dossier-surface/);
-    assert.match(emptyBriefHtml, /0 verified AST cards/);
+    assert.match(emptyBriefHtml, /0 verified workspace cards/);
 
     const briefNocturnalHtml = renderToStaticMarkup(
       <StoryComponent {...InvestigativeBriefNocturnal.args} />
@@ -96,31 +96,31 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
     );
     assert.match(liveFallbackHtml, /data-source-mode="live-fallback"/);
     assert.match(liveFallbackHtml, /data-gridlock-theme="nocturnal"/);
-    assert.match(liveFallbackHtml, /3 verified AST cards/);
-    assert.match(liveFallbackHtml, /data-ast-card="ProjectDossierCard"/);
-    assert.match(liveFallbackHtml, /data-ast-card="ObservationTimeline"/);
-    assert.match(liveFallbackHtml, /data-ast-card="MetricComparisonTable"/);
+    assert.match(liveFallbackHtml, /3 verified workspace cards/);
+    assert.match(liveFallbackHtml, /data-workspace-card="ProjectDossierCard"/);
+    assert.match(liveFallbackHtml, /data-workspace-card="ObservationTimeline"/);
+    assert.match(liveFallbackHtml, /data-workspace-card="MetricComparisonTable"/);
     assert.doesNotMatch(liveFallbackHtml, /<details[^>]*open/);
 
     const dossierHtml = renderToStaticMarkup(
       <StoryComponent {...StandaloneProjectDossier.args} />
     );
     assert.doesNotMatch(dossierHtml, /<article/);
-    assert.match(dossierHtml, /data-ast-card="ProjectDossierCard"/);
+    assert.match(dossierHtml, /data-workspace-card="ProjectDossierCard"/);
     assert.match(dossierHtml, /\$617 \/ sq ft capital intensity/);
     assert.doesNotMatch(dossierHtml, /<details[^>]*open/);
 
     const timelineHtml = renderToStaticMarkup(
       <StoryComponent {...MultiProjectObservationTimeline.args} />
     );
-    assert.match(timelineHtml, /data-ast-card="ObservationTimeline"/);
+    assert.match(timelineHtml, /data-workspace-card="ObservationTimeline"/);
     assert.match(timelineHtml, /\+\$53,000,000 capital/);
     assert.match(timelineHtml, /\[Substation Yard\] \*Phase 1\*/);
 
     const comparisonHtml = renderToStaticMarkup(
       <StoryComponent {...CohortMetricComparison.args} />
     );
-    assert.match(comparisonHtml, /data-ast-card="MetricComparisonTable"/);
+    assert.match(comparisonHtml, /data-workspace-card="MetricComparisonTable"/);
     assert.match(comparisonHtml, /\[REDACTED_ADDRESS\], San Marcos, TX 78666/);
 
     const emptyTimelineHtml = renderToStaticMarkup(
@@ -136,8 +136,8 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
     assert.doesNotMatch(emptyComparisonHtml, /<table/);
   });
 
-  test("Co-mounting InvestigativeBriefDiurnal ahead of Plate and Repair widgets deduplicates <style> and preserves nested AST framing", async () => {
-    const StoryComponent = astCardsMeta.component;
+  test("Co-mounting InvestigativeBriefDiurnal ahead of Plate and Repair widgets deduplicates <style> and preserves nested workspace framing", async () => {
+    const StoryComponent = workspaceCardsMeta.component;
 
     await withWidgetDom(async ({ window: win, container, root }) => {
       await act(async () => {
@@ -150,28 +150,28 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
         );
       });
 
-      assert.equal(container.querySelectorAll("[data-ast-card]").length, 3);
+      assert.equal(container.querySelectorAll("[data-workspace-card]").length, 3);
       assert.ok(container.querySelector(".gridlock-plate-viewport"));
       assert.ok(container.querySelector(".gridlock-chart-frame"));
 
       const styleContents = Array.from(win.document.querySelectorAll("style")).map(
         (el) => el.textContent ?? ""
       );
-      const astIdx = styleContents.findIndex((css) => css.includes(".gridlock-ast-card"));
+      const workspaceIdx = styleContents.findIndex((css) => css.includes(".gridlock-workspace-card"));
       const plateIdx = styleContents.findIndex((css) => css.includes(".gridlock-plate-tab-indicator"));
       const repairIdx = styleContents.findIndex((css) => css.includes(".gridlock-version-tab"));
 
-      assert.equal(styleContents.filter((css) => css.includes(".gridlock-ast-card")).length, 1);
-      assert.ok(astIdx >= 0 && astIdx < plateIdx && astIdx < repairIdx);
+      assert.equal(styleContents.filter((css) => css.includes(".gridlock-workspace-card")).length, 1);
+      assert.ok(workspaceIdx >= 0 && workspaceIdx < plateIdx && workspaceIdx < repairIdx);
 
-      const astRules = extractZeroSpecificityWhereRules(styleContents[astIdx]!);
+      const workspaceRules = extractZeroSpecificityWhereRules(styleContents[workspaceIdx]!);
       const plateRules = extractZeroSpecificityWhereRules(styleContents[plateIdx]!);
       const repairRules = extractZeroSpecificityWhereRules(styleContents[repairIdx]!);
-      assert.ok(astRules.size >= 25);
+      assert.ok(workspaceRules.size >= 25);
 
-      for (const [selector, astBody] of astRules) {
-        assert.equal(plateRules.get(selector), astBody, `Plate mismatch on ${selector}`);
-        assert.equal(repairRules.get(selector), astBody, `Repair mismatch on ${selector}`);
+      for (const [selector, workspaceBody] of workspaceRules) {
+        assert.equal(plateRules.get(selector), workspaceBody, `Plate mismatch on ${selector}`);
+        assert.equal(repairRules.get(selector), workspaceBody, `Repair mismatch on ${selector}`);
       }
 
       for (const el of win.document.querySelectorAll("style")) {
@@ -182,7 +182,7 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
         );
       }
 
-      const nestedCard = container.querySelector("article.gridlock-dossier-surface .gridlock-ast-card");
+      const nestedCard = container.querySelector("article.gridlock-dossier-surface .gridlock-workspace-card");
       const nestedHeader = nestedCard?.querySelector(".gridlock-repair-header") ?? null;
       assert.ok(nestedCard && nestedHeader);
 

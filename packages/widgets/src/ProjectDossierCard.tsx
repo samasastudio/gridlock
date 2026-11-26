@@ -1,8 +1,8 @@
 import { Fragment, useId, type Ref } from "react";
 import { MotionConfig, motion } from "motion/react";
 import { CANONICAL_MILESTONE_LABEL, ProjectDossierCardNodeSchema, type CitedProject } from "@samasastudio/gridlock-core/schemas";
-import { computeBuildWindowSummary, computeCostPerSqFtUsd, unescapeAstProse } from "./ast-card-model.ts";
-import { GRIDLOCK_AST_CARD_STYLESHEET } from "./ast-card-styles.ts";
+import { computeBuildWindowSummary, computeCostPerSqFtUsd, unescapeWorkspaceProse } from "./workspace-card-model.ts";
+import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "./workspace-card-styles.ts";
 import {
   CopyCitationButton,
   DossierNumber,
@@ -13,7 +13,7 @@ import {
 } from "./DossierPrimitives.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 
-const AST_CARD_STYLESHEET_NODE = <style href="gridlock-ast-cards" precedence="default">{GRIDLOCK_AST_CARD_STYLESHEET}</style>;
+const WORKSPACE_CARD_STYLESHEET_NODE = <style href="gridlock-workspace-cards" precedence="default">{GRIDLOCK_WORKSPACE_CARD_STYLESHEET}</style>;
 const META_DOT_NODE = <span aria-hidden="true">·</span>;
 const INTEGER_FORMAT = { maximumFractionDigits: 0 } as const;
 
@@ -34,7 +34,7 @@ function ProjectDossierContent(props: { baseId: string; citedProject: CitedProje
     project.facilityName,
     ...(project.designFirmName ? [project.designFirmName] : []),
     project.locationAddress,
-  ].map(unescapeAstProse);
+  ].map(unescapeWorkspaceProse);
   const citationKey = `${nodeId ?? "card"}:${project.projectNumber}:${citation.sha256}`;
   const retentionStatus = citation.referencedByMilestone
     ? CANONICAL_MILESTONE_LABEL
@@ -54,14 +54,14 @@ function ProjectDossierContent(props: { baseId: string; citedProject: CitedProje
       value: project.squareFootage,
       suffix: " sq ft",
       format: INTEGER_FORMAT,
-      sub: unescapeAstProse(project.typeOfWork),
+      sub: unescapeWorkspaceProse(project.typeOfWork),
       delay: 0.2,
     },
     {
       label: "Build Window",
       value: buildWindow.value,
       suffix: buildWindow.unitSuffix,
-      sub: `${unescapeAstProse(project.county)} County · ${buildWindow.rangeLabel}`,
+      sub: `${unescapeWorkspaceProse(project.county)} County · ${buildWindow.rangeLabel}`,
       delay: 0.32,
     },
   ];
@@ -71,11 +71,11 @@ function ProjectDossierContent(props: { baseId: string; citedProject: CitedProje
       <header className="gridlock-repair-header">
         <DossierTitle
           baseId={baseId}
-          title={unescapeAstProse(project.projectName)}
+          title={unescapeWorkspaceProse(project.projectName)}
           connectorId={project.projectNumber}
         />
         <div className="gridlock-header-controls">
-          <DossierStatusBadge label={unescapeAstProse(project.currentStatus)} />
+          <DossierStatusBadge label={unescapeWorkspaceProse(project.currentStatus)} />
         </div>
       </header>
 
@@ -99,8 +99,8 @@ function ProjectDossierContent(props: { baseId: string; citedProject: CitedProje
         ))}
       </dl>
 
-      <div className="gridlock-ast-specimen">
-        <p className="gridlock-ast-lead">{unescapeAstProse(project.scopeOfWork)}</p>
+      <div className="gridlock-workspace-specimen">
+        <p className="gridlock-workspace-lead">{unescapeWorkspaceProse(project.scopeOfWork)}</p>
         <div className="gridlock-inline-meta" aria-label="Filing entity and site metadata">
           {corporateMetaItems.map((item, idx) => (
             <Fragment key={`${idx}-${item}`}>
@@ -123,11 +123,11 @@ function ProjectDossierContent(props: { baseId: string; citedProject: CitedProje
             </a>
           </span>
         </div>
-        <details key={`details-${citationKey}`} className="gridlock-ast-disclosure">
-          <summary className="gridlock-ast-disclosure-summary">
+        <details key={`details-${citationKey}`} className="gridlock-workspace-disclosure">
+          <summary className="gridlock-workspace-disclosure-summary">
             <span>Inspect filing timestamps &amp; retention</span>
           </summary>
-          <div className="gridlock-ast-disclosure-body">
+          <div className="gridlock-workspace-disclosure-body">
             <div className="gridlock-inline-meta">
               <span>Captured <time dateTime={citation.capturedAt}>{citation.capturedAt}</time></span>
               {META_DOT_NODE}
@@ -156,12 +156,12 @@ export function ProjectDossierCard(props: ProjectDossierCardProps) {
       <section
         ref={ref}
         aria-labelledby={`${baseId}-title`}
-        className="gridlock-dossier-surface gridlock-ast-card gridlock-project-dossier-card"
+        className="gridlock-dossier-surface gridlock-workspace-card gridlock-project-dossier-card"
         data-gridlock-theme={theme}
-        data-ast-card="ProjectDossierCard"
+        data-workspace-card="ProjectDossierCard"
         data-node-id={nodeId}
       >
-        {AST_CARD_STYLESHEET_NODE}
+        {WORKSPACE_CARD_STYLESHEET_NODE}
         {!parsed.success ? (
           <DossierErrorShell
             baseId={baseId}

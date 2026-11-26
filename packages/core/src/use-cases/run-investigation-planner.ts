@@ -7,7 +7,7 @@ import {
   type HydrateWorkspaceErrorCode,
   type InvestigatePlanResponse,
   type RunSpanSink,
-  type UiWorkspaceAst,
+  type WorkspaceLayout,
 } from "../interfaces/index.ts";
 import {
   buildInvestigationPlannerPrompt,
@@ -29,7 +29,7 @@ export type InvestigationPlannerErrorCode =
 
 export interface InvestigationPlannerInput {
   query: string;
-  currentAst?: UiWorkspaceAst;
+  currentLayout?: WorkspaceLayout;
   now?: Date;
 }
 
@@ -103,7 +103,7 @@ export async function runInvestigationPlanner(
     );
   }
 
-  const hasCurrentAst = Boolean(parsedRequest.request.currentAst);
+  const hasCurrentLayout = Boolean(parsedRequest.request.currentLayout);
   const recordRun = async (params: {
     status: "agentic_completed" | "agentic_failed";
     tokensUsed: number;
@@ -140,7 +140,7 @@ export async function runInvestigationPlanner(
         attributes: {
           errorCode: params.error,
           ...(params.hydrateError !== undefined ? { hydrateError: params.hydrateError } : {}),
-          hasCurrentAst,
+          hasCurrentLayout,
         },
       });
     } catch {
@@ -152,8 +152,8 @@ export async function runInvestigationPlanner(
   const prompt = buildInvestigationPlannerPrompt({
     query: parsedRequest.request.query,
     catalog: catalogResult.catalog,
-    ...(parsedRequest.request.currentAst !== undefined
-      ? { currentAst: parsedRequest.request.currentAst }
+    ...(parsedRequest.request.currentLayout !== undefined
+      ? { currentLayout: parsedRequest.request.currentLayout }
       : {}),
   });
   const validated = await executePlannerGeminiTurn(deps.geminiClient, prompt);
@@ -205,7 +205,7 @@ export async function runInvestigationPlanner(
       attributes: {
         nodeCount: parsedResponse.data.workspace.nodes.length,
         isEmpty: parsedResponse.data.workspace.isEmpty,
-        hasCurrentAst,
+        hasCurrentLayout,
       },
     });
   } catch (error) {

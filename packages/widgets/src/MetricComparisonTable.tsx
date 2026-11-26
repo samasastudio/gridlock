@@ -1,12 +1,12 @@
 import { useId, type Ref } from "react";
 import { MotionConfig, motion } from "motion/react";
 import { MetricComparisonTableNodeSchema, type CitedProject } from "@samasastudio/gridlock-core/schemas";
-import { buildComparisonBenchmarkModel, unescapeAstProse, type ComparisonRowViewModel } from "./ast-card-model.ts";
-import { GRIDLOCK_AST_CARD_STYLESHEET } from "./ast-card-styles.ts";
+import { buildComparisonBenchmarkModel, unescapeWorkspaceProse, type ComparisonRowViewModel } from "./workspace-card-model.ts";
+import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "./workspace-card-styles.ts";
 import { CopyCitationButton, DossierNumber, DossierStatusBadge, EDITORIAL_EASE, EXPORT_ARROW_ICON, RELIEF_RETICLE_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 
-const AST_CARD_STYLESHEET_NODE = <style href="gridlock-ast-cards" precedence="default">{GRIDLOCK_AST_CARD_STYLESHEET}</style>;
+const WORKSPACE_CARD_STYLESHEET_NODE = <style href="gridlock-workspace-cards" precedence="default">{GRIDLOCK_WORKSPACE_CARD_STYLESHEET}</style>;
 const INTEGER_FORMAT = { maximumFractionDigits: 0 } as const;
 const COMPARISON_COLUMNS = [
   "Project",
@@ -43,15 +43,15 @@ function ComparisonTableRow(props: { row: ComparisonRowViewModel; nodeId?: strin
     <tr data-project-number={project.projectNumber}>
       <th scope="row">
         <div className="gridlock-comparison-cell-stack">
-          <span>{unescapeAstProse(project.projectName)}</span>
+          <span>{unescapeWorkspaceProse(project.projectName)}</span>
           <code className="gridlock-project-chip">{project.projectNumber}</code>
         </div>
       </th>
       <td>
         <div className="gridlock-comparison-cell-stack">
-          <span>{`${unescapeAstProse(project.county)} County`}</span>
+          <span>{`${unescapeWorkspaceProse(project.county)} County`}</span>
           <span className="gridlock-comparison-sub">
-            {`${unescapeAstProse(project.ownerName)} · ${unescapeAstProse(project.locationAddress)}`}
+            {`${unescapeWorkspaceProse(project.ownerName)} · ${unescapeWorkspaceProse(project.locationAddress)}`}
           </span>
         </div>
       </td>
@@ -65,13 +65,13 @@ function ComparisonTableRow(props: { row: ComparisonRowViewModel; nodeId?: strin
         <div className="gridlock-comparison-cell-stack">
           <span>{`${project.squareFootage.toLocaleString("en-US")} sq ft`}</span>
           <span className="gridlock-comparison-sub">
-            {`$${row.costPerSqFtUsd.toLocaleString("en-US")} / sq ft · ${unescapeAstProse(project.typeOfWork)}`}
+            {`$${row.costPerSqFtUsd.toLocaleString("en-US")} / sq ft · ${unescapeWorkspaceProse(project.typeOfWork)}`}
           </span>
         </div>
       </td>
       <td>
         <div className="gridlock-comparison-cell-stack">
-          <span>{`${row.buildWindow.value}${row.buildWindow.unitSuffix} · ${unescapeAstProse(project.currentStatus)}`}</span>
+          <span>{`${row.buildWindow.value}${row.buildWindow.unitSuffix} · ${unescapeWorkspaceProse(project.currentStatus)}`}</span>
           <span className="gridlock-comparison-sub">{row.buildWindow.rangeLabel}</span>
         </div>
       </td>
@@ -157,7 +157,7 @@ function MetricComparisonContent(props: { baseId: string; rows: readonly CitedPr
             ))}
           </dl>
 
-          <p className="gridlock-ast-lead">{benchmark.framingCopy}</p>
+          <p className="gridlock-workspace-lead">{benchmark.framingCopy}</p>
 
           <div tabIndex={0} role="region" aria-labelledby={captionId} className="gridlock-comparison-scroll">
             <table className="gridlock-comparison-table">
@@ -192,12 +192,12 @@ export function MetricComparisonTable(props: MetricComparisonTableProps) {
       <section
         ref={ref}
         aria-labelledby={`${baseId}-title`}
-        className="gridlock-dossier-surface gridlock-ast-card gridlock-metric-comparison-table"
+        className="gridlock-dossier-surface gridlock-workspace-card gridlock-metric-comparison-table"
         data-gridlock-theme={theme}
-        data-ast-card="MetricComparisonTable"
+        data-workspace-card="MetricComparisonTable"
         data-node-id={nodeId}
       >
-        {AST_CARD_STYLESHEET_NODE}
+        {WORKSPACE_CARD_STYLESHEET_NODE}
         {!parsed.success ? (
           <DossierErrorShell
             baseId={baseId}

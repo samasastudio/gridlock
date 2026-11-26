@@ -1,5 +1,5 @@
 import type { CSSProperties, ComponentType } from "react";
-import { GRIDLOCK_AST_CARD_STYLESHEET } from "../src/ast-card-styles.ts";
+import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "../src/workspace-card-styles.ts";
 import {
   DossierStatusBadge,
   MetricComparisonTable,
@@ -13,8 +13,8 @@ import {
   STORY_INTERLEAVED_OBSERVATIONS,
   STORY_LOGISTICS_SHELL_PROJECT,
   STORY_SUBSTATION_YARD_PROJECT,
-  type AstPreviewNode,
-} from "./ast-card-fixtures.ts";
+  type WorkspacePreviewNode,
+} from "./workspace-card-fixtures.ts";
 
 export interface StoryMeta<TProps> {
   title: string;
@@ -26,19 +26,19 @@ export interface StoryObj<TProps> {
   args: TProps;
 }
 
-export type AstShowcaseSurfaceMode = "brief-sheet" | "standalone";
+export type WorkspaceShowcaseSurfaceMode = "brief-sheet" | "standalone";
 
-export interface AstCardsShowcaseProps {
-  nodes?: readonly AstPreviewNode[];
-  surfaceMode?: AstShowcaseSurfaceMode;
+export interface WorkspaceCardsShowcaseProps {
+  nodes?: readonly WorkspacePreviewNode[];
+  surfaceMode?: WorkspaceShowcaseSurfaceMode;
   briefTitle?: string;
   theme?: GridlockWidgetTheme;
   apiBaseUrl?: string;
 }
 
-const AST_CARD_STYLESHEET_NODE = (
-  <style href="gridlock-ast-cards" precedence="default">
-    {GRIDLOCK_AST_CARD_STYLESHEET}
+const WORKSPACE_CARD_STYLESHEET_NODE = (
+  <style href="gridlock-workspace-cards" precedence="default">
+    {GRIDLOCK_WORKSPACE_CARD_STYLESHEET}
   </style>
 );
 
@@ -69,8 +69,8 @@ const STANDALONE_STACK_STYLE: CSSProperties = {
   gap: "1.75rem",
 };
 
-function renderAstPreviewNode(
-  node: AstPreviewNode,
+function renderWorkspacePreviewNode(
+  node: WorkspacePreviewNode,
   cardTheme: GridlockWidgetTheme
 ) {
   switch (node.component) {
@@ -105,7 +105,7 @@ function renderAstPreviewNode(
   }
 }
 
-function AstCardsShowcase(props: AstCardsShowcaseProps) {
+function WorkspaceCardsShowcase(props: WorkspaceCardsShowcaseProps) {
   const nodes = props.nodes ?? DEFAULT_BRIEF_NODES;
   const surfaceMode = props.surfaceMode ?? "brief-sheet";
   const briefTitle = props.briefTitle ?? DEFAULT_BRIEF_TITLE;
@@ -113,12 +113,12 @@ function AstCardsShowcase(props: AstCardsShowcaseProps) {
 
   if (surfaceMode === "standalone") {
     if (nodes.length === 1) {
-      return renderAstPreviewNode(nodes[0]!, theme);
+      return renderWorkspacePreviewNode(nodes[0]!, theme);
     }
 
     return (
       <div style={STANDALONE_STACK_STYLE}>
-        {nodes.map((node) => renderAstPreviewNode(node, theme))}
+        {nodes.map((node) => renderWorkspacePreviewNode(node, theme))}
       </div>
     );
   }
@@ -129,21 +129,21 @@ function AstCardsShowcase(props: AstCardsShowcaseProps) {
       data-gridlock-theme={theme}
       data-source-mode={props.apiBaseUrl !== undefined ? "live-fallback" : "story"}
     >
-      {AST_CARD_STYLESHEET_NODE}
+      {WORKSPACE_CARD_STYLESHEET_NODE}
       <header style={BRIEF_HEADER_STYLE}>
         <h2 style={BRIEF_TITLE_STYLE}>{briefTitle}</h2>
         <DossierStatusBadge
-          label={`${nodes.length} verified AST card${nodes.length === 1 ? "" : "s"}`}
+          label={`${nodes.length} verified workspace card${nodes.length === 1 ? "" : "s"}`}
         />
       </header>
-      {nodes.map((node) => renderAstPreviewNode(node, "inherit"))}
+      {nodes.map((node) => renderWorkspacePreviewNode(node, "inherit"))}
     </article>
   );
 }
 
 function makeStandaloneStory(
-  node: AstPreviewNode
-): StoryObj<AstCardsShowcaseProps> {
+  node: WorkspacePreviewNode
+): StoryObj<WorkspaceCardsShowcaseProps> {
   return {
     args: {
       nodes: [node],
@@ -153,15 +153,15 @@ function makeStandaloneStory(
   };
 }
 
-const astCardsMeta: StoryMeta<AstCardsShowcaseProps> = {
-  title: "Gridlock/Seam 4/GridlockAstCards",
-  component: AstCardsShowcase,
+const workspaceCardsMeta: StoryMeta<WorkspaceCardsShowcaseProps> = {
+  title: "Gridlock/Seam 4/GridlockWorkspaceCards",
+  component: WorkspaceCardsShowcase,
   tags: ["autodocs"],
 };
 
-export default astCardsMeta;
+export default workspaceCardsMeta;
 
-export const InvestigativeBriefDiurnal: StoryObj<AstCardsShowcaseProps> = {
+export const InvestigativeBriefDiurnal: StoryObj<WorkspaceCardsShowcaseProps> = {
   args: {
     nodes: DEFAULT_BRIEF_NODES,
     surfaceMode: "brief-sheet",
@@ -169,7 +169,7 @@ export const InvestigativeBriefDiurnal: StoryObj<AstCardsShowcaseProps> = {
   },
 };
 
-export const InvestigativeBriefNocturnal: StoryObj<AstCardsShowcaseProps> = {
+export const InvestigativeBriefNocturnal: StoryObj<WorkspaceCardsShowcaseProps> = {
   args: {
     nodes: DEFAULT_BRIEF_NODES,
     surfaceMode: "brief-sheet",

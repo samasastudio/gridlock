@@ -13,11 +13,11 @@ import { TdlrProjectNumberSchema } from "./primitives.ts";
 import { RepairChangelogResponseSchema } from "./repair-models.ts";
 import { EfficiencyScorecardSchema } from "./run-record-models.ts";
 
-export const SafeAstIdSchema = z
+export const SafeLayoutIdSchema = z
   .string()
   .min(1)
   .max(128)
-  .regex(/^(?!\.\.?$)[^\s/]+$/, "Expected safe non-empty AST identifier");
+  .regex(/^(?!\.\.?$)[^\s/]+$/, "Expected safe non-empty layout identifier");
 
 const HttpSourceCitationSchema = LineageSourceCitationSchema.refine(
   (citation) => /^https?:\/\//i.test(citation.sourceUrl),
@@ -27,7 +27,7 @@ const HttpSourceCitationSchema = LineageSourceCitationSchema.refine(
   }
 );
 
-export const UiAstComponentTypeSchema = z.enum([
+export const WorkspaceCardTypeSchema = z.enum([
   "ProjectDossierCard",
   "VisualPlateScrubber",
   "ObservationTimeline",
@@ -35,7 +35,7 @@ export const UiAstComponentTypeSchema = z.enum([
   "ConnectorHealthCard",
 ]);
 
-export type UiAstComponentType = z.infer<typeof UiAstComponentTypeSchema>;
+export type WorkspaceCardType = z.infer<typeof WorkspaceCardTypeSchema>;
 
 export const CitedProjectSchema = z
   .object({
@@ -75,7 +75,7 @@ export type CitedObservation = z.infer<typeof CitedObservationSchema>;
 
 export const ProjectDossierCardNodeSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("ProjectDossierCard"),
     citedProject: CitedProjectSchema,
   })
@@ -95,7 +95,7 @@ const HydratedProjectNumberListSchema = z
 
 const ObservationTimelineNodeBaseSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("ObservationTimeline"),
     projectNumbers: HydratedProjectNumberListSchema,
     observations: z.array(CitedObservationSchema),
@@ -140,7 +140,7 @@ export type ObservationTimelineNode = z.infer<
 
 export const MetricComparisonTableNodeSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("MetricComparisonTable"),
     rows: z
       .array(CitedProjectSchema)
@@ -186,10 +186,10 @@ const NonEmptyPlateLineageSchema = PlateLineageResponseSchema.refine(
 
 const VisualPlateScrubberNodeBaseSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("VisualPlateScrubber"),
     lineage: NonEmptyPlateLineageSchema,
-    initialPlateId: SafeAstIdSchema.optional(),
+    initialPlateId: SafeLayoutIdSchema.optional(),
   })
   .strict();
 
@@ -226,7 +226,7 @@ const CompactEfficiencyScorecardSchema = EfficiencyScorecardSchema.refine(
 
 export const ConnectorHealthCardNodeSchema = z
   .object({
-    nodeId: SafeAstIdSchema,
+    nodeId: SafeLayoutIdSchema,
     component: z.literal("ConnectorHealthCard"),
     changelog: RepairChangelogResponseSchema,
     scorecard: CompactEfficiencyScorecardSchema,
@@ -237,7 +237,7 @@ export type ConnectorHealthCardNode = z.infer<
   typeof ConnectorHealthCardNodeSchema
 >;
 
-export const UiWidgetNodeSchema = z
+export const WorkspaceCardNodeSchema = z
   .discriminatedUnion("component", [
     ProjectDossierCardNodeSchema,
     VisualPlateScrubberNodeBaseSchema,
@@ -254,36 +254,36 @@ export const UiWidgetNodeSchema = z
     }
   });
 
-export type UiWidgetNode = z.infer<typeof UiWidgetNodeSchema>;
+export type WorkspaceCardNode = z.infer<typeof WorkspaceCardNodeSchema>;
 
-export const UiWorkspaceAstSchema = z
+export const WorkspaceLayoutSchema = z
   .object({
     version: z.literal(1),
     generatedAt: z.string().datetime(),
     isEmpty: z.boolean(),
-    nodes: z.array(UiWidgetNodeSchema).max(MAX_WORKSPACE_NODES),
+    nodes: z.array(WorkspaceCardNodeSchema).max(MAX_WORKSPACE_NODES),
   })
   .strict()
-  .superRefine((ast, ctx) => {
-    const expectedEmpty = ast.nodes.length === 0;
-    if (ast.isEmpty !== expectedEmpty) {
+  .superRefine((layout, ctx) => {
+    const expectedEmpty = layout.nodes.length === 0;
+    if (layout.isEmpty !== expectedEmpty) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["isEmpty"],
         message: "isEmpty must be true iff nodes is empty",
       });
     }
-    const uniqueNodeIds = new Set(ast.nodes.map((node) => node.nodeId));
-    if (uniqueNodeIds.size !== ast.nodes.length) {
+    const uniqueNodeIds = new Set(layout.nodes.map((node) => node.nodeId));
+    if (uniqueNodeIds.size !== layout.nodes.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["nodes"],
-        message: "Duplicate nodeId in UiWorkspaceAst nodes",
+        message: "Duplicate nodeId in WorkspaceLayout nodes",
       });
     }
   });
 
-export type UiWorkspaceAst = z.infer<typeof UiWorkspaceAstSchema>;
+export type WorkspaceLayout = z.infer<typeof WorkspaceLayoutSchema>;
 
 export type HydrateWorkspaceErrorCode =
   | "invalid_layout_spec"

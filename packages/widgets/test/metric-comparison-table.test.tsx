@@ -7,7 +7,7 @@ import {
   makeArtifactHash,
   makeCitedProject,
   makeEscapedShellCitedProject,
-} from "./helpers/ast-card-fixtures.ts";
+} from "./helpers/workspace-card-fixtures.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 function makeSubstationCitedProject() {
@@ -28,7 +28,7 @@ function makeSubstationCitedProject() {
   });
 }
 
-describe("<MetricComparisonTable /> Seam 4 UI AST Card (Ticket #38 Phase 3)", () => {
+describe("<MetricComparisonTable /> Seam 4 Workspace Card (Ticket #38 Phase 3)", () => {
   test("Preserves planner row order verbatim, computes cohort KPIs, framing prose, $/sq ft cells, and proportional 2px scale bars", () => {
     const rows = [
       makeEscapedShellCitedProject(),
@@ -39,7 +39,7 @@ describe("<MetricComparisonTable /> Seam 4 UI AST Card (Ticket #38 Phase 3)", ()
       <MetricComparisonTable rows={rows} nodeId="comparison-corridor" theme="diurnal" />
     );
 
-    assert.match(html, /data-ast-card="MetricComparisonTable"/);
+    assert.match(html, /data-workspace-card="MetricComparisonTable"/);
     assert.match(html, /data-node-id="comparison-corridor"/);
     assert.match(html, /data-gridlock-theme="diurnal"/);
     assert.match(html, /3 projects/);

@@ -457,7 +457,7 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
 });
 
 describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
-  test("accepts 20-60 KiB currentAst refinement payloads with hasCurrentAst span attributes", async () => {
+  test("accepts 20-60 KiB currentLayout refinement payloads with hasCurrentLayout span attributes", async () => {
     assert.equal(MAX_INVESTIGATE_BODY_BYTES, 131_072);
     const { repository, canonicalArtifactHash, branchPlateId } =
       await seedFiveCardPlannerRepository();
@@ -519,7 +519,7 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
 
         const refineBody = JSON.stringify({
           query: "Keep corridor plate and switch dossier to TABS2027001002",
-          currentAst: initialPayload.workspace,
+          currentLayout: initialPayload.workspace,
         });
         const refineBytes = Buffer.byteLength(refineBody, "utf-8");
         assert.equal(refineBytes > 20 * 1024 && refineBytes < 60 * 1024, true);
@@ -540,8 +540,8 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
     );
 
     assert.equal(spans.length, 2);
-    assert.equal(spans[0]?.attributes?.hasCurrentAst, false);
-    assert.equal(spans[1]?.attributes?.hasCurrentAst, true);
+    assert.equal(spans[0]?.attributes?.hasCurrentLayout, false);
+    assert.equal(spans[1]?.attributes?.hasCurrentLayout, true);
   });
 
   test("enforces 131072-byte streaming cutoff on /api/investigate/plan and preserves 16384-byte cutoff on /api/plates/branch", async () => {
