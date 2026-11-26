@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import type { LineageEdge, LineageNode } from "@samasastudio/gridlock-core/schemas";
+import type { FrameTimelineEdge, FrameTimelineNode } from "@samasastudio/gridlock-core/schemas";
 import { DossierStatusBadge, EDITORIAL_EASE, RELIEF_RETICLE_ICON } from "./DossierPrimitives.tsx";
 import { buildPlateAssetUrl } from "./plate-lineage-client.ts";
-import { resolveCanonicalBaselineNode } from "./plate-lineage-model.ts";
+import { resolveCanonicalBaselineNode } from "./frame-timeline-model.ts";
 
-export interface PlateComparisonStageProps {
-  nodes: readonly LineageNode[];
-  edges?: readonly LineageEdge[];
+export interface TimelineComparisonStageProps {
+  nodes: readonly FrameTimelineNode[];
+  edges?: readonly FrameTimelineEdge[];
   activeCanonicalIllustrationId?: string | null;
-  activeNode: LineageNode;
+  activeNode: FrameTimelineNode;
   isComparing: boolean;
   onToggleCompare: (nextComparing: boolean) => void;
   apiBaseUrl?: string;
@@ -17,7 +17,7 @@ export interface PlateComparisonStageProps {
 }
 
 function resolveNodeAssetSrc(
-  node: LineageNode,
+  node: FrameTimelineNode,
   apiBaseUrl?: string,
   assetUrlOverrides?: Readonly<Record<string, string>>
 ): string | undefined {
@@ -31,8 +31,8 @@ function resolveNodeAssetSrc(
     : undefined;
 }
 
-function PlateViewportFrame(props: {
-  node: LineageNode;
+function TimelineViewportFrame(props: {
+  node: FrameTimelineNode;
   apiBaseUrl?: string;
   assetUrlOverrides?: Readonly<Record<string, string>>;
   failedAssetKeys: ReadonlySet<string>;
@@ -79,7 +79,7 @@ function PlateViewportFrame(props: {
         <div className="gridlock-plate-fallback" data-plate-fallback="true">
           <div className="gridlock-plate-fallback-head">
             {RELIEF_RETICLE_ICON}
-            <strong>Visual Plate preview unavailable</strong>
+            <strong>Generated Illustration preview unavailable</strong>
           </div>
           <p className="gridlock-plate-fallback-copy">
             WebP asset for <code>{plate.illustrationId}</code> could not be loaded; verified Observations
@@ -91,7 +91,7 @@ function PlateViewportFrame(props: {
   );
 }
 
-export function PlateComparisonStage(props: PlateComparisonStageProps) {
+export function TimelineComparisonStage(props: TimelineComparisonStageProps) {
   const [failedAssetKeys, setFailedAssetKeys] = useState<ReadonlySet<string>>(() => new Set());
 
   const markAssetFailed = (assetKey: string | null) => {
@@ -112,7 +112,7 @@ export function PlateComparisonStage(props: PlateComparisonStageProps) {
   });
 
   const activeViewport = (
-    <PlateViewportFrame
+    <TimelineViewportFrame
       node={props.activeNode}
       apiBaseUrl={props.apiBaseUrl}
       assetUrlOverrides={props.assetUrlOverrides}
@@ -150,7 +150,7 @@ export function PlateComparisonStage(props: PlateComparisonStageProps) {
           role="group"
           aria-label="Canonical Milestone versus Scenario Branch comparison"
         >
-          <PlateViewportFrame
+          <TimelineViewportFrame
             node={baselineNode}
             apiBaseUrl={props.apiBaseUrl}
             assetUrlOverrides={props.assetUrlOverrides}

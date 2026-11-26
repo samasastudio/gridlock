@@ -2,8 +2,8 @@ import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "rea
 import { MotionConfig, motion } from "motion/react";
 import type { LineageEdge, LineageNode } from "@samasastudio/gridlock-core/schemas";
 import { RELIEF_RETICLE_ICON } from "./DossierPrimitives.tsx";
-import { PlateComparisonStage } from "./PlateComparisonStage.tsx";
-import { buildPlateTurnLabels, orderLineageNodes, resolveStageActiveNode } from "./plate-lineage-model.ts";
+import { TimelineComparisonStage } from "./TimelineComparisonStage.tsx";
+import { buildTimelineTurnLabels, orderTimelineNodes, resolveStageActiveNode } from "./frame-timeline-model.ts";
 import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
 
 const STAGE_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
@@ -37,8 +37,8 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
     props.onCompareChange?.(nextComparing);
   };
 
-  const orderedNodes = orderLineageNodes(props.nodes);
-  const turnLabels = buildPlateTurnLabels(orderedNodes);
+  const orderedNodes = orderTimelineNodes(props.nodes);
+  const turnLabels = buildTimelineTurnLabels(orderedNodes);
   const activeNode = resolveStageActiveNode(orderedNodes, props.activePlateId);
 
   const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -106,7 +106,7 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
         </div>
         {activeNode ? (
           <div id={`${stageId}-panel-${activeNode.plate.illustrationId}`} role="tabpanel" aria-labelledby={`${stageId}-tab-${activeNode.plate.illustrationId}`} className="gridlock-plate-panel">
-            <PlateComparisonStage
+            <TimelineComparisonStage
               nodes={orderedNodes}
               edges={props.edges}
               activeCanonicalIllustrationId={props.activeCanonicalIllustrationId}
