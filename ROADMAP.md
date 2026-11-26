@@ -26,9 +26,14 @@ gh api --paginate 'repos/samasastudio/gridlock/issues?state=open' \
 
 Gridlock is an **editorial civic publishing pipeline**, not a high-QPS platform. All core backend waves (`#2`–`#9`, `#17`, `#33`–`#37`) and two embeddable widgets (`<GridlockRepairChangelogWidget />` and `<GridlockTimelineWidget />`) are already merged on `main`. To ship a live public artifact quickly and retire external I/O risk:
 
-- **In MVP (Wave 5 — Unblocked Now)**:
-  - Execute the **4-Step `#11` Live Smoke Spike** and deploy the Cloud Run Service + daily/backfill Job + Firestore/GCS spine (`#11` is **no longer blocked by `#39`/`#40`**).
-  - Mount the two already-built live widgets (`<GridlockTimelineWidget />` and `<GridlockRepairChangelogWidget />`) on `/work/gridlock` in `profile-site` with Firebase `/api/**` rewrites (`profile-site#1`), fixing the cross-theme nested token leak in `packages/widgets/src/dossier-styles.ts`.
+- **Pre-Wave 5 Prefactor ([`gridlock#81`](https://github.com/samasastudio/gridlock/issues/81) — Active Frontier)**:
+  - [x] [`#82`](https://github.com/samasastudio/gridlock/issues/82) — Glossary alignment, public routes, docs, widget exports, and `400`/`280`-line caps *(completed & closed)*.
+  - [ ] [`#83`](https://github.com/samasastudio/gridlock/issues/83) — Deepen persistence boundary for atomic transitions and bounded reads *(unblocked)*.
+  - [ ] [`#84`](https://github.com/samasastudio/gridlock/issues/84) — Collapse illustration encoder onto `sharp`, fold Scenario Branch wrapper, and unify HTTP guards.
+  - [ ] [`#85`](https://github.com/samasastudio/gridlock/issues/85) — Isolate widget theme tokens, deduplicate base CSS, and extract shared snapshot loading shell *(unblocked)*.
+- **In MVP (Wave 5 — Queued Behind `#81`)**:
+  - Execute the remaining **4-Step `#11` Live Smoke Spike** slices (`Slices 2–5`) and deploy the Cloud Run Service + daily/backfill Job + Firestore/GCS spine (`#11` is **no longer blocked by `#39`/`#40`**).
+  - Mount the two already-built live widgets (`<GridlockTimelineWidget />` and `<GridlockRepairChangelogWidget />`) on `/work/gridlock` in `profile-site` with Firebase `/api/**` rewrites (`profile-site#1`).
   - Treat the Out-of-Band Repair Agent (`#5`) as an on-demand utility invoked only when a real `selector_anomaly` occurs, without adding extra automated retry infrastructure.
 - **Deferred to Post-MVP Fast-Follow (Wave 6)**:
   - `#39` (Visual & Health Workspace Layout Cards + Error Boundary) and `#40` (`<GridlockConsoleWidget />` Generative UI Workspace).
@@ -66,9 +71,17 @@ flowchart TD
     T36 --> T38["#38 [under #10] Filing & Comparative Workspace Layout Cards (PRs #72–#76)"]
   end
 
-  subgraph Wave5["Wave 5 — Editorial MVP Launch (Unblocked Now)"]
+  subgraph PreWave5["Pre-Wave 5 Prefactor (#81 — Active Frontier)"]
+    T35 --> T82["#82 [under #81] Glossary, Routes, Docs & Caps (Closed)"]
+    T82 --> T83["#83 [under #81] Deepen Persistence Boundary (Unblocked)"]
+    T82 --> T85["#85 [under #81] Widget Theme Isolation & Shared Shell (Unblocked)"]
+    T83 --> T84["#84 [under #81] Sharp Encoder, Branch Fold & HTTP Guards"]
+  end
+
+  subgraph Wave5["Wave 5 — Editorial MVP Launch (Queued Behind #81)"]
     T6 --> T11["#11 [gridlock] Live Smoke Spike, Cloud Run, Firestore & GCS Spine"]
-    T35 --> T11
+    T84 --> T11
+    T85 --> T11
     T11 --> P1["profile-site#1 Embed Live Timeline & Repair Changelog Widgets (~300 LOC)"]
   end
 
@@ -210,10 +223,19 @@ flowchart TD
 
 ---
 
-### Wave 5 — Editorial MVP Launch: Live Smoke Spike, Cloud Run & `profile-site` Integration *(Unblocked Now)*
+### Pre-Wave 5 Prefactor — Glossary Alignment & Architecture Cleanup ([`gridlock#81`](https://github.com/samasastudio/gridlock/issues/81)) *(Active Frontier)*
+
+- [x] **[`gridlock#82`](https://github.com/samasastudio/gridlock/issues/82) — Align domain vocabulary, public routes, docs, and file-size caps** *(Closed via PRs `#90`–`#106`)*
+- [ ] **[`gridlock#83`](https://github.com/samasastudio/gridlock/issues/83) — Deepen persistence boundary for atomic transitions and bounded reads** *(Unblocked — unlocks `#84`)*
+- [ ] **[`gridlock#84`](https://github.com/samasastudio/gridlock/issues/84) — Collapse illustration encoder onto `sharp`, fold Scenario Branch wrapper, and unify HTTP guards** *(Blocked by `#83`)*
+- [ ] **[`gridlock#85`](https://github.com/samasastudio/gridlock/issues/85) — Isolate widget theme tokens, deduplicate base CSS, and extract shared snapshot loading shell** *(Unblocked)*
+
+---
+
+### Wave 5 — Editorial MVP Launch: Live Smoke Spike, Cloud Run & `profile-site` Integration *(Queued Behind `#81`)*
 
 - [ ] **[`gridlock#11`](https://github.com/samasastudio/gridlock/issues/11) — Live Smoke Spike, Cloud Run Job/Service, Firestore TTL & GCS Lifecycle Spine**
-  - **Blocked by**: [`#6`](https://github.com/samasastudio/gridlock/issues/6), [`#8`](https://github.com/samasastudio/gridlock/issues/8) ([`#35`](https://github.com/samasastudio/gridlock/issues/35)) *(no longer blocked by `#39`/`#40` — **In Progress**)*
+  - **Blocked by**: [`#6`](https://github.com/samasastudio/gridlock/issues/6), [`#8`](https://github.com/samasastudio/gridlock/issues/8) ([`#35`](https://github.com/samasastudio/gridlock/issues/35)), [`#81`](https://github.com/samasastudio/gridlock/issues/81) (`#83`–`#85`) *(Slices 1a & 1b merged; Slices 2–5 queued behind `#81`)*
   - **Unlocks**: [`samasastudio/profile-site#1`](https://github.com/samasastudio/profile-site/issues/1)
   - **Stacked Vertical Slice Progress**:
     - [x] **Slice 1a (`feat/11-tdlr-live-gemini-client`)**: Live TDLR discovery + filing ingestion smoke check via plain `fetch` (Smoke Step 1) and concrete `@google/genai` (`>= 3.2.0`, `v1` GA Interactions API) `GeminiInteractionsClient` adapter.

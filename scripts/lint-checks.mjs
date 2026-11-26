@@ -600,7 +600,7 @@ export function checkPullRequestDiffSize(repoRoot, options = {}) {
   const diffRange = workingTree ? baseRef : `${baseRef}...${headRef}`;
   const diffResult = spawnSync(
     "git",
-    ["diff", "--numstat", diffRange],
+    ["diff", "-M20%", "--numstat", diffRange],
     { cwd: repoRoot, encoding: "utf-8" }
   );
   if (diffResult.status !== 0) {
