@@ -1,5 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import ts from "typescript";
 import {
   RunRecordSchema,
@@ -7,12 +9,16 @@ import {
   RunStageSchema,
 } from "../src/index.ts";
 import {
+  BANNED_GLOSSARY_TERMS,
   MAX_CORE_TS_LINES,
   MAX_PR_CHANGED_LINES,
   MAX_TSX_LINES,
+  NON_LINTABLE_GLOSSARY_WORDS,
+  PENDING_GLOSSARY_MIGRATION_TERMS,
   evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   evaluateUnusedModuleExports,
+  parseGlossaryAvoidTerms,
 } from "../../../scripts/lint-checks.mjs";
 import {
   evaluateProgramTypeHygiene,
@@ -303,5 +309,95 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
     assert.ok(violations.some((v) => v.includes('parameter "err"')));
     assert.ok(violations.some((v) => v.includes('parameter "item"')));
     assert.deepEqual(runTypeHygieneChecks(process.cwd()), []);
+  });
+
+  test("BANNED_GLOSSARY_TERMS stays synced with GLOSSARY.md and rejects retired terms and schema key stems", () => {
+    const repoRoot = process.cwd();
+    const glossaryMarkdown = readFileSync(join(repoRoot, "GLOSSARY.md"), "utf-8");
+    const parsedEntries = parseGlossaryAvoidTerms(glossaryMarkdown);
+    assert.ok(parsedEntries.length >= 30);
+
+    for (const entry of parsedEntries) {
+      const normalized = entry.term.toLowerCase();
+      const isExcluded =
+        NON_LINTABLE_GLOSSARY_WORDS.has(normalized) ||
+        PENDING_GLOSSARY_MIGRATION_TERMS.has(normalized);
+      const isActive = BANNED_GLOSSARY_TERMS.some(
+        (banned) =>
+          banned.pattern.test(entry.term) && banned.useInstead === entry.useInstead
+      );
+      assert.equal(
+        isActive,
+        !isExcluded,
+        `GLOSSARY.md _Avoid_ term "${entry.term}" -> "${entry.useInstead}" out of sync with BANNED_GLOSSARY_TERMS`
+      );
+    }
+
+    const retiredSamples = [
+      ["Source", "Artifact"].join(" "),
+      ["Efficiency", "Ledger"].join(" "),
+      ["UI", "AST"].join(" "),
+      ["Investigation", "Planner"].join(" "),
+      ["tele", "metry"].join(""),
+    ];
+    for (const sample of retiredSamples) {
+      const violations = evaluateSourceFileLintRules(
+        "packages/core/src/use-cases/sample.ts",
+        `// ${sample}\nexport const ok = 1;`
+      );
+      assert.ok(
+        violations.some((v) => v.includes("Banned GLOSSARY.md term")),
+        `Expected lint to reject retired glossary term "${sample}"`
+      );
+    }
+
+    const retiredStemViolations = evaluateSourceFileLintRules(
+      "packages/core/src/interfaces/sample-models.ts",
+      [
+        'import { z } from "zod";',
+        "export const SampleSchema = z.object({",
+        `  ${["ledger", "Id"].join("")}: z.string().min(1),`,
+        `  ${["ast", "Node"].join("")}: z.string().min(1),`,
+        "});",
+      ].join("\n")
+    );
+    assert.equal(retiredStemViolations.length, 2);
+    assert.ok(retiredStemViolations.every((v) => v.includes("Retired glossary stem")));
+  });
+
+  test("package.json script test paths exist on disk and lint-checks.mjs keeps type-hygiene lazy for zero-dep CLI flags", () => {
+    const repoRoot = process.cwd();
+    const pkgRaw: unknown = JSON.parse(
+      readFileSync(join(repoRoot, "package.json"), "utf-8")
+    );
+    const scripts =
+      typeof pkgRaw === "object" &&
+      pkgRaw !== null &&
+      "scripts" in pkgRaw &&
+      typeof pkgRaw.scripts === "object" &&
+      pkgRaw.scripts !== null
+        ? (pkgRaw.scripts as Record<string, unknown>)
+        : {};
+
+    const checkedPaths: string[] = [];
+    for (const [scriptName, cmd] of Object.entries(scripts)) {
+      if (typeof cmd !== "string") continue;
+      for (const match of cmd.matchAll(/packages\/[A-Za-z0-9_./-]+\.test\.tsx?/g)) {
+        const testRelPath = match[0];
+        checkedPaths.push(testRelPath);
+        assert.ok(
+          existsSync(join(repoRoot, testRelPath)),
+          `package.json script "${scriptName}" references missing test file "${testRelPath}"`
+        );
+      }
+    }
+    assert.ok(checkedPaths.length >= 2);
+
+    const lintScript = readFileSync(join(repoRoot, "scripts/lint-checks.mjs"), "utf-8");
+    assert.equal(
+      /^import\s+.*["']\.\/type-hygiene\.mjs["']/m.test(lintScript),
+      false,
+      "scripts/lint-checks.mjs must lazy-import ./type-hygiene.mjs so --check-branch and --check-pr-size work without node_modules"
+    );
   });
 });

@@ -1,7 +1,7 @@
 # Gridlock (`samasastudio/gridlock`) — Agent Pointers
 
 - **Unblocked Frontier & Acceptance Gates**: Read [`ROADMAP.md`](./ROADMAP.md) when selecting the next ticket or verifying Happy/Sad Path test gates.
-- **Coding Standards, Widget Plates & VM Hygiene**: Read [`CODING_STANDARDS.md`](./CODING_STANDARDS.md) during pre-PR reviews, when touching `packages/core` Gemini/Firestore seams (§2–§4), before styling or testing `packages/widgets` (§5, plus [`../profile-site/design-systems/`](../profile-site/design-systems/) and the `motion` / `impeccable` skills), or before running local verification / troubleshooting `virtiofs` `EMFILE` or `EPERM` errors (§6). Read [`docs/connectors/tdlr-site-access-and-cadence.md`](./docs/connectors/tdlr-site-access-and-cadence.md) when touching TDLR connectors.
+- **Coding Standards, Widgets & VM Hygiene**: Read [`CODING_STANDARDS.md`](./CODING_STANDARDS.md) during pre-PR reviews, when touching `packages/core` Gemini/Firestore seams (§2–§4), before styling or testing `packages/widgets` (§5, plus [`../profile-site/design-systems/`](../profile-site/design-systems/) and the `motion` / `impeccable` skills), or before running local verification / troubleshooting `virtiofs` `EMFILE` or `EPERM` errors (§6). Read [`docs/connectors/tdlr-site-access-and-cadence.md`](./docs/connectors/tdlr-site-access-and-cadence.md) when touching TDLR connectors.
 
 ## Agent skills
 
