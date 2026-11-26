@@ -10,8 +10,8 @@ import {
   ingestTdlrFiling,
   runOutOfBandRepairAgent,
 } from "@samasastudio/gridlock-core";
-import { CopyCitationButton, fetchRepairLogSnapshot, GridlockRepairLogWidget } from "../src/index.ts";
-import { HealedWithAmortization } from "../stories/GridlockRepairLogWidget.stories.tsx";
+import { CopyCitationButton, fetchRepairChangelogSnapshot, GridlockRepairChangelogWidget } from "../src/index.ts";
+import { HealedWithAmortization } from "../stories/GridlockRepairChangelogWidget.stories.tsx";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 const HISTORICAL_HTML = `<div class="project-details"><dl class="dl-horizontal">
@@ -28,7 +28,7 @@ const MUTATED_HTML = HISTORICAL_HTML
   .replace("Estimated Cost:", "Total Estimated Cost:")
   .replace("TABS2027003697", "TABS2027009888");
 
-describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive DOM (Ticket #27)", () => {
+describe("<GridlockRepairChangelogWidget /> Timeline, Live Core Pipeline & Interactive DOM (Ticket #27)", () => {
   test("Core ingestTdlrFiling + runOutOfBandRepairAgent -> HTTP -> Widget pipeline renders interactive repair_agent marker", async () => {
     const repository = createInMemoryGridlockRepository();
     const okIngest = await ingestTdlrFiling(
@@ -72,10 +72,10 @@ describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const apiBaseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     try {
-      const snap = await fetchRepairLogSnapshot({ apiBaseUrl });
+      const snap = await fetchRepairChangelogSnapshot({ apiBaseUrl });
       assert.equal(snap.ok, true);
       const html = renderToStaticMarkup(
-        <GridlockRepairLogWidget changelog={snap.changelog} efficiencyScorecard={snap.efficiencyScorecard} apiBaseUrl={apiBaseUrl} />
+        <GridlockRepairChangelogWidget changelog={snap.changelog} efficiencyScorecard={snap.efficiencyScorecard} apiBaseUrl={apiBaseUrl} />
       );
       assert.match(html, /<rect[^>]*role="button"[^>]*aria-pressed="true"[^>]*aria-label="Inspect Out-of-Band Repair v1 → v2 \(2026-10-27\)"/);
       assert.match(html, /Copy Interaction ID inter_live_heal_v2/);
@@ -86,7 +86,7 @@ describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive
 
   test("Headless DOM: ArrowLeft/Home/End tabs, SVG chart marker click, collapsed <details> reset, and citation copy reset", async () => {
     await withWidgetDom(async ({ window: win, container, root }) => {
-      await act(async () => { root.render(<GridlockRepairLogWidget {...HealedWithAmortization.args} />); });
+      await act(async () => { root.render(<GridlockRepairChangelogWidget {...HealedWithAmortization.args} />); });
       const getTabs = () => Array.from(container.querySelectorAll('[role="tab"]'));
       const getMarkers = () => Array.from(container.querySelectorAll('rect[role="button"]'));
       const getShaAria = () => container.querySelector(".gridlock-inline-meta .gridlock-copy-chip")?.getAttribute("aria-label") ?? "";

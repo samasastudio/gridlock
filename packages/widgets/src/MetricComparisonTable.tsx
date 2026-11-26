@@ -4,7 +4,7 @@ import { MetricComparisonTableNodeSchema, type CitedProject } from "@samasastudi
 import { buildComparisonBenchmarkModel, unescapeAstProse, type ComparisonRowViewModel } from "./ast-card-model.ts";
 import { GRIDLOCK_AST_CARD_STYLESHEET } from "./ast-card-styles.ts";
 import { CopyCitationButton, DossierNumber, DossierStatusBadge, EDITORIAL_EASE, EXPORT_ARROW_ICON, RELIEF_RETICLE_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
-import { DossierErrorShell, DossierTitle } from "./RepairLogSections.tsx";
+import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 
 const AST_CARD_STYLESHEET_NODE = <style href="gridlock-ast-cards" precedence="default">{GRIDLOCK_AST_CARD_STYLESHEET}</style>;
 const INTEGER_FORMAT = { maximumFractionDigits: 0 } as const;

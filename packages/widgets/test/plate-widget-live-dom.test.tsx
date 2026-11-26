@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { act, createRef } from "react";
 import type { GridlockRepository } from "@samasastudio/gridlock-core";
-import { GridlockPlateWidget, GridlockRepairLogWidget } from "../src/index.ts";
-import { HealedWithAmortization } from "../stories/GridlockRepairLogWidget.stories.tsx";
+import { GridlockPlateWidget, GridlockRepairChangelogWidget } from "../src/index.ts";
+import { HealedWithAmortization } from "../stories/GridlockRepairChangelogWidget.stories.tsx";
 import { waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
 import { seedTestPlateLineage, withTestPlatesServer } from "./helpers/plate-fixtures.ts";
 
@@ -70,7 +70,7 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
     });
   });
 
-  test("Live same-origin apiBaseUrl='' without snapshotPromise schedules useEffect fetch and co-mounts cleanly with GridlockRepairLogWidget", async () => {
+  test("Live same-origin apiBaseUrl='' without snapshotPromise schedules useEffect fetch and co-mounts cleanly with GridlockRepairChangelogWidget", async () => {
     const seeded = await seedTestPlateLineage();
     const requestedUrls: string[] = [];
     const origFetch = globalThis.fetch;
@@ -93,7 +93,7 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
           root.render(
             <div>
               <GridlockPlateWidget lineage={seeded.lineage} apiBaseUrl="" />
-              <GridlockRepairLogWidget {...HealedWithAmortization.args} />
+              <GridlockRepairChangelogWidget {...HealedWithAmortization.args} />
             </div>
           );
         });

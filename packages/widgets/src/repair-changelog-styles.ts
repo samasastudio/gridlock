@@ -1,6 +1,6 @@
 import { GRIDLOCK_DOSSIER_BASE_CSS } from "./dossier-styles.ts";
 
-export const GRIDLOCK_REPAIR_LOG_STYLESHEET = `@layer gridlock-widgets {
+export const GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET = `@layer gridlock-widgets {
 ${GRIDLOCK_DOSSIER_BASE_CSS}
   :where(.gridlock-repair-header) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding-block-end: 1.35rem; margin-block-end: 1.75rem; border-block-end: 1px solid var(--gridlock-border); }
   :where(.gridlock-title-block) { display: flex; flex-direction: column; gap: 0.5rem; }

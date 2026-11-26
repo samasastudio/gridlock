@@ -10,7 +10,7 @@ describe("@samasastudio/gridlock-widgets shell", () => {
     assert.deepEqual(GRIDLOCK_WIDGET_MANIFEST.widgets, [
       "GridlockPlateWidget",
       "GridlockConsoleWidget",
-      "GridlockRepairLogWidget",
+      "GridlockRepairChangelogWidget",
     ]);
 
     const sha256 = "a".repeat(64);

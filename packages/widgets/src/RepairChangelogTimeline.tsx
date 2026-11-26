@@ -37,7 +37,7 @@ function SelectorDiffTable({ entry, captionId }: { entry: RepairChangelogEntry; 
   );
 }
 
-export function RepairLogTimelineSection(props: {
+export function RepairChangelogTimelineSection(props: {
   baseId: string;
   changelog: RepairChangelogResponse;
   activeEntry?: RepairChangelogEntry;

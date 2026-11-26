@@ -87,7 +87,7 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
         content: "export const SubIndexHelper = 42;",
       },
       {
-        relPath: "packages/widgets/src/RepairLogTimeline.tsx",
+        relPath: "packages/widgets/src/RepairChangelogTimeline.tsx",
         content: [
           'import { EDITORIAL_EASE, type TypeMasked } from "./DossierPrimitives.tsx";',
           'import { SubIndexHelper } from "./sub";',
@@ -98,7 +98,7 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
       {
         relPath: "packages/widgets/src/index.ts",
         content:
-          'export { DossierNumber } from "./DossierPrimitives.tsx";\nexport { Timeline } from "./RepairLogTimeline.tsx";',
+          'export { DossierNumber } from "./DossierPrimitives.tsx";\nexport { Timeline } from "./RepairChangelogTimeline.tsx";',
       },
     ]);
 
@@ -106,7 +106,7 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
     assert.ok(violations.some((v) => v.includes('"EDITORIAL_TRANSITION"')));
     assert.ok(violations.some((v) => v.includes('"CALM_FADE_TRANSITION"')));
     assert.ok(violations.some((v) => v.includes('"TypeMasked"')));
-    assert.ok(violations.some((v) => v.includes('RepairLogTimeline.tsx: Unused module export "ReExportedOrphan"')));
+    assert.ok(violations.some((v) => v.includes('RepairChangelogTimeline.tsx: Unused module export "ReExportedOrphan"')));
   });
 
   test("evaluateSourceFileLintRules enforces non-mutative control flow (let, for, while, .forEach) in widgets and core while permitting const, .map, and recursion", () => {

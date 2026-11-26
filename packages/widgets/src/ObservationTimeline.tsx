@@ -10,7 +10,7 @@ import {
 import { buildObservationTimelineEntries, summarizeObservationTrajectory, unescapeAstProse, type TimelineEntryViewModel } from "./ast-card-model.ts";
 import { GRIDLOCK_AST_CARD_STYLESHEET } from "./ast-card-styles.ts";
 import { CopyCitationButton, DossierNumber, DossierStatusBadge, EDITORIAL_EASE, EXPORT_ARROW_ICON, RELIEF_RETICLE_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
-import { DossierErrorShell, DossierTitle } from "./RepairLogSections.tsx";
+import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 
 const AST_CARD_STYLESHEET_NODE = <style href="gridlock-ast-cards" precedence="default">{GRIDLOCK_AST_CARD_STYLESHEET}</style>;
 const META_DOT_NODE = <span aria-hidden="true">·</span>;

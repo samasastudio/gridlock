@@ -5,14 +5,14 @@ import {
   type RepairChangelogResponse,
 } from "@samasastudio/gridlock-core/schemas";
 
-export interface RepairLogQuery {
+export interface RepairChangelogQuery {
   apiBaseUrl: string;
   connectorId?: string;
   limit?: number;
   runsLimit?: number;
 }
 
-export type RepairLogSnapshotResult =
+export type RepairChangelogSnapshotResult =
   | { ok: true; changelog: RepairChangelogResponse; efficiencyScorecard: EfficiencyScorecard }
   | { ok: false; message: string; statusCode?: number };
 
@@ -29,7 +29,7 @@ function buildEndpointUrl(
   return query ? `${base}${pathname}?${query}` : `${base}${pathname}`;
 }
 
-export function buildRepairChangelogUrl(options: RepairLogQuery & { format?: "json" | "md" }): string {
+export function buildRepairChangelogUrl(options: RepairChangelogQuery & { format?: "json" | "md" }): string {
   return buildEndpointUrl(options.apiBaseUrl, "/api/repairs/changelog", {
     connector_id: options.connectorId,
     limit: options.limit,
@@ -46,9 +46,9 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
   }
 }
 
-export async function fetchRepairLogSnapshot(
-  options: RepairLogQuery & { signal?: AbortSignal }
-): Promise<RepairLogSnapshotResult> {
+export async function fetchRepairChangelogSnapshot(
+  options: RepairChangelogQuery & { signal?: AbortSignal }
+): Promise<RepairChangelogSnapshotResult> {
   try {
     const [changelogRes, scorecardRes] = await Promise.all([
       globalThis.fetch(buildRepairChangelogUrl(options), { signal: options.signal }),
