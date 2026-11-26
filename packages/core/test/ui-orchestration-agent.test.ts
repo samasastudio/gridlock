@@ -574,7 +574,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
     const corruptVariants: GridlockRepository[] = [
       {
         ...repository,
-        listVisualPlatesByLineage: async () => [{ plateId: "bad" }] as never,
+        listGeneratedIllustrationsByTimeline: async () => [{ plateId: "bad" }] as never,
       },
       {
         ...repository,

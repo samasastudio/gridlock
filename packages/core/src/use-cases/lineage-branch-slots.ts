@@ -1,6 +1,6 @@
 import type { Buffer } from "node:buffer";
-import type { GridlockRepository, VisualPlate } from "../interfaces/index.ts";
-import { isVisualPlateActiveAt } from "./helpers/painter-helpers.ts";
+import type { GeneratedIllustration, GridlockRepository } from "../interfaces/index.ts";
+import { isGeneratedIllustrationActiveAt } from "./helpers/painter-helpers.ts";
 
 interface BranchReservation {
   plateId: string | null;
@@ -60,14 +60,14 @@ async function withSlotLock<T>(
 }
 
 export function countOccupiedBranchSlots(
-  plates: readonly VisualPlate[],
+  plates: readonly GeneratedIllustration[],
   repo: GridlockRepository,
   lineageId: string,
   now: Date
 ): number {
   const activeBranchIds = new Set(
     plates
-      .filter((plate) => plate.isBranch && isVisualPlateActiveAt(plate, now))
+      .filter((plate) => plate.isBranch && isGeneratedIllustrationActiveAt(plate, now))
       .map((plate) => plate.plateId)
   );
   const reservations =
@@ -115,11 +115,11 @@ export function wrapRepositoryWithBranchSlot(
 ): GridlockRepository {
   return new Proxy(repo, {
     get(target, prop, receiver: unknown): unknown {
-      if (prop === "saveVisualPlate") {
-        return async (plate: VisualPlate, webpBuffer: Buffer) => {
+      if (prop === "saveGeneratedIllustration") {
+        return async (plate: GeneratedIllustration, webpBuffer: Buffer) => {
           slot.markPersisting(plate.plateId);
           try {
-            await target.saveVisualPlate(plate, webpBuffer);
+            await target.saveGeneratedIllustration(plate, webpBuffer);
           } finally {
             await slot.release();
           }

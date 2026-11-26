@@ -1,7 +1,7 @@
 import {
+  GeneratedIllustrationSchema,
   RepairChangelogEntrySchema,
-  VisualPlateSchema,
-  type EpistemicPlateLabel,
+  type EpistemicIllustrationLabel,
   type LineageNode,
   type PlateLineageResponse,
   type RepairChangelogResponse,
@@ -17,7 +17,7 @@ export interface OrchestrationCatalogPlateSummary {
   plateId: string;
   turnNumber: number;
   isBranch: boolean;
-  epistemicLabel: EpistemicPlateLabel;
+  epistemicLabel: EpistemicIllustrationLabel;
   projectNumbers: readonly string[];
   scenarioPrompt?: string;
 }
@@ -68,7 +68,7 @@ export function extractValidatedLineageIds(
     );
   }
 
-  const parsedItems = rawAllPlates.map((item: unknown) => VisualPlateSchema.safeParse(item));
+  const parsedItems = rawAllPlates.map((item: unknown) => GeneratedIllustrationSchema.safeParse(item));
   if (parsedItems.some((parsed) => !parsed.success)) {
     return stepFailure(
       "repository_integrity_error",

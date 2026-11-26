@@ -2,8 +2,8 @@ import {
   BranchPlateResponseSchema,
   DEFAULT_LINEAGE_ID,
   DEFAULT_MAX_BRANCHES_PER_LINEAGE,
+  GeneratedIllustrationSchema,
   LineageNodeSchema,
-  VisualPlateSchema,
   type BranchPlateRequest,
   type BranchPlateResponse,
   type GeminiInteractionsClient,
@@ -13,7 +13,7 @@ import {
   type RunSpanSink,
 } from "../interfaces/index.ts";
 import { hydrateLineageNodes } from "./get-plate-lineage.ts";
-import { isVisualPlateActiveAt } from "./helpers/painter-helpers.ts";
+import { isGeneratedIllustrationActiveAt } from "./helpers/painter-helpers.ts";
 import { countOccupiedBranchSlots } from "./lineage-branch-slots.ts";
 import { branchLineage } from "./run-painter-agent.ts";
 
@@ -77,10 +77,10 @@ export async function branchPlate(
 ): Promise<BranchPlateResult> {
   try {
     const parentCandidate =
-      await deps.repository.getVisualPlateByInteractionId(input.interactionId);
+      await deps.repository.getGeneratedIllustrationByInteractionId(input.interactionId);
     const parsedParent =
       parentCandidate !== null && parentCandidate !== undefined
-        ? VisualPlateSchema.safeParse(parentCandidate)
+        ? GeneratedIllustrationSchema.safeParse(parentCandidate)
         : null;
     if (
       parsedParent !== null &&
@@ -98,7 +98,7 @@ export async function branchPlate(
     const lineageId =
       input.lineageId ?? validParent?.lineageId ?? DEFAULT_LINEAGE_ID;
     const rawLineagePlates =
-      await deps.repository.listVisualPlatesByLineage(lineageId);
+      await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
     if (!Array.isArray(rawLineagePlates)) {
       return branchErr(
         500,
@@ -108,7 +108,7 @@ export async function branchPlate(
     }
 
     const parsedLineage = rawLineagePlates.map((plate) =>
-      VisualPlateSchema.safeParse(plate)
+      GeneratedIllustrationSchema.safeParse(plate)
     );
     if (
       parsedLineage.some(
@@ -129,7 +129,7 @@ export async function branchPlate(
     if (
       !validParent ||
       validParent.lineageId !== lineageId ||
-      !isVisualPlateActiveAt(validParent, now)
+      !isGeneratedIllustrationActiveAt(validParent, now)
     ) {
       return branchErr(
         404,
@@ -195,7 +195,7 @@ export async function branchPlate(
     if (painterResult.status === "painter_failed") {
       return mapPainterFailure(painterResult.errorCode, painterResult.reason);
     }
-    if (painterResult.status !== "plate_painted") {
+    if (painterResult.status !== "illustration_painted") {
       return branchErr(
         500,
         "plate_branch_error",
@@ -205,13 +205,13 @@ export async function branchPlate(
 
     const parentNode = parentHydrated.nodes[0];
     const branchedNode = LineageNodeSchema.safeParse({
-      plate: painterResult.plate,
-      assetPath: `/api/plates/assets/${encodeURIComponent(painterResult.plate.plateId)}.webp`,
+      plate: painterResult.illustration,
+      assetPath: `/api/plates/assets/${encodeURIComponent(painterResult.illustration.plateId)}.webp`,
       triggeringObservations: parentNode.triggeringObservations.filter((obs) =>
-        painterResult.plate.triggeringObservationIds.includes(obs.id)
+        painterResult.illustration.triggeringObservationIds.includes(obs.id)
       ),
       rawCaptures: parentNode.rawCaptures.filter((art) =>
-        painterResult.plate.rawCaptureHashes.includes(art.sha256)
+        painterResult.illustration.rawCaptureHashes.includes(art.sha256)
       ),
     });
     if (!branchedNode.success) {
@@ -223,7 +223,7 @@ export async function branchPlate(
     }
 
     const validated = BranchPlateResponseSchema.safeParse({
-      plate: painterResult.plate,
+      plate: painterResult.illustration,
       node: branchedNode.data,
       lineageId: painterResult.lineageId,
       tokensUsed: painterResult.tokensUsed,

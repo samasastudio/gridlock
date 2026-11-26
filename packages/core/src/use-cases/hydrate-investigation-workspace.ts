@@ -34,7 +34,7 @@ export interface HydrateInvestigationWorkspaceDeps {
     | "getProjectByNumber"
     | "getRawCaptureByHash"
     | "listObservationsByProject"
-    | "listVisualPlatesByLineage"
+    | "listGeneratedIllustrationsByTimeline"
     | "getActiveConnectorConfig"
     | "listRepairChangelog"
     | "getEfficiencyScorecard"

@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import {
   ARTIFACT_BUCKET_URI, CANONICAL_MILESTONE_LABEL, DEFAULT_LINEAGE_ID, PAINTER_AGENT_MODEL,
   PlateLineageResponseSchema, SCENARIO_BRANCH_WATERMARK,
-  type LineageEdge, type LineageNode, type LineageSourceCitation, type Observation, type VisualPlate,
+  type LineageEdge, type LineageNode, type LineageSourceCitation, type Observation, type GeneratedIllustration,
 } from "@samasastudio/gridlock-core/schemas";
 import { GridlockPlateWidget, type GridlockPlateWidgetProps } from "../src/index.ts";
 import { makeMineralCorridorWebpUri } from "./mineral-corridor-webp.ts";
@@ -39,7 +39,7 @@ function makeMilestoneObs(
 }
 
 function makePlateNode(
-  plate: Omit<VisualPlate, "lineageId" | "model" | "mimeType" | "byteLength">,
+  plate: Omit<GeneratedIllustration, "lineageId" | "model" | "mimeType" | "byteLength">,
   triggeringObservations: Observation[],
   rawCaptures: LineageSourceCitation[]
 ): LineageNode {
@@ -69,7 +69,7 @@ const NODE_T1 = makePlateNode({
   parentInteractionId: null, parentPlateId: null, rebootstrappedFromParentWebp: false,
   projectNumbers: ["TABS2027003697"], triggeringObservationIds: [OBS_T1.id], rawCaptureHashes: [HASH_T1],
   prompt: "Bootstrap Ellis County 345kV data center corridor plate from TABS2027003697",
-  storageUri: `${ARTIFACT_BUCKET_URI}/plates/plate_corridor_t1.webp`, sha256: "1".repeat(64),
+  storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/plate_corridor_t1.webp`, sha256: "1".repeat(64),
   isBranch: false, epistemicLabel: CANONICAL_MILESTONE_LABEL, watermarkText: null,
   createdAt: "2026-10-27T14:05:00.000Z", expiresAt: null,
 }, [OBS_T1], [makeCitation(HASH_T1, "2026-10-27T14:00:00.000Z")]);
@@ -80,7 +80,7 @@ const NODE_T2 = makePlateNode({
   projectNumbers: ["TABS2027003697", "TABS2027004200"],
   triggeringObservationIds: [OBS_T2_PRIMARY.id, OBS_T2_SWITCHGEAR.id], rawCaptureHashes: [HASH_T2, HASH_AGED],
   prompt: "Paint chilled-water loop expansion and TABS2027004200 switchgear interconnect pad",
-  storageUri: `${ARTIFACT_BUCKET_URI}/plates/plate_corridor_t2.webp`, sha256: "2".repeat(64),
+  storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/plate_corridor_t2.webp`, sha256: "2".repeat(64),
   isBranch: false, epistemicLabel: CANONICAL_MILESTONE_LABEL, watermarkText: null,
   createdAt: "2026-10-28T09:15:00.000Z", expiresAt: null,
 }, [OBS_T2_PRIMARY, OBS_T2_SWITCHGEAR], [makeCitation(HASH_T2, "2026-10-28T09:00:00.000Z")]);

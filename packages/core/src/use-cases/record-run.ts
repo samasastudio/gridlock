@@ -144,7 +144,7 @@ export async function recordAgenticStageRun(
     tokensUsed: number;
     interactionId?: string;
     rawByteLength?: number;
-    visualPlateCacheHitsDelta?: number;
+    illustrationCacheHitsDelta?: number;
     startedAt: Date;
     endedAt: Date;
     attributes?: Record<string, string | number | boolean | null>;

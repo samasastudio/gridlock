@@ -118,8 +118,8 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     let force500 = true;
     const flakyRepo: GridlockRepository = {
       ...seeded.repository,
-      async listVisualPlatesByLineage(lineageId) {
-        return force500 ? ([{ broken: true }] as never) : seeded.repository.listVisualPlatesByLineage(lineageId);
+      async listGeneratedIllustrationsByTimeline(lineageId) {
+        return force500 ? ([{ broken: true }] as never) : seeded.repository.listGeneratedIllustrationsByTimeline(lineageId);
       },
     };
 

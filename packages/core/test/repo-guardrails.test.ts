@@ -34,7 +34,7 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
       "painter_bootstrap",
       "painter_milestone_gate",
       "painter_milestone_delta",
-      "painter_branch_lineage",
+      "painter_branch_timeline",
     ]) {
       assert.equal(RunStageSchema.safeParse(stage).success, true);
     }

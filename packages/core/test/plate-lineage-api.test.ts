@@ -22,7 +22,7 @@ import {
   PlateLineageResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
   RawCaptureSchema,
-  VisualPlateSchema,
+  GeneratedIllustrationSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
   type GeminiInteractionsClient,
@@ -163,7 +163,7 @@ async function seedLineageGraph() {
   );
   const b1 = await branchLineage(
     {
-      parentInteractionId: t2.status === "plate_painted" ? t2.plate.interactionId : "",
+      parentInteractionId: t2.status === "illustration_painted" ? t2.illustration.interactionId : "",
       scenarioPrompt: "Simulate +400MW interconnection delay",
       now: new Date("2026-10-27T14:20:00.000Z"),
     },
@@ -171,25 +171,25 @@ async function seedLineageGraph() {
   );
   const b2 = await branchLineage(
     {
-      parentInteractionId: b1.status === "plate_painted" ? b1.plate.interactionId : "",
+      parentInteractionId: b1.status === "illustration_painted" ? b1.illustration.interactionId : "",
       scenarioPrompt: "Add ERCOT transmission constraint",
       now: new Date("2026-12-10T14:20:00.000Z"),
     },
     { repository, geminiClient }
   );
 
-  assert.equal(t1.status, "plate_painted");
-  assert.equal(t2.status, "plate_painted");
-  assert.equal(b1.status, "plate_painted");
-  assert.equal(b2.status, "plate_painted");
+  assert.equal(t1.status, "illustration_painted");
+  assert.equal(t2.status, "illustration_painted");
+  assert.equal(b1.status, "illustration_painted");
+  assert.equal(b2.status, "illustration_painted");
 
   return {
     repository,
     obs1,
-    t1: t1.plate,
-    t2: t2.plate,
-    b1: b1.plate,
-    b2: b2.plate,
+    t1: t1.illustration,
+    t2: t2.illustration,
+    b1: b1.illustration,
+    b2: b2.illustration,
     h1,
     h2,
     hAged,
@@ -229,9 +229,9 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
     );
 
     const { obs1, t1, t2 } = await seedLineageGraph();
-    assert.equal(VisualPlateSchema.safeParse({ ...t1, plateId: "plate/1" }).success, false);
-    assert.equal(VisualPlateSchema.safeParse({ ...t1, lineageId: "austin/north" }).success, false);
-    assert.equal(VisualPlateSchema.safeParse({ ...t1, lineageId: "austin north" }).success, false);
+    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, plateId: "plate/1" }).success, false);
+    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, lineageId: "austin/north" }).success, false);
+    assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, lineageId: "austin north" }).success, false);
     const t1NodeBase = {
       plate: t1,
       assetPath: `/api/plates/assets/${t1.plateId}.webp`,
@@ -340,14 +340,14 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
 
     const proxyRepo: GridlockRepository = {
       ...repository,
-      listVisualPlatesByLineage: async (id) => {
+      listGeneratedIllustrationsByTimeline: async (id) => {
         if (fault === "throw") {
           throw new Error("db down");
         }
         if (fault === "plate") {
           return [{ ...t1, lineageId: "wrong" }] as never;
         }
-        return repository.listVisualPlatesByLineage(id);
+        return repository.listGeneratedIllustrationsByTimeline(id);
       },
       listObservationsByProject: async (projectNumber) =>
         fault === "obs"
@@ -412,9 +412,9 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
 
     const proxyRepo: GridlockRepository = {
       ...repository,
-      readVisualPlateWebp: async (id) => {
+      readGeneratedIllustrationWebp: async (id) => {
         readWebpCalls += 1;
-        return dropBlob ? null : repository.readVisualPlateWebp(id);
+        return dropBlob ? null : repository.readGeneratedIllustrationWebp(id);
       },
     };
 
@@ -501,7 +501,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
 
   test("Enforces 400 query rejection, 405 Allow: GET, and 500 fail-closed metadata/WebP integrity verification with clean 200 recovery", async () => {
     const { repository, t1 } = await seedLineageGraph();
-    const validBuf = (await repository.readVisualPlateWebp(t1.plateId))!;
+    const validBuf = (await repository.readGeneratedIllustrationWebp(t1.plateId))!;
     const flippedBuf = createFixtureWebpBuffer("tampered-valid-webp");
 
     assert.ok(isWebpBuffer(flippedBuf));
@@ -533,20 +533,20 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
     let readWebpCalls = 0;
     const proxyRepo: GridlockRepository = {
       ...repository,
-      getVisualPlateById: async (id) => {
+      getGeneratedIllustrationById: async (id) => {
         if (fault === "throw") {
           throw new Error("offline");
         }
         if (fault in metaFaults) {
           return metaFaults[fault] as never;
         }
-        return repository.getVisualPlateById(id);
+        return repository.getGeneratedIllustrationById(id);
       },
-      readVisualPlateWebp: async (id) => {
+      readGeneratedIllustrationWebp: async (id) => {
         readWebpCalls += 1;
         return fault in blobFaults
           ? blobFaults[fault]!
-          : repository.readVisualPlateWebp(id);
+          : repository.readGeneratedIllustrationWebp(id);
       },
     };
 
@@ -876,14 +876,14 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
 
     const proxyRepo: GridlockRepository = {
       ...repository,
-      getVisualPlateByInteractionId: async (id) =>
+      getGeneratedIllustrationByInteractionId: async (id) =>
         fault === "parent"
           ? ({ ...t2, interactionId: "mismatch" } as never)
-          : repository.getVisualPlateByInteractionId(id),
-      listVisualPlatesByLineage: async (id) =>
+          : repository.getGeneratedIllustrationByInteractionId(id),
+      listGeneratedIllustrationsByTimeline: async (id) =>
         fault === "lineage"
           ? ([{ plateId: "corrupt" }] as never)
-          : repository.listVisualPlatesByLineage(id),
+          : repository.listGeneratedIllustrationsByTimeline(id),
       listObservationsByProject: async (projectNumber) =>
         fault === "obs"
           ? ([{ id: "bad" }] as never)
@@ -1120,7 +1120,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
 
         const paintedCount =
           Number(httpOutcome.status === 201) +
-          Number(directOutcome.status === "plate_painted");
+          Number(directOutcome.status === "illustration_painted");
         assert.equal(paintedCount, 1);
         assert.equal(recordedRequests.length, 2);
 
@@ -1131,7 +1131,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         }
         if (directOutcome.status === "painter_failed") {
           assert.equal(directOutcome.errorCode, "branch_quota_exceeded");
-        } else if (directOutcome.status !== "plate_painted") {
+        } else if (directOutcome.status !== "illustration_painted") {
           assert.fail(`Unexpected directOutcome status: ${directOutcome.status}`);
         }
       }
@@ -1152,15 +1152,15 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
 
     const delayedRunRepo: GridlockRepository = {
       ...teleRepo,
-      saveVisualPlate: async (plate, webpBuf) => {
-        await teleRepo.saveVisualPlate(plate, webpBuf);
+      saveGeneratedIllustration: async (plate, webpBuf) => {
+        await teleRepo.saveGeneratedIllustration(plate, webpBuf);
         if (plate.isBranch && !notifiedSaved) {
           notifiedSaved = true;
           markSaved?.();
         }
       },
       recordRunRecord: async (run, updates) => {
-        if (run.stage === "painter_branch_lineage" && !blockedFirstRun) {
+        if (run.stage === "painter_branch_timeline" && !blockedFirstRun) {
           blockedFirstRun = true;
           await runGate;
         }

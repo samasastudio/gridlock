@@ -10,14 +10,14 @@ import { Sha256HashSchema, TdlrProjectNumberSchema } from "./primitives.ts";
 
 const SafeSegmentIdSchema = z.string().regex(/^(?!\.\.?$)[^\s/]+$/);
 
-export const EpistemicPlateLabelSchema = z.enum([
+export const EpistemicIllustrationLabelSchema = z.enum([
   CANONICAL_MILESTONE_LABEL,
   SCENARIO_BRANCH_WATERMARK,
 ]);
 
-export type EpistemicPlateLabel = z.infer<typeof EpistemicPlateLabelSchema>;
+export type EpistemicIllustrationLabel = z.infer<typeof EpistemicIllustrationLabelSchema>;
 
-export const VisualPlateSchema = z
+export const GeneratedIllustrationSchema = z
   .object({
     plateId: SafeSegmentIdSchema,
     lineageId: SafeSegmentIdSchema,
@@ -37,7 +37,7 @@ export const VisualPlateSchema = z
     sha256: Sha256HashSchema,
     isBranch: z.boolean(),
     scenarioPrompt: z.string().min(1).max(MAX_SCENARIO_PROMPT_LENGTH).optional(),
-    epistemicLabel: EpistemicPlateLabelSchema,
+    epistemicLabel: EpistemicIllustrationLabelSchema,
     watermarkText: z.literal(SCENARIO_BRANCH_WATERMARK).nullable(),
     createdAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),
@@ -48,38 +48,38 @@ export const VisualPlateSchema = z
 
     if (plate.isBranch) {
       if (plate.epistemicLabel !== SCENARIO_BRANCH_WATERMARK) {
-        fail("epistemicLabel", `Branched VisualPlate requires "${SCENARIO_BRANCH_WATERMARK}"`);
+        fail("epistemicLabel", `Branched GeneratedIllustration requires "${SCENARIO_BRANCH_WATERMARK}"`);
       }
       if (plate.watermarkText !== SCENARIO_BRANCH_WATERMARK) {
-        fail("watermarkText", `Branched VisualPlate requires "${SCENARIO_BRANCH_WATERMARK}"`);
+        fail("watermarkText", `Branched GeneratedIllustration requires "${SCENARIO_BRANCH_WATERMARK}"`);
       }
       if (!plate.storageUri.includes("/branches/ephemeral/")) {
-        fail("storageUri", "Branched VisualPlate storageUri must use /branches/ephemeral/");
+        fail("storageUri", "Branched GeneratedIllustration storageUri must use /branches/ephemeral/");
       }
       if (plate.expiresAt === null) {
-        fail("expiresAt", "Branched VisualPlate requires a 90-day expiresAt TTL");
+        fail("expiresAt", "Branched GeneratedIllustration requires a 90-day expiresAt TTL");
       }
       return;
     }
 
     if (plate.epistemicLabel !== CANONICAL_MILESTONE_LABEL) {
-      fail("epistemicLabel", `Canonical VisualPlate requires "${CANONICAL_MILESTONE_LABEL}"`);
+      fail("epistemicLabel", `Canonical GeneratedIllustration requires "${CANONICAL_MILESTONE_LABEL}"`);
     }
     if (plate.watermarkText !== null) {
-      fail("watermarkText", "Canonical VisualPlate requires watermarkText: null");
+      fail("watermarkText", "Canonical GeneratedIllustration requires watermarkText: null");
     }
-    if (!plate.storageUri.includes("/plates/") || plate.storageUri.includes("/branches/ephemeral/")) {
-      fail("storageUri", "Canonical VisualPlate storageUri must use /plates/");
+    if (!plate.storageUri.includes("/illustrations/") || plate.storageUri.includes("/branches/ephemeral/")) {
+      fail("storageUri", "Canonical GeneratedIllustration storageUri must use /illustrations/");
     }
     if (plate.expiresAt !== null) {
-      fail("expiresAt", "Canonical VisualPlate requires permanent expiresAt: null");
+      fail("expiresAt", "Canonical GeneratedIllustration requires permanent expiresAt: null");
     }
     if (plate.scenarioPrompt !== undefined) {
-      fail("scenarioPrompt", "Canonical VisualPlate must not set scenarioPrompt");
+      fail("scenarioPrompt", "Canonical GeneratedIllustration must not set scenarioPrompt");
     }
   });
 
-export type VisualPlate = z.infer<typeof VisualPlateSchema>;
+export type GeneratedIllustration = z.infer<typeof GeneratedIllustrationSchema>;
 
 export type PainterErrorCode =
   | "lineage_already_bootstrapped"
@@ -96,13 +96,13 @@ export type StatefulPainterResult =
       lineageId: string;
       tokensUsed: 0;
       imageGenerationsAvoided: number;
-      activePlate: VisualPlate | null;
+      activeIllustration: GeneratedIllustration | null;
     }
   | {
-      status: "plate_painted";
+      status: "illustration_painted";
       operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchLineage";
       lineageId: string;
-      plate: VisualPlate;
+      illustration: GeneratedIllustration;
       webpBuffer: Buffer;
       tokensUsed: number;
       rebootstrappedFromParentWebp: boolean;
@@ -113,7 +113,7 @@ export type StatefulPainterResult =
       reason: string;
       errorCode: PainterErrorCode;
       tokensUsed: number;
-      activePlate: VisualPlate | null;
+      activeIllustration: GeneratedIllustration | null;
     };
 
 export const LineageSourceCitationSchema = z.object({
@@ -128,7 +128,7 @@ export type LineageSourceCitation = z.infer<typeof LineageSourceCitationSchema>;
 
 export const LineageNodeSchema = z
   .object({
-    plate: VisualPlateSchema,
+    plate: GeneratedIllustrationSchema,
     assetPath: z.string().startsWith("/api/plates/assets/").endsWith(".webp"),
     triggeringObservations: z.array(ObservationSchema),
     rawCaptures: z.array(LineageSourceCitationSchema),
@@ -259,7 +259,7 @@ export type BranchPlateRequest = z.infer<typeof BranchPlateRequestSchema>;
 
 export const BranchPlateResponseSchema = z
   .object({
-    plate: VisualPlateSchema,
+    plate: GeneratedIllustrationSchema,
     node: LineageNodeSchema,
     lineageId: SafeSegmentIdSchema,
     tokensUsed: z.number().int().nonnegative(),

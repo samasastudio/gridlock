@@ -63,22 +63,22 @@ export {
 export {
   BranchPlateRequestSchema,
   BranchPlateResponseSchema,
-  EpistemicPlateLabelSchema,
+  EpistemicIllustrationLabelSchema,
+  GeneratedIllustrationSchema,
   LineageEdgeSchema,
   LineageNodeSchema,
   LineageSourceCitationSchema,
   PlateLineageResponseSchema,
-  VisualPlateSchema,
   type BranchPlateRequest,
   type BranchPlateResponse,
-  type EpistemicPlateLabel,
+  type EpistemicIllustrationLabel,
+  type GeneratedIllustration,
   type LineageEdge,
   type LineageNode,
   type LineageSourceCitation,
   type PainterErrorCode,
   type PlateLineageResponse,
   type StatefulPainterResult,
-  type VisualPlate,
 } from "./painter-models.ts";
 
 export type {

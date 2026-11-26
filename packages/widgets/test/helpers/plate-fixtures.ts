@@ -84,27 +84,27 @@ export async function seedTestPlateLineage() {
   const t1 = await bootstrapCanvas({ observations: [obs1], now: new Date("2026-10-27T14:05:00.000Z") }, { repository, geminiClient });
   const t2 = await paintMilestoneDelta({ observations: [obs2, obsAged], now: new Date("2026-10-28T09:15:00.000Z") }, { repository, geminiClient });
   await repository.saveRawCapture(buildFixtureArtifact(hAged, "2026-10-01T00:00:00.000Z"), gzBytes);
-  assert.equal(t1.status, "plate_painted");
-  assert.equal(t2.status, "plate_painted");
+  assert.equal(t1.status, "illustration_painted");
+  assert.equal(t2.status, "illustration_painted");
 
   const b1 = await branchLineage(
-    { parentInteractionId: t2.plate.interactionId, scenarioPrompt: "Simulate +400MW ERCOT substation interconnection delay", now: new Date("2026-10-29T11:00:00.000Z") },
+    { parentInteractionId: t2.illustration.interactionId, scenarioPrompt: "Simulate +400MW ERCOT substation interconnection delay", now: new Date("2026-10-29T11:00:00.000Z") },
     { repository, geminiClient }
   );
-  assert.equal(b1.status, "plate_painted");
-  b1InteractionId = b1.plate.interactionId;
+  assert.equal(b1.status, "illustration_painted");
+  b1InteractionId = b1.illustration.interactionId;
 
   const b2 = await branchLineage(
-    { parentInteractionId: b1.plate.interactionId, scenarioPrompt: "Model dual-feed 345kV transmission reroute around Ellis County", now: new Date("2026-10-30T15:00:00.000Z") },
+    { parentInteractionId: b1.illustration.interactionId, scenarioPrompt: "Model dual-feed 345kV transmission reroute around Ellis County", now: new Date("2026-10-30T15:00:00.000Z") },
     { repository, geminiClient }
   );
-  assert.equal(b2.status, "plate_painted");
-  assert.equal(b2.plate.rebootstrappedFromParentWebp, true);
+  assert.equal(b2.status, "illustration_painted");
+  assert.equal(b2.illustration.rebootstrappedFromParentWebp, true);
 
   const hydrated = await getPlateLineage({ now: PLATE_FIXTURE_NOW }, { repository });
   if (!hydrated.ok) throw new Error(hydrated.message);
 
-  return { repository, geminiClient, lineage: hydrated.lineage, t1: t1.plate, t2: t2.plate, b1: b1.plate, b2: b2.plate, h1, h2, hAged };
+  return { repository, geminiClient, lineage: hydrated.lineage, t1: t1.illustration, t2: t2.illustration, b1: b1.illustration, b2: b2.illustration, h1, h2, hAged };
 }
 
 export function buildBranchOnlyLineage(
@@ -141,13 +141,13 @@ export async function seedTurn1ForkLineage(
     { repository: seeded.repository }
   );
 
-  if (bFromT1.status !== "plate_painted" || !refreshed.ok) {
+  if (bFromT1.status !== "illustration_painted" || !refreshed.ok) {
     assert.fail("Expected Turn 1 scenario branch and lineage hydration to succeed");
   }
 
   return {
     lineage: refreshed.lineage,
-    branchPlate: bFromT1.plate,
+    branchPlate: bFromT1.illustration,
   };
 }
 

@@ -5,28 +5,28 @@ import {
   RawCaptureSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionsClient,
+  type GeneratedIllustration,
   type GridlockRepository,
   type Observation,
   type PainterErrorCode,
   type PainterImageEncoder,
   type StatefulPainterResult,
   type RunSpanSink,
-  type VisualPlate,
 } from "../interfaces/index.ts";
 import {
-  buildVisualPlateRecord,
+  buildGeneratedIllustrationRecord,
   buildWebpMultimodalInput,
   classifyNonCompletedInteraction,
   classifyThrownPainterError,
   evaluateMilestoneObservations,
   isExpiredOrRejectedPreviousInteraction,
-  prepareFinalPlateWebp,
-  selectActiveCanonicalPlate,
+  prepareFinalIllustrationWebp,
+  selectActiveCanonicalIllustration,
+  type GeneratedIllustrationTurnSpec,
   type PainterCompletedTurn,
   type PainterInteractionFailure,
   type PainterStage,
   type PainterTurnAttemptResult,
-  type VisualPlateTurnSpec,
 } from "./helpers/painter-helpers.ts";
 import {
   defaultPainterImageEncoder,
@@ -36,7 +36,7 @@ import { recordAgenticStageRun, recordStageRun } from "./record-run.ts";
 
 export interface PainterTurnContext {
   lineageId: string;
-  activePlate: VisualPlate | null;
+  activeIllustration: GeneratedIllustration | null;
   now: Date;
   startedWallMs: number;
   repository: GridlockRepository;
@@ -49,23 +49,23 @@ export type PainterMilestoneGateOutcome =
   | {
       shouldPaint: true;
       ctx: PainterTurnContext;
-      existingPlates: VisualPlate[];
+      existingPlates: GeneratedIllustration[];
       milestoneObservations: Observation[];
     };
 
 export async function preparePainterTurn(
   input: { lineageId?: string; now?: Date },
   deps: { repository: GridlockRepository; imageEncoder?: PainterImageEncoder; spanSink?: RunSpanSink }
-): Promise<{ ctx: PainterTurnContext; existingPlates: VisualPlate[] }> {
+): Promise<{ ctx: PainterTurnContext; existingPlates: GeneratedIllustration[] }> {
   const startedWallMs = Date.now();
   const lineageId = input.lineageId ?? DEFAULT_LINEAGE_ID;
   const now = input.now ?? new Date();
-  const existingPlates = await deps.repository.listVisualPlatesByLineage(lineageId);
-  const activePlate = selectActiveCanonicalPlate(existingPlates);
+  const existingPlates = await deps.repository.listGeneratedIllustrationsByTimeline(lineageId);
+  const activeIllustration = selectActiveCanonicalIllustration(existingPlates);
   return {
     ctx: {
       lineageId,
-      activePlate,
+      activeIllustration,
       now,
       startedWallMs,
       repository: deps.repository,
@@ -118,7 +118,7 @@ async function recordMilestoneSkip(
     lineageId: ctx.lineageId,
     tokensUsed: 0,
     imageGenerationsAvoided: scorecard.imageGenerationsAvoided,
-    activePlate: ctx.activePlate,
+    activeIllustration: ctx.activeIllustration,
   };
 }
 
@@ -159,7 +159,7 @@ export async function tryCreatePainterInteraction(
 export async function requestChainedOrFallbackPainterInteraction(params: {
   geminiClient: GeminiInteractionsClient;
   repository: GridlockRepository;
-  parentPlate: VisualPlate;
+  parentPlate: GeneratedIllustration;
   prompt: string;
 }): Promise<PainterTurnAttemptResult> {
   const primary = await tryCreatePainterInteraction(params.geminiClient, {
@@ -170,10 +170,10 @@ export async function requestChainedOrFallbackPainterInteraction(params: {
   });
   if (primary.ok || !isExpiredOrRejectedPreviousInteraction(primary)) return primary;
 
-  const cachedParentWebp = await params.repository.readVisualPlateWebp(params.parentPlate.plateId);
+  const cachedParentWebp = await params.repository.readGeneratedIllustrationWebp(params.parentPlate.plateId);
   if (!cachedParentWebp || !isWebpBuffer(cachedParentWebp)) return primary;
 
-  const fallbackPrompt = `${params.prompt}\n[Re-bootstrapped from cached parent Visual Plate ${params.parentPlate.plateId} after previous_interaction_id ${params.parentPlate.interactionId} expired]`;
+  const fallbackPrompt = `${params.prompt}\n[Re-bootstrapped from cached parent Generated Illustration ${params.parentPlate.plateId} after previous_interaction_id ${params.parentPlate.interactionId} expired]`;
   const fallback = await tryCreatePainterInteraction(params.geminiClient, {
     model: PAINTER_AGENT_MODEL,
     store: true,
@@ -200,7 +200,7 @@ export async function failClosedPainter(
     },
     runRecordDeps(ctx)
   );
-  return { status: "painter_failed", lineageId: ctx.lineageId, reason: params.reason, errorCode: params.errorCode, tokensUsed: params.tokensUsed, activePlate: ctx.activePlate };
+  return { status: "painter_failed", lineageId: ctx.lineageId, reason: params.reason, errorCode: params.errorCode, tokensUsed: params.tokensUsed, activeIllustration: ctx.activeIllustration };
 }
 
 export async function failClosedInteraction(
@@ -230,9 +230,9 @@ async function pinMilestoneRawCaptures(repository: GridlockRepository, hashes: r
   );
 }
 
-export async function finalizePaintedPlateTurn(
+export async function finalizePaintedIllustrationTurn(
   ctx: PainterTurnContext,
-  params: VisualPlateTurnSpec & {
+  params: GeneratedIllustrationTurnSpec & {
     operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchLineage";
     stage: PainterStage;
     turn: PainterCompletedTurn;
@@ -251,12 +251,12 @@ export async function finalizePaintedPlateTurn(
   if (!encoded.ok) {
     return failClosedPainter(ctx, { stage: params.stage, reason: encoded.reason, errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
-  const finalized = prepareFinalPlateWebp(encoded, params.isBranch);
+  const finalized = prepareFinalIllustrationWebp(encoded, params.isBranch);
   if (!isWebpBuffer(finalized.webpBuffer)) {
-    return failClosedPainter(ctx, { stage: params.stage, reason: "Encoded Visual Plate failed RIFF/WEBP bitstream validation", errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
+    return failClosedPainter(ctx, { stage: params.stage, reason: "Encoded Generated Illustration failed RIFF/WEBP bitstream validation", errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
-  const plate = buildVisualPlateRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: finalized.webpBuffer, sha256: finalized.sha256, createdAt: ctx.now.toISOString() });
-  await ctx.repository.saveVisualPlate(plate, finalized.webpBuffer);
+  const plate = buildGeneratedIllustrationRecord({ ...params, rebootstrappedFromParentWebp, lineageId: ctx.lineageId, interactionId, webpBuffer: finalized.webpBuffer, sha256: finalized.sha256, createdAt: ctx.now.toISOString() });
+  await ctx.repository.saveGeneratedIllustration(plate, finalized.webpBuffer);
   if (finalized.pinCanonicalArtifacts) await pinMilestoneRawCaptures(ctx.repository, plate.rawCaptureHashes);
   await recordAgenticStageRun(
     {
@@ -266,12 +266,12 @@ export async function finalizePaintedPlateTurn(
       tokensUsed,
       interactionId,
       rawByteLength: finalized.webpBuffer.byteLength,
-      ...(rebootstrappedFromParentWebp ? { visualPlateCacheHitsDelta: 1 } : {}),
+      ...(rebootstrappedFromParentWebp ? { illustrationCacheHitsDelta: 1 } : {}),
       startedAt: ctx.now,
       endedAt: turnEndedAt(ctx),
       attributes: { lineageId: ctx.lineageId, plateId: plate.plateId, turnNumber: plate.turnNumber, isBranch: plate.isBranch },
     },
     runRecordDeps(ctx)
   );
-  return { status: "plate_painted", operation: params.operation, lineageId: ctx.lineageId, plate, webpBuffer: finalized.webpBuffer, tokensUsed, rebootstrappedFromParentWebp };
+  return { status: "illustration_painted", operation: params.operation, lineageId: ctx.lineageId, illustration: plate, webpBuffer: finalized.webpBuffer, tokensUsed, rebootstrappedFromParentWebp };
 }
