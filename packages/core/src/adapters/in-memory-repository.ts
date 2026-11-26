@@ -7,23 +7,25 @@ import {
   GeneratedIllustrationSchema,
   ObservationSchema,
   ProjectSchema,
+  RECENT_RUN_RECORDS_LIMIT,
   RepairChangelogEntrySchema,
   RawCaptureSchema,
   RunRecordSchema,
   UnknownConnectorError,
   type ConnectorConfig,
-  type ConnectorPromotionStateUpdate,
+  type ConnectorPromotionTransition,
   type ConnectorStatus,
   type EfficiencyScorecard,
   type GeneratedIllustration,
   type GridlockRepository,
   type Observation,
   type Project,
+  type RawCaptureMetadataTransition,
+  type RecordRunTransition,
   type RepairChangelogEntry,
   type RawCapture,
   type ScorecardQueryOptions,
   type RunRecord,
-  type RunStateUpdate,
 } from "../interfaces/index.ts";
 
 export function createInMemoryGridlockRepository(
@@ -89,6 +91,28 @@ export function createInMemoryGridlockRepository(
       artifactBlobs.set(validated.sha256, Buffer.from(gzipBuffer));
     },
 
+    async updateRawCaptureMetadata(
+      sha256: string,
+      transition: RawCaptureMetadataTransition
+    ): Promise<RawCapture | null> {
+      const existing = artifacts.get(sha256);
+      if (!existing) {
+        return null;
+      }
+      const nextMetadata = transition(structuredClone(existing));
+      if (nextMetadata === null) {
+        return structuredClone(existing);
+      }
+      const validated = RawCaptureSchema.parse(nextMetadata);
+      if (validated.sha256 !== sha256) {
+        throw new Error(
+          `RawCapture metadata transition changed sha256 from ${sha256} to ${validated.sha256}`
+        );
+      }
+      artifacts.set(sha256, structuredClone(validated));
+      return structuredClone(validated);
+    },
+
     async readArtifactGzip(sha256: string): Promise<Buffer | null> {
       const blob = artifactBlobs.get(sha256);
       return blob ? Buffer.from(blob) : null;
@@ -121,16 +145,61 @@ export function createInMemoryGridlockRepository(
 
     async recordRunRecord(
       run: RunRecord,
-      stateUpdate: RunStateUpdate
+      transition: RecordRunTransition
     ): Promise<EfficiencyScorecard> {
       const validatedRun = RunRecordSchema.parse(run);
-      runRecords.push(structuredClone(validatedRun));
-      state.efficiencyScorecard = structuredClone(
-        EfficiencyScorecardSchema.parse(stateUpdate.updatedScorecard)
+      const recentRuns = runRecords
+        .slice(-RECENT_RUN_RECORDS_LIMIT)
+        .map((entry) => structuredClone(entry));
+      const activeConfig = validatedRun.connectorId
+        ? configs.get(validatedRun.connectorId) ?? null
+        : null;
+      const matchingChangelogEntry =
+        validatedRun.connectorId && activeConfig
+          ? state.repairChangelog.reduce<RepairChangelogEntry | null>(
+              (found, entry) =>
+                entry.connectorId === validatedRun.connectorId &&
+                entry.promotedVersion === activeConfig.version
+                  ? entry
+                  : found,
+              null
+            )
+          : null;
+
+      const transitionResult = transition({
+        currentScorecard: structuredClone(state.efficiencyScorecard),
+        recentRuns,
+        activeConfig: activeConfig ? structuredClone(activeConfig) : null,
+        matchingChangelogEntry: matchingChangelogEntry
+          ? structuredClone(matchingChangelogEntry)
+          : null,
+      });
+
+      const validatedScorecard = EfficiencyScorecardSchema.parse(
+        transitionResult.updatedScorecard
       );
-      if (stateUpdate.updatedChangelog) {
-        state.repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
-          structuredClone(RepairChangelogEntrySchema.parse(entry))
+      const validatedChangelogEntry =
+        transitionResult.updatedChangelogEntry != null
+          ? RepairChangelogEntrySchema.parse(
+              transitionResult.updatedChangelogEntry
+            )
+          : null;
+      if (
+        validatedChangelogEntry &&
+        validatedChangelogEntry.id !== matchingChangelogEntry?.id
+      ) {
+        throw new Error(
+          `Run transition attempted to update non-matching RepairChangelogEntry ${validatedChangelogEntry.id}`
+        );
+      }
+
+      runRecords.push(structuredClone(validatedRun));
+      state.efficiencyScorecard = structuredClone(validatedScorecard);
+      if (validatedChangelogEntry) {
+        state.repairChangelog = state.repairChangelog.map((entry) =>
+          entry.id === validatedChangelogEntry.id
+            ? structuredClone(validatedChangelogEntry)
+            : entry
         );
       }
       return structuredClone(state.efficiencyScorecard);
@@ -139,10 +208,7 @@ export function createInMemoryGridlockRepository(
     async getEfficiencyScorecard(
       options?: ScorecardQueryOptions
     ): Promise<EfficiencyScorecard> {
-      const boundedRuns = await this.listRunRecords({
-        ...options,
-        limit: options?.limit ?? 50,
-      });
+      const boundedRuns = await this.listRunRecords(options);
       return EfficiencyScorecardSchema.parse({
         ...structuredClone(state.efficiencyScorecard),
         recentRuns: boundedRuns,
@@ -156,32 +222,68 @@ export function createInMemoryGridlockRepository(
       const filteredRuns = runRecords.filter((run) =>
         executionMode ? run.execution_mode === executionMode : true
       );
-      const sliced =
-        options?.limit !== undefined
-          ? filteredRuns.slice(-options.limit)
-          : filteredRuns;
+      const rawLimit = options?.limit ?? RECENT_RUN_RECORDS_LIMIT;
+      const limit = Number.isFinite(rawLimit)
+        ? rawLimit
+        : RECENT_RUN_RECORDS_LIMIT;
+      const sliced = limit <= 0 ? [] : filteredRuns.slice(-limit);
       return sliced.map((run) => structuredClone(run));
     },
 
     async promoteConnectorConfig(
       config: ConnectorConfig,
       changelogEntry: RepairChangelogEntry,
-      stateUpdate: ConnectorPromotionStateUpdate
+      transition: ConnectorPromotionTransition
     ): Promise<void> {
       const validatedConfig = ConnectorConfigSchema.parse(config);
       const validatedEntry = RepairChangelogEntrySchema.parse(changelogEntry);
-      configs.set(validatedConfig.connectorId, structuredClone(validatedConfig));
-      state.repairChangelog.push(structuredClone(validatedEntry));
+      const existingQuarantined =
+        artifacts.get(validatedEntry.quarantinedArtifactHash) ?? null;
 
-      if (stateUpdate.promotedArtifact) {
-        artifacts.set(
-          validatedEntry.quarantinedArtifactHash,
-          structuredClone(RawCaptureSchema.parse(stateUpdate.promotedArtifact))
+      const transitionResult = transition({
+        currentScorecard: structuredClone(state.efficiencyScorecard),
+        existingChangelog: state.repairChangelog.map((entry) =>
+          structuredClone(entry)
+        ),
+        quarantinedArtifact: existingQuarantined
+          ? structuredClone(existingQuarantined)
+          : null,
+      });
+
+      const validatedScorecard = EfficiencyScorecardSchema.parse(
+        transitionResult.updatedScorecard
+      );
+      const validatedPromotedArtifact =
+        transitionResult.promotedArtifact != null
+          ? RawCaptureSchema.parse(transitionResult.promotedArtifact)
+          : null;
+      if (validatedPromotedArtifact && !existingQuarantined) {
+        throw new Error(
+          `Connector promotion cannot update missing quarantined RawCapture ${validatedEntry.quarantinedArtifactHash}`
         );
       }
-      state.efficiencyScorecard = structuredClone(
-        EfficiencyScorecardSchema.parse(stateUpdate.updatedScorecard)
+      if (
+        validatedPromotedArtifact &&
+        validatedPromotedArtifact.sha256 !==
+          validatedEntry.quarantinedArtifactHash
+      ) {
+        throw new Error(
+          `Connector promotion artifact hash mismatch: expected ${validatedEntry.quarantinedArtifactHash}, got ${validatedPromotedArtifact.sha256}`
+        );
+      }
+
+      configs.set(
+        validatedConfig.connectorId,
+        structuredClone(validatedConfig)
       );
+      state.repairChangelog.push(structuredClone(validatedEntry));
+      if (validatedPromotedArtifact) {
+        artifacts.set(
+          validatedEntry.quarantinedArtifactHash,
+          structuredClone(validatedPromotedArtifact)
+        );
+      }
+      state.efficiencyScorecard = structuredClone(validatedScorecard);
     },
 
     async listRepairChangelog(

@@ -82,7 +82,9 @@ export {
 } from "./painter-models.ts";
 
 export type {
-  ConnectorPromotionStateUpdate,
+  ConnectorPromotionTransition,
+  ConnectorPromotionTransitionContext,
+  ConnectorPromotionTransitionResult,
   GeminiInteractionCreateRequest,
   GeminiInteractionError,
   GeminiInteractionImageBlock,
@@ -95,11 +97,14 @@ export type {
   PainterImageEncodeOptions,
   PainterImageEncodeResult,
   PainterImageEncoder,
+  RawCaptureMetadataTransition,
+  RecordRunTransition,
+  RecordRunTransitionContext,
+  RecordRunTransitionResult,
   SearchLoader,
   ScorecardQueryOptions,
   RunPainterDeltas,
   RunSpanSink,
-  RunStateUpdate,
 } from "./adapter-contracts.ts";
 
 export {
@@ -165,6 +170,7 @@ export {
   NINETY_DAYS_MS,
   ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA,
   PAINTER_AGENT_MODEL,
+  RECENT_RUN_RECORDS_LIMIT,
   REPAIR_AGENT_MODEL,
   SCENARIO_BRANCH_WATERMARK,
   UI_ORCHESTRATION_AGENT_MODEL,

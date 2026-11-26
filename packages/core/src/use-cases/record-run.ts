@@ -1,5 +1,5 @@
 import {
-  type ConnectorConfig,
+  RECENT_RUN_RECORDS_LIMIT,
   type EfficiencyScorecard,
   type ExecutionMode,
   type GridlockRepository,
@@ -18,18 +18,6 @@ import {
 } from "./helpers/scorecard-math.ts";
 
 const noopSpanSink: RunSpanSink = () => {};
-
-async function resolveActiveConnectorConfig(
-  repository: GridlockRepository,
-  connectorId: string | undefined
-): Promise<ConnectorConfig | undefined> {
-  if (!connectorId) return undefined;
-  try {
-    return await repository.getActiveConnectorConfig(connectorId);
-  } catch {
-    return undefined;
-  }
-}
 
 export async function recordStageRun(
   input: RunPainterDeltas & {
@@ -84,33 +72,33 @@ export async function recordStageRun(
     recordedAt: input.recordedAt ?? input.endedAt.toISOString(),
   });
 
-  const currentScorecard = await deps.repository.getEfficiencyScorecard();
-  const existingRuns = await deps.repository.listRunRecords();
-  const recentSlice = [...existingRuns, run].slice(-50);
-  const scorecardAfterRun = applyRunRecordToScorecard(
-    currentScorecard,
+  const scorecard = await deps.repository.recordRunRecord(
     run,
-    recentSlice,
-    input
+    ({
+      currentScorecard,
+      recentRuns,
+      activeConfig,
+      matchingChangelogEntry,
+    }) => {
+      const recentSlice = [...recentRuns, run].slice(-RECENT_RUN_RECORDS_LIMIT);
+      const scorecardAfterRun = applyRunRecordToScorecard(
+        currentScorecard,
+        run,
+        recentSlice,
+        input
+      );
+      const amortized = applyHealAmortization({
+        run,
+        activeConfig,
+        matchingEntry: matchingChangelogEntry,
+        scorecard: scorecardAfterRun,
+      });
+      return {
+        updatedScorecard: amortized.updatedScorecard,
+        updatedChangelogEntry: amortized.updatedEntry,
+      };
+    }
   );
-
-  const activeConfig = await resolveActiveConnectorConfig(
-    deps.repository,
-    run.connectorId
-  );
-
-  const currentChangelog = await deps.repository.listRepairChangelog();
-  const amortized = applyHealAmortization({
-    run,
-    activeConfig,
-    repairChangelog: currentChangelog,
-    scorecard: scorecardAfterRun,
-  });
-
-  const scorecard = await deps.repository.recordRunRecord(run, {
-    updatedScorecard: amortized.updatedScorecard,
-    updatedChangelog: amortized.updatedChangelog,
-  });
 
   const span = buildRunSpan({
     stage: input.stage,

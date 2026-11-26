@@ -134,7 +134,7 @@ describe("<GridlockRepairChangelogWidget /> Seam 2 UI (Ticket #6)", () => {
       await baseRepo.promoteConnectorConfig(
         { ...DEFAULT_TDLR_CONNECTOR_CONFIG, version: entry.promotedVersion, detailContainerSelector: ".project-details, .tabs-project-details-v2" },
         entry,
-        { updatedScorecard: healedArgs.efficiencyScorecard }
+        () => ({ updatedScorecard: healedArgs.efficiencyScorecard })
       );
     }
 

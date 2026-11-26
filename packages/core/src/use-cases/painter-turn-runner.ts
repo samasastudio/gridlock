@@ -219,14 +219,26 @@ export async function failClosedInteraction(
   });
 }
 
-async function pinMilestoneRawCaptures(repository: GridlockRepository, hashes: readonly string[]): Promise<void> {
+async function pinMilestoneRawCaptures(
+  repository: GridlockRepository,
+  hashes: readonly string[]
+): Promise<void> {
   await Promise.all(
-    hashes.map(async (sha256) => {
-      const existing = await repository.getRawCaptureByHash(sha256);
-      if (!existing || existing.storageUri.includes("/quarantine/") || (existing.expiresAt === null && existing.referencedByMilestone)) return;
-      const gz = await repository.readArtifactGzip(sha256);
-      if (gz) await repository.saveRawCapture(RawCaptureSchema.parse({ ...existing, referencedByMilestone: true, expiresAt: null }), gz);
-    })
+    hashes.map((sha256) =>
+      repository.updateRawCaptureMetadata(sha256, (existing) => {
+        if (
+          existing.storageUri.includes("/quarantine/") ||
+          (existing.expiresAt === null && existing.referencedByMilestone)
+        ) {
+          return null;
+        }
+        return RawCaptureSchema.parse({
+          ...existing,
+          referencedByMilestone: true,
+          expiresAt: null,
+        });
+      })
+    )
   );
 }
 

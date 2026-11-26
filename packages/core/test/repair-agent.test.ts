@@ -358,10 +358,10 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
         expiresAt: null,
       },
       activeConfig: { ...DEFAULT_TDLR_CONNECTOR_CONFIG, version: 2 },
-      repairChangelog: [sampleEntry],
+      matchingEntry: sampleEntry,
       scorecard: promoted.updatedScorecard,
     });
-    assert.equal(amortized.updatedChangelog[0]?.subsequentDeterministicRunsServed, 1);
+    assert.equal(amortized.updatedEntry?.subsequentDeterministicRunsServed, 1);
     assert.equal(amortized.updatedScorecard.subsequentDeterministicRunsServed, 1);
 
     // 2. Sad Path: >400-line file, unapproved directory, and upward layer imports are rejected

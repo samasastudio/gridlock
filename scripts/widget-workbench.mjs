@@ -40,7 +40,7 @@ if (healedArgs.changelog && healedArgs.efficiencyScorecard) {
         activeCfg[diff.field] = diff.after;
       }
     }
-    await baseRepo.promoteConnectorConfig(activeCfg, entry, { updatedScorecard: healedArgs.efficiencyScorecard });
+    await baseRepo.promoteConnectorConfig(activeCfg, entry, () => ({ updatedScorecard: healedArgs.efficiencyScorecard }));
   }
 }
 
