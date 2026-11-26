@@ -5,11 +5,11 @@ import type { GridlockRepository } from "@samasastudio/gridlock-core";
 import { GridlockPlateWidget, GridlockRepairChangelogWidget } from "../src/index.ts";
 import { HealedWithAmortization } from "../stories/GridlockRepairChangelogWidget.stories.tsx";
 import { waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
-import { seedTestPlateLineage, withTestPlatesServer } from "./helpers/plate-fixtures.ts";
+import { seedTestFrameTimeline, withTestTimelineServer } from "./helpers/timeline-fixtures.ts";
 
 describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticket #34 Phase 2)", () => {
   test("Live apiBaseUrl useEffect attaches ref, defaults to inherit theme, recovers in-place on Retry click, and resets on timelineId change", async () => {
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
     let force500 = true;
     let retryCount = 0;
 
@@ -22,7 +22,7 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
       },
     };
 
-    await withTestPlatesServer({ repository: flakyRepo }, async (apiBaseUrl) => {
+    await withTestTimelineServer({ repository: flakyRepo }, async (apiBaseUrl) => {
       await withWidgetDom(async ({ container, root }) => {
         const sectionRef = createRef<HTMLElement>();
         const onRetry = () => {
@@ -71,12 +71,12 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
   });
 
   test("Live same-origin apiBaseUrl='' without snapshotPromise schedules useEffect fetch and co-mounts cleanly with GridlockRepairChangelogWidget", async () => {
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
     const requestedUrls: string[] = [];
     const origFetch = globalThis.fetch;
     globalThis.fetch = async (input) => {
       requestedUrls.push(String(input));
-      return Response.json(seeded.lineage);
+      return Response.json(seeded.timeline);
     };
 
     try {
@@ -92,7 +92,7 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
         await act(async () => {
           root.render(
             <div>
-              <GridlockPlateWidget lineage={seeded.lineage} apiBaseUrl="" />
+              <GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl="" />
               <GridlockRepairChangelogWidget {...HealedWithAmortization.args} />
             </div>
           );

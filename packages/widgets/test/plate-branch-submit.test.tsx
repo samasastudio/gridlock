@@ -10,9 +10,9 @@ import { GridlockPlateWidget } from "../src/index.ts";
 import { setTextareaValue, waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
 import {
   createGatedGeminiClient,
-  seedTestPlateLineage,
-  withTestPlatesServer,
-} from "./helpers/plate-fixtures.ts";
+  seedTestFrameTimeline,
+  withTestTimelineServer,
+} from "./helpers/timeline-fixtures.ts";
 
 type WidgetContainer = Parameters<Parameters<typeof withWidgetDom>[0]>[0]["container"];
 
@@ -30,7 +30,7 @@ function readPlateKpis(container: WidgetContainer): number[] {
 
 describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Ticket #35)", () => {
   test("Omits Scenario Branch form in static snapshots and 0-plate empty lineages", async () => {
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
     const emptyLineage = PlateLineageResponseSchema.parse({
       timelineId: "empty-corridor",
       activeCanonicalIllustrationId: null,
@@ -39,7 +39,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
     });
 
     const staticHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.lineage} />
+      <GridlockPlateWidget lineage={seeded.timeline} />
     );
     assert.doesNotMatch(staticHtml, /<form[^>]*class="gridlock-plate-branch-section"/);
     assert.doesNotMatch(staticHtml, /<textarea/);
@@ -52,15 +52,15 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
   });
 
   test("Locks concurrent 201 submit, pins Forking Turn label on tab switch, and auto-activates 2-up comparison", async () => {
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
     const { gate, geminiClient } = createGatedGeminiClient();
 
-    await withTestPlatesServer(
+    await withTestTimelineServer(
       { repository: seeded.repository, geminiClient },
       async (apiBaseUrl) => {
         await withWidgetDom(async ({ window: win, container, root }) => {
           await act(async () => {
-            root.render(<GridlockPlateWidget lineage={seeded.lineage} apiBaseUrl={apiBaseUrl} />);
+            root.render(<GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl={apiBaseUrl} />);
           });
 
           const getForm = () => container.querySelector("form")!;
@@ -134,7 +134,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
 
           await act(async () => {
             root.render(
-              <GridlockPlateWidget lineage={seeded.lineage} apiBaseUrl="http://127.0.0.1:1" />
+              <GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl="http://127.0.0.1:1" />
             );
           });
           assert.equal(readPlateTabs(container).length, 4);
@@ -142,7 +142,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
           assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
 
           await act(async () => {
-            root.render(<GridlockPlateWidget lineage={seeded.lineage} />);
+            root.render(<GridlockPlateWidget lineage={seeded.timeline} />);
           });
           assert.equal(readPlateTabs(container).length, 4);
           assert.deepEqual(readPlateKpis(container), [2, 2, 2]);
@@ -153,13 +153,13 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
   });
 
   test("Submits 201 branch in pure live-fetch mode and resets local branches when apiBaseUrl changes", async () => {
-    const primarySeeded = await seedTestPlateLineage();
-    const secondarySeeded = await seedTestPlateLineage();
+    const primarySeeded = await seedTestFrameTimeline();
+    const secondarySeeded = await seedTestFrameTimeline();
 
-    await withTestPlatesServer(
+    await withTestTimelineServer(
       { repository: primarySeeded.repository, geminiClient: primarySeeded.geminiClient },
       async (primaryUrl) => {
-        await withTestPlatesServer(
+        await withTestTimelineServer(
           { repository: secondarySeeded.repository, geminiClient: secondarySeeded.geminiClient },
           async (secondaryUrl) => {
             await withWidgetDom(async ({ window: win, container, root }) => {

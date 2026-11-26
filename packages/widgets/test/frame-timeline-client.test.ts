@@ -6,59 +6,59 @@ import {
   type GridlockRepository,
 } from "@samasastudio/gridlock-core";
 import {
-  buildPlateAssetUrl,
-  buildPlateBranchUrl,
-  buildPlateLineageUrl,
-  fetchPlateLineageSnapshot,
-  submitPlateBranch,
+  buildFrameTimelineUrl,
+  buildIllustrationAssetUrl,
+  buildScenarioBranchUrl,
+  fetchFrameTimelineSnapshot,
+  submitScenarioBranch,
 } from "../src/index.ts";
-import { seedTestPlateLineage, withTestPlatesServer } from "./helpers/plate-fixtures.ts";
+import { seedTestFrameTimeline, withTestTimelineServer } from "./helpers/timeline-fixtures.ts";
 
-describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
-  test("buildPlateLineageUrl, buildPlateAssetUrl, and fetchPlateLineageSnapshot handle same-origin, 200, 400, 500, malformed JSON, and AbortSignal", async () => {
-    assert.equal(buildPlateLineageUrl({ apiBaseUrl: "" }), "/api/illustrations/timeline");
+describe("Frame Timeline HTTP Client (Ticket #34 Phase 1)", () => {
+  test("buildFrameTimelineUrl, buildIllustrationAssetUrl, and fetchFrameTimelineSnapshot handle same-origin, 200, 400, 500, malformed JSON, and AbortSignal", async () => {
+    assert.equal(buildFrameTimelineUrl({ apiBaseUrl: "" }), "/api/illustrations/timeline");
     assert.equal(
-      buildPlateLineageUrl({ apiBaseUrl: "https://api.example.com///", timelineId: " ercot-west " }),
+      buildFrameTimelineUrl({ apiBaseUrl: "https://api.example.com///", timelineId: " ercot-west " }),
       "https://api.example.com/api/illustrations/timeline?timeline_id=ercot-west"
     );
     assert.equal(
-      buildPlateAssetUrl("", "/api/illustrations/assets/plate_1.webp"),
-      "/api/illustrations/assets/plate_1.webp"
+      buildIllustrationAssetUrl("", "/api/illustrations/assets/illustration_1.webp"),
+      "/api/illustrations/assets/illustration_1.webp"
     );
     assert.equal(
-      buildPlateAssetUrl("", "//example.com/plate_1.webp"),
-      "/example.com/plate_1.webp"
+      buildIllustrationAssetUrl("", "//example.com/illustration_1.webp"),
+      "/example.com/illustration_1.webp"
     );
     assert.equal(
-      buildPlateAssetUrl("https://api.example.com/", "api/illustrations/assets/plate_1.webp"),
-      "https://api.example.com/api/illustrations/assets/plate_1.webp"
+      buildIllustrationAssetUrl("https://api.example.com/", "api/illustrations/assets/illustration_1.webp"),
+      "https://api.example.com/api/illustrations/assets/illustration_1.webp"
     );
 
-    const seeded = await seedTestPlateLineage();
-    await withTestPlatesServer({ repository: seeded.repository }, async (apiBaseUrl) => {
-      const okSnap = await fetchPlateLineageSnapshot({ apiBaseUrl });
+    const seeded = await seedTestFrameTimeline();
+    await withTestTimelineServer({ repository: seeded.repository }, async (apiBaseUrl) => {
+      const okSnap = await fetchFrameTimelineSnapshot({ apiBaseUrl });
       assert.equal(okSnap.ok, true);
       if (!okSnap.ok) return;
-      assert.equal(okSnap.lineage.activeCanonicalIllustrationId, seeded.t2.illustrationId);
-      assert.equal(okSnap.lineage.nodes.length, 4);
-      const t2Node = okSnap.lineage.nodes.find((n) => n.plate.illustrationId === seeded.t2.illustrationId);
+      assert.equal(okSnap.timeline.activeCanonicalIllustrationId, seeded.t2.illustrationId);
+      assert.equal(okSnap.timeline.nodes.length, 4);
+      const t2Node = okSnap.timeline.nodes.find((n) => n.plate.illustrationId === seeded.t2.illustrationId);
       assert.deepEqual(
         t2Node?.rawCaptures.map((a) => a.sha256),
         [seeded.h2]
       );
       assert.ok(t2Node?.plate.rawCaptureHashes.includes(seeded.hAged));
 
-      const emptySnap = await fetchPlateLineageSnapshot({
+      const emptySnap = await fetchFrameTimelineSnapshot({
         apiBaseUrl,
         timelineId: "unknown-corridor",
       });
       assert.equal(emptySnap.ok, true);
       if (emptySnap.ok) {
-        assert.equal(emptySnap.lineage.activeCanonicalIllustrationId, null);
-        assert.equal(emptySnap.lineage.nodes.length, 0);
+        assert.equal(emptySnap.timeline.activeCanonicalIllustrationId, null);
+        assert.equal(emptySnap.timeline.nodes.length, 0);
       }
 
-      const badQuery = await fetchPlateLineageSnapshot({ apiBaseUrl, timelineId: "bad/id" });
+      const badQuery = await fetchFrameTimelineSnapshot({ apiBaseUrl, timelineId: "bad/id" });
       assert.equal(badQuery.ok, false);
       if (!badQuery.ok) {
         assert.equal(badQuery.statusCode, 400);
@@ -66,15 +66,15 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       }
 
       const abortController = new AbortController();
-      abortController.abort(new Error("Caller cancelled lineage request"));
-      const aborted = await fetchPlateLineageSnapshot({
+      abortController.abort(new Error("Caller cancelled timeline request"));
+      const aborted = await fetchFrameTimelineSnapshot({
         apiBaseUrl,
         signal: abortController.signal,
       });
       assert.equal(aborted.ok, false);
       if (!aborted.ok) {
         assert.equal(aborted.statusCode, undefined);
-        assert.match(aborted.message, /Caller cancelled lineage request/);
+        assert.match(aborted.message, /Caller cancelled timeline request/);
       }
     });
 
@@ -84,8 +84,8 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
         return [{ broken: true }] as never;
       },
     };
-    await withTestPlatesServer({ repository: corruptRepo }, async (apiBaseUrl) => {
-      const err500 = await fetchPlateLineageSnapshot({ apiBaseUrl });
+    await withTestTimelineServer({ repository: corruptRepo }, async (apiBaseUrl) => {
+      const err500 = await fetchFrameTimelineSnapshot({ apiBaseUrl });
       assert.equal(err500.ok, false);
       if (!err500.ok) assert.equal(err500.statusCode, 500);
     });
@@ -93,30 +93,30 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
     const origFetch = globalThis.fetch;
     globalThis.fetch = async () => Response.json({ timelineId: 42 });
     try {
-      const malformed = await fetchPlateLineageSnapshot({ apiBaseUrl: "" });
-      assert.deepEqual(malformed, { ok: false, message: "Malformed Plate Lineage payload" });
+      const malformed = await fetchFrameTimelineSnapshot({ apiBaseUrl: "" });
+      assert.deepEqual(malformed, { ok: false, message: "Malformed Frame Timeline payload" });
     } finally {
       globalThis.fetch = origFetch;
     }
   });
 
-  test("buildPlateBranchUrl and submitPlateBranch handle 201, 400, 404, 429, 503, 500, malformed JSON, and AbortSignal", async () => {
-    assert.equal(buildPlateBranchUrl(""), "/api/illustrations/branch");
+  test("buildScenarioBranchUrl and submitScenarioBranch handle 201, 400, 404, 429, 503, 500, malformed JSON, and AbortSignal", async () => {
+    assert.equal(buildScenarioBranchUrl(""), "/api/illustrations/branch");
     assert.equal(
-      buildPlateBranchUrl("https://api.example.com///"),
+      buildScenarioBranchUrl("https://api.example.com///"),
       "https://api.example.com/api/illustrations/branch"
     );
 
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
 
-    await withTestPlatesServer(
+    await withTestTimelineServer(
       {
         repository: seeded.repository,
         geminiClient: seeded.geminiClient,
         maxBranchesPerTimeline: 3,
       },
       async (apiBaseUrl) => {
-        const created = await submitPlateBranch({
+        const created = await submitScenarioBranch({
           apiBaseUrl,
           interactionId: `  ${seeded.t2.interactionId}  `,
           scenarioPrompt: "  Simulate 345kV loop upgrade at Navarro County  ",
@@ -134,7 +134,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
           assert.equal(created.branch.node.plate.illustrationId, created.branch.plate.illustrationId);
         }
 
-        const quota429 = await submitPlateBranch({
+        const quota429 = await submitScenarioBranch({
           apiBaseUrl,
           interactionId: seeded.t2.interactionId,
           scenarioPrompt: "Exceed active branch quota",
@@ -145,7 +145,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
           assert.equal(quota429.errorCode, "branch_quota_exceeded");
         }
 
-        const invalid400 = await submitPlateBranch({
+        const invalid400 = await submitScenarioBranch({
           apiBaseUrl,
           interactionId: seeded.t2.interactionId,
           scenarioPrompt: "   ",
@@ -156,7 +156,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
           assert.equal(invalid400.errorCode, "invalid_request_body");
         }
 
-        const missing404 = await submitPlateBranch({
+        const missing404 = await submitScenarioBranch({
           apiBaseUrl,
           interactionId: "inter_missing_parent",
           scenarioPrompt: "Fork unknown parent interaction",
@@ -169,7 +169,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
 
         const abortController = new AbortController();
         abortController.abort(new Error("Caller cancelled scenario branch"));
-        const aborted = await submitPlateBranch({
+        const aborted = await submitScenarioBranch({
           apiBaseUrl,
           interactionId: seeded.t2.interactionId,
           scenarioPrompt: "Cancelled prompt",
@@ -184,9 +184,9 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       }
     );
 
-    const unavailableSeeded = await seedTestPlateLineage();
-    await withTestPlatesServer({ repository: unavailableSeeded.repository }, async (apiBaseUrl) => {
-      const err503 = await submitPlateBranch({
+    const unavailableSeeded = await seedTestFrameTimeline();
+    await withTestTimelineServer({ repository: unavailableSeeded.repository }, async (apiBaseUrl) => {
+      const err503 = await submitScenarioBranch({
         apiBaseUrl,
         interactionId: unavailableSeeded.t2.interactionId,
         scenarioPrompt: "Attempt branch without Gemini client",
@@ -204,8 +204,8 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
         return { broken: true } as never;
       },
     };
-    await withTestPlatesServer({ repository: corruptRepo }, async (apiBaseUrl) => {
-      const err500 = await submitPlateBranch({
+    await withTestTimelineServer({ repository: corruptRepo }, async (apiBaseUrl) => {
+      const err500 = await submitScenarioBranch({
         apiBaseUrl,
         interactionId: seeded.t2.interactionId,
         scenarioPrompt: "Trigger corrupt parent 500",
@@ -224,7 +224,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       return Response.json({ broken: true }, { status: 201 });
     };
     try {
-      const malformed = await submitPlateBranch({
+      const malformed = await submitScenarioBranch({
         apiBaseUrl: "",
         interactionId: `  ${seeded.t2.interactionId}  `,
         scenarioPrompt: "  Malformed 201 response  ",
@@ -242,7 +242,7 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
           status: 502,
           headers: { "content-type": "text/plain" },
         });
-      const gateway502 = await submitPlateBranch({
+      const gateway502 = await submitScenarioBranch({
         apiBaseUrl: "",
         interactionId: seeded.t2.interactionId,
         scenarioPrompt: "Plain-text gateway error",

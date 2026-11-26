@@ -5,8 +5,8 @@ import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import {
   CANONICAL_MILESTONE_LABEL, isWebpBuffer, PlateLineageResponseSchema, SCENARIO_BRANCH_WATERMARK, type GridlockRepository,
 } from "@samasastudio/gridlock-core";
-import { fetchPlateLineageSnapshot, GridlockPlateWidget } from "../src/index.ts";
-import { seedTestPlateLineage, withTestPlatesServer } from "./helpers/plate-fixtures.ts";
+import { fetchFrameTimelineSnapshot, GridlockPlateWidget } from "../src/index.ts";
+import { seedTestFrameTimeline, withTestTimelineServer } from "./helpers/timeline-fixtures.ts";
 
 async function streamHtml(node: React.JSX.Element): Promise<string> {
   const stream = await renderToReadableStream(node);
@@ -40,24 +40,24 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     assert.match(rejectedPromiseHtml, /Lineage upstream socket hang up/);
     assert.match(rejectedPromiseHtml, /<button[^>]*type="button"[^>]*>Retry<\/button>/);
 
-    const seeded = await seedTestPlateLineage();
-    const diurnalHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} theme="diurnal" apiBaseUrl="" />);
+    const seeded = await seedTestFrameTimeline();
+    const diurnalHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.timeline} theme="diurnal" apiBaseUrl="" />);
     const styleBlock = diurnalHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
     const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (match) => Number(match[1]));
     assert.ok(remFontSizes.length > 0 && remFontSizes.every((size) => size >= 0.75));
     assert.match(diurnalHtml, /data-gridlock-theme="diurnal"/);
     assert.match(diurnalHtml, /--gridlock-radius:\s*0rem/);
 
-    const nocturnalHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} theme="nocturnal" apiBaseUrl="" />);
+    const nocturnalHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.timeline} theme="nocturnal" apiBaseUrl="" />);
     assert.match(nocturnalHtml, /data-gridlock-theme="nocturnal"/);
     assert.match(nocturnalHtml, /color-scheme:\s*only dark/);
   });
 
   test("Live HTTP 200 end-to-end: anchors to activeCanonicalIllustrationId, renders KPI trio + multi-observation prose, and serves valid image/webp bytes", async () => {
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
 
-    await withTestPlatesServer({ repository: seeded.repository }, async (apiBaseUrl) => {
-      const html = await streamHtml(<GridlockPlateWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchPlateLineageSnapshot({ apiBaseUrl })} />);
+    await withTestTimelineServer({ repository: seeded.repository }, async (apiBaseUrl) => {
+      const html = await streamHtml(<GridlockPlateWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchFrameTimelineSnapshot({ apiBaseUrl })} />);
 
       assert.doesNotMatch(html, new RegExp(SCENARIO_BRANCH_WATERMARK));
       assert.deepEqual(readKpiValues(html), [2, 2, 2]);
@@ -80,12 +80,12 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
   });
 
   test("Same-origin apiBaseUrl='', branch selection, stale selectedPlateId re-anchor, 0-observation baseline, empty lineage, and HTTP 400/500 alert shells", async () => {
-    const seeded = await seedTestPlateLineage();
+    const seeded = await seedTestFrameTimeline();
 
-    const sameOriginHtml = await streamHtml(<GridlockPlateWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, lineage: seeded.lineage })} />);
+    const sameOriginHtml = await streamHtml(<GridlockPlateWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, timeline: seeded.timeline })} />);
     assert.match(sameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.illustrationId}\\.webp"`));
 
-    const branchHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} selectedPlateId={seeded.b1.illustrationId} apiBaseUrl="" />);
+    const branchHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.timeline} selectedPlateId={seeded.b1.illustrationId} apiBaseUrl="" />);
     for (const pattern of [
       new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`), /data-branch="true"/, /data-tone="alert"/, new RegExp(SCENARIO_BRANCH_WATERMARK),
       /Simulate \+400MW ERCOT substation interconnection delay/, /Unverified projection/, new RegExp(`Forked from Turn 2 \\(${seeded.t2.illustrationId}\\)`), /Expires/,
@@ -93,12 +93,12 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
       assert.match(branchHtml, pattern);
     }
 
-    const staleSelectionHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} selectedPlateId="plate_missing" apiBaseUrl="" />);
+    const staleSelectionHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.timeline} selectedPlateId="plate_missing" apiBaseUrl="" />);
     assert.match(staleSelectionHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
 
-    const t1Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
+    const t1Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
     const zeroObsLineage = PlateLineageResponseSchema.parse({
-      timelineId: seeded.lineage.timelineId,
+      timelineId: seeded.timeline.timelineId,
       activeCanonicalIllustrationId: t1Node.plate.illustrationId,
       nodes: [{ ...t1Node, plate: { ...t1Node.plate, projectNumbers: [], triggeringObservationIds: [], rawCaptureHashes: [] }, triggeringObservations: [], rawCaptures: [] }],
       edges: [],
@@ -123,19 +123,19 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
       },
     };
 
-    await withTestPlatesServer({ repository: flakyRepo }, async (apiBaseUrl) => {
+    await withTestTimelineServer({ repository: flakyRepo }, async (apiBaseUrl) => {
       const err400Html = await streamHtml(
-        <GridlockPlateWidget apiBaseUrl={apiBaseUrl} timelineId="bad/id" snapshotPromise={fetchPlateLineageSnapshot({ apiBaseUrl, timelineId: "bad/id" })} />
+        <GridlockPlateWidget apiBaseUrl={apiBaseUrl} timelineId="bad/id" snapshotPromise={fetchFrameTimelineSnapshot({ apiBaseUrl, timelineId: "bad/id" })} />
       );
       assert.match(err400Html, /role="alert"/);
       assert.match(err400Html, /<button[^>]*type="button"[^>]*>Retry<\/button>/);
 
-      const err500Html = await streamHtml(<GridlockPlateWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchPlateLineageSnapshot({ apiBaseUrl })} />);
+      const err500Html = await streamHtml(<GridlockPlateWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchFrameTimelineSnapshot({ apiBaseUrl })} />);
       assert.match(err500Html, /role="alert"/);
       assert.match(err500Html, /<button[^>]*type="button"[^>]*>Retry<\/button>/);
 
       force500 = false;
-      const subsequentHtml = await streamHtml(<GridlockPlateWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchPlateLineageSnapshot({ apiBaseUrl })} />);
+      const subsequentHtml = await streamHtml(<GridlockPlateWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchFrameTimelineSnapshot({ apiBaseUrl })} />);
       assert.match(subsequentHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
     });
   });

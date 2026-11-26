@@ -2,9 +2,9 @@ import { Suspense, use, useEffect, useId, useRef, useState, type Ref } from "rea
 import { MotionConfig } from "motion/react";
 import { PlateLineageResponseSchema, type PlateLineageResponse } from "@samasastudio/gridlock-core/schemas";
 import { DossierStatusBadge, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
-import { fetchPlateLineageSnapshot, type PlateLineageQuery, type PlateLineageSnapshotResult } from "./plate-lineage-client.ts";
+import { fetchFrameTimelineSnapshot, type FrameTimelineQuery, type FrameTimelineSnapshotResult } from "./frame-timeline-client.ts";
 import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
-import { PlateFrameStage } from "./PlateFrameStage.tsx";
+import { TimelineFrameStage } from "./TimelineFrameStage.tsx";
 import { TimelineProvenanceSection } from "./TimelineProvenanceSection.tsx";
 import { TimelineScenarioBranchSection } from "./TimelineScenarioBranchSection.tsx";
 import { TimelineHeadlineKpiStrip, TimelineSummarySection, TimelineWidgetLoadingPlaceholder } from "./TimelineSummarySection.tsx";
@@ -13,7 +13,7 @@ import { useTimelineBranching } from "./useTimelineBranching.ts";
 
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
 const LOADING_PLACEHOLDER_NODE = <TimelineWidgetLoadingPlaceholder />;
-const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<PlateLineageSnapshotResult>, Promise<PlateLineageSnapshotResult>>();
+const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<FrameTimelineSnapshotResult>, Promise<FrameTimelineSnapshotResult>>();
 const LINEAGE_TITLE = "Corridor Plate Lineage";
 const LINEAGE_ERROR_PREFIX = "Unable to load Plate Lineage:";
 
@@ -32,26 +32,26 @@ interface PlateWidgetBaseProps extends Omit<PlateViewOptions, "apiBaseUrl" | "ti
 }
 
 export type GridlockPlateWidgetProps =
-  | (PlateWidgetBaseProps & Partial<PlateLineageQuery> & {
+  | (PlateWidgetBaseProps & Partial<FrameTimelineQuery> & {
       lineage: PlateLineageResponse;
       snapshotPromise?: undefined;
       onRetry?: undefined;
     })
-  | (PlateWidgetBaseProps & PlateLineageQuery & {
+  | (PlateWidgetBaseProps & FrameTimelineQuery & {
       lineage?: undefined;
-      snapshotPromise?: Promise<PlateLineageSnapshotResult>;
+      snapshotPromise?: Promise<FrameTimelineSnapshotResult>;
       onRetry?: () => void;
     });
 
-function matchesLineageQuery(a: PlateLineageQuery, b: PlateLineageQuery): boolean {
+function matchesLineageQuery(a: FrameTimelineQuery, b: FrameTimelineQuery): boolean {
   return a.apiBaseUrl === b.apiBaseUrl && a.timelineId === b.timelineId;
 }
 
-function toSafeSnapshotPromise(promise: Promise<PlateLineageSnapshotResult>): Promise<PlateLineageSnapshotResult> {
+function toSafeSnapshotPromise(promise: Promise<FrameTimelineSnapshotResult>): Promise<FrameTimelineSnapshotResult> {
   const cached = SAFE_SNAPSHOT_PROMISES.get(promise);
   if (cached) return cached;
   const safe = promise.catch(
-    (error: unknown): PlateLineageSnapshotResult => ({
+    (error: unknown): FrameTimelineSnapshotResult => ({
       ok: false,
       message: error instanceof Error ? error.message : "Network error loading Plate Lineage",
     })
@@ -85,15 +85,15 @@ function LoadedPlateDossierContent(props: {
         </div>
       </header>
       <TimelineHeadlineKpiStrip timeline={effectiveTimeline} />
-      <PlateFrameStage
+      <TimelineFrameStage
         baseId={baseId}
         nodes={orderedNodes}
         edges={effectiveTimeline.edges}
         activeCanonicalIllustrationId={effectiveTimeline.activeCanonicalIllustrationId}
-        activePlateId={activeNode?.plate.illustrationId ?? null}
+        activeIllustrationId={activeNode?.plate.illustrationId ?? null}
         isComparing={branching.isComparing}
         onCompareChange={branching.setIsComparing}
-        onSelectPlate={branching.selectIllustration}
+        onSelectIllustration={branching.selectIllustration}
         apiBaseUrl={viewOptions.apiBaseUrl}
         assetUrlOverrides={viewOptions.assetUrlOverrides}
       >
@@ -119,13 +119,13 @@ function LoadedPlateDossierContent(props: {
             />
           </TimelineSummarySection>
         ) : null}
-      </PlateFrameStage>
+      </TimelineFrameStage>
     </>
   );
 }
 
 function PromisePlateBoundary(props: {
-  snapshotPromise: Promise<PlateLineageSnapshotResult>;
+  snapshotPromise: Promise<FrameTimelineSnapshotResult>;
   baseId: string;
   viewOptions: PlateViewOptions;
   onRetry: () => void;
@@ -134,22 +134,22 @@ function PromisePlateBoundary(props: {
   if (!result.ok) {
     return <DossierErrorShell baseId={props.baseId} title={LINEAGE_TITLE} connectorId={props.viewOptions.timelineId} errorPrefix={LINEAGE_ERROR_PREFIX} message={result.message} onRetry={props.onRetry} />;
   }
-  return <LoadedPlateDossierContent key={`${result.lineage.timelineId}::${props.viewOptions.initialIllustrationId ?? ""}::${props.viewOptions.apiBaseUrl ?? "::static"}`} baseId={props.baseId} lineage={result.lineage} viewOptions={props.viewOptions} />;
+  return <LoadedPlateDossierContent key={`${result.timeline.timelineId}::${props.viewOptions.initialIllustrationId ?? ""}::${props.viewOptions.apiBaseUrl ?? "::static"}`} baseId={props.baseId} lineage={result.timeline} viewOptions={props.viewOptions} />;
 }
 
 export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
   const { lineage, apiBaseUrl, timelineId, snapshotPromise, onRetry, selectedPlateId, initialIllustrationId, onSelectPlate, assetUrlOverrides, theme = "inherit", ref } = props;
   const baseId = useId();
   const retryAbortRef = useRef<AbortController | null>(null);
-  const [effectEntry, setEffectEntry] = useState<{ query: PlateLineageQuery; promise: Promise<PlateLineageSnapshotResult> } | null>(null);
-  const [retryEntry, setRetryEntry] = useState<{ query: PlateLineageQuery; sourcePromise?: Promise<PlateLineageSnapshotResult>; promise: Promise<PlateLineageSnapshotResult> } | null>(null);
+  const [effectEntry, setEffectEntry] = useState<{ query: FrameTimelineQuery; promise: Promise<FrameTimelineSnapshotResult> } | null>(null);
+  const [retryEntry, setRetryEntry] = useState<{ query: FrameTimelineQuery; sourcePromise?: Promise<FrameTimelineSnapshotResult>; promise: Promise<FrameTimelineSnapshotResult> } | null>(null);
   const isStaticMode = lineage !== undefined;
 
   useEffect(() => {
     const effectController = !isStaticMode && apiBaseUrl !== undefined && !snapshotPromise ? new AbortController() : null;
     if (effectController && apiBaseUrl !== undefined) {
-      const query: PlateLineageQuery = { apiBaseUrl, timelineId };
-      setEffectEntry({ query, promise: fetchPlateLineageSnapshot({ ...query, signal: effectController.signal }) });
+      const query: FrameTimelineQuery = { apiBaseUrl, timelineId };
+      setEffectEntry({ query, promise: fetchFrameTimelineSnapshot({ ...query, signal: effectController.signal }) });
     }
     return () => {
       effectController?.abort();
@@ -165,8 +165,8 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
     retryAbortRef.current?.abort();
     const controller = new AbortController();
     retryAbortRef.current = controller;
-    const query: PlateLineageQuery = { apiBaseUrl, timelineId };
-    setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchPlateLineageSnapshot({ ...query, signal: controller.signal }) });
+    const query: FrameTimelineQuery = { apiBaseUrl, timelineId };
+    setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchFrameTimelineSnapshot({ ...query, signal: controller.signal }) });
   };
 
   const viewOptions: PlateViewOptions = { apiBaseUrl, timelineId, selectedPlateId, initialIllustrationId, onSelectPlate, assetUrlOverrides };

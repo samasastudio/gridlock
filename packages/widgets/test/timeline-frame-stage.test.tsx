@@ -5,37 +5,37 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   CANONICAL_MILESTONE_LABEL,
   SCENARIO_BRANCH_WATERMARK,
-  type LineageNode,
+  type FrameTimelineNode,
 } from "@samasastudio/gridlock-core";
-import { PlateFrameStage } from "../src/index.ts";
+import { TimelineFrameStage } from "../src/index.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
-import { seedTestPlateLineage } from "./helpers/plate-fixtures.ts";
+import { seedTestFrameTimeline } from "./helpers/timeline-fixtures.ts";
 
 function ControlledStageHarness(props: {
-  nodes: readonly LineageNode[];
+  nodes: readonly FrameTimelineNode[];
   initialIllustrationId: string;
   overrides?: Readonly<Record<string, string>>;
 }) {
-  const [activePlateId, setActivePlateId] = useState(props.initialIllustrationId);
+  const [activeIllustrationId, setActiveIllustrationId] = useState(props.initialIllustrationId);
   return (
-    <PlateFrameStage
+    <TimelineFrameStage
       nodes={props.nodes}
-      activePlateId={activePlateId}
-      onSelectPlate={setActivePlateId}
+      activeIllustrationId={activeIllustrationId}
+      onSelectIllustration={setActiveIllustrationId}
       apiBaseUrl="https://api.example.com/"
       assetUrlOverrides={props.overrides}
     />
   );
 }
 
-describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
-  test("PlateFrameStage enforces >= 0.75rem floor, sorts shuffled turns, handles roving keyboard focus, badges branches, and recovers from broken WebP URLs", async () => {
-    const seeded = await seedTestPlateLineage();
-    const { nodes } = seeded.lineage;
+describe("TimelineFrameStage Scrubber (Ticket #34 Phase 1)", () => {
+  test("TimelineFrameStage enforces >= 0.75rem floor, sorts shuffled turns, handles roving keyboard focus, badges branches, and recovers from broken WebP URLs", async () => {
+    const seeded = await seedTestFrameTimeline();
+    const { nodes } = seeded.timeline;
     const shuffled = [nodes[2]!, nodes[0]!, nodes[3]!, nodes[1]!];
 
     const ssrHtml = renderToStaticMarkup(
-      <PlateFrameStage nodes={shuffled} activePlateId={seeded.t2.illustrationId} onSelectPlate={() => {}} apiBaseUrl="" />
+      <TimelineFrameStage nodes={shuffled} activeIllustrationId={seeded.t2.illustrationId} onSelectIllustration={() => {}} apiBaseUrl="" />
     );
     const styleCss = ssrHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
     const remSizes = Array.from(styleCss.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
@@ -47,10 +47,10 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
     assert.match(ssrHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.illustrationId}\\.webp"`));
 
     const blankOverrideFallbackHtml = renderToStaticMarkup(
-      <PlateFrameStage
+      <TimelineFrameStage
         nodes={shuffled}
-        activePlateId={seeded.t2.illustrationId}
-        onSelectPlate={() => {}}
+        activeIllustrationId={seeded.t2.illustrationId}
+        onSelectIllustration={() => {}}
         assetUrlOverrides={{ [seeded.t2.illustrationId]: "   " }}
       />
     );
@@ -58,26 +58,27 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
     assert.doesNotMatch(blankOverrideFallbackHtml, /src=""/);
 
     const blankOverrideSameOriginHtml = renderToStaticMarkup(
-      <PlateFrameStage
+      <TimelineFrameStage
         nodes={shuffled}
-        activePlateId={seeded.t2.illustrationId}
-        onSelectPlate={() => {}}
+        activeIllustrationId={seeded.t2.illustrationId}
+        onSelectIllustration={() => {}}
         apiBaseUrl=""
         assetUrlOverrides={{ [seeded.t2.illustrationId]: "   " }}
       />
     );
     assert.match(blankOverrideSameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.illustrationId}\\.webp"`));
 
-    const omittedIdHtml = renderToStaticMarkup(<PlateFrameStage nodes={shuffled} onSelectPlate={() => {}} apiBaseUrl="" />);
+    const omittedIdHtml = renderToStaticMarkup(<TimelineFrameStage nodes={shuffled} onSelectIllustration={() => {}} apiBaseUrl="" />);
     assert.match(omittedIdHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
     assert.doesNotMatch(omittedIdHtml, new RegExp(SCENARIO_BRANCH_WATERMARK));
-    const staleIdHtml = renderToStaticMarkup(<PlateFrameStage nodes={shuffled} activePlateId="plate_stale" onSelectPlate={() => {}} apiBaseUrl="" />);
+    const staleIdHtml = renderToStaticMarkup(<TimelineFrameStage nodes={shuffled} activeIllustrationId="illustration_stale" onSelectIllustration={() => {}} apiBaseUrl="" />);
     assert.match(staleIdHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
-    const branchOnlyHtml = renderToStaticMarkup(<PlateFrameStage nodes={[nodes[2]!, nodes[3]!]} onSelectPlate={() => {}} apiBaseUrl="" />);
+    const branchOnlyHtml = renderToStaticMarkup(<TimelineFrameStage nodes={[nodes[2]!, nodes[3]!]} onSelectIllustration={() => {}} apiBaseUrl="" />);
     assert.match(branchOnlyHtml, new RegExp(`data-plate-id="${seeded.b2.illustrationId}"`));
 
-    const emptyHtml = renderToStaticMarkup(<PlateFrameStage nodes={[]} onSelectPlate={() => {}} />);
+    const emptyHtml = renderToStaticMarkup(<TimelineFrameStage nodes={[]} onSelectIllustration={() => {}} />);
     assert.match(emptyHtml, /data-empty-lineage="true"/);
+    assert.match(emptyHtml, /0 Generated Illustrations recorded/);
     assert.doesNotMatch(emptyHtml, /role="tab"/);
 
     await withWidgetDom(async ({ window: win, container, root }) => {
@@ -140,32 +141,32 @@ describe("PlateFrameStage Scrubber (Ticket #34 Phase 1)", () => {
 
       let singleFrameSelections = 0;
       await act(async () => {
-        root.render(<PlateFrameStage nodes={[nodes[0]!]} activePlateId={nodes[0]!.plate.illustrationId} onSelectPlate={() => { singleFrameSelections += 1; }} />);
+        root.render(<TimelineFrameStage nodes={[nodes[0]!]} activeIllustrationId={nodes[0]!.plate.illustrationId} onSelectIllustration={() => { singleFrameSelections += 1; }} />);
       });
       await pressKey(0, "ArrowRight");
       await pressKey(0, "ArrowLeft");
       assert.equal(singleFrameSelections, 0);
 
-      const b1WholeSec: LineageNode = { ...nodes[2]!, plate: { ...nodes[2]!.plate, createdAt: "2026-10-29T11:00:00Z" } };
-      const siblingBranch: LineageNode = {
+      const b1WholeSec: FrameTimelineNode = { ...nodes[2]!, plate: { ...nodes[2]!.plate, createdAt: "2026-10-29T11:00:00Z" } };
+      const siblingBranch: FrameTimelineNode = {
         ...b1WholeSec,
         plate: {
           ...b1WholeSec.plate,
-          illustrationId: "plate_branch_t3_sibling",
-          interactionId: "inter_plate_seed_sibling",
+          illustrationId: "illustration_branch_t3_sibling",
+          interactionId: "inter_timeline_seed_sibling",
           createdAt: "2026-10-29T11:00:00.500Z",
         },
-        assetPath: "/api/illustrations/assets/plate_branch_t3_sibling.webp",
+        assetPath: "/api/illustrations/assets/illustration_branch_t3_sibling.webp",
       };
       await act(async () => {
-        root.render(<PlateFrameStage nodes={[siblingBranch, nodes[0]!, nodes[3]!, nodes[1]!, b1WholeSec]} onSelectPlate={() => {}} />);
+        root.render(<TimelineFrameStage nodes={[siblingBranch, nodes[0]!, nodes[3]!, nodes[1]!, b1WholeSec]} onSelectIllustration={() => {}} />);
       });
       assert.deepEqual(getTabs().map((tab) => tab.textContent?.trim()), [
         "Turn 1", "Turn 2", "Branch 1 · Turn 3", "Branch 2 · Turn 3", "Branch · Turn 4",
       ]);
       assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t2.illustrationId);
       assert.match(getTabs()[2]?.id ?? "", new RegExp(`${seeded.b1.illustrationId}$`));
-      assert.match(getTabs()[3]?.id ?? "", /plate_branch_t3_sibling$/);
+      assert.match(getTabs()[3]?.id ?? "", /illustration_branch_t3_sibling$/);
     });
   });
 });

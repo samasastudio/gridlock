@@ -65,7 +65,7 @@ function buildWorkbenchArtifact(sha256, capturedAt, expiresAt) {
   });
 }
 
-async function seedWorkbenchPlateLineage(repo) {
+async function seedWorkbenchFrameTimeline(repo) {
   const anchorMs = Date.now();
   const [hashT1, hashT2, hashAged] = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
   const gzBytes = Buffer.from("gridlock-workbench-gz");
@@ -171,7 +171,7 @@ async function seedWorkbenchPlateLineage(repo) {
           status: "completed",
           output_image: {
             mime_type: "image/webp",
-            data: createCorridorBaseCanvasWebp(`workbench-plate-${seq}`).toString("base64"),
+            data: createCorridorBaseCanvasWebp(`workbench-illustration-${seq}`).toString("base64"),
           },
           usage: { total_tokens: 140 },
         };
@@ -215,7 +215,7 @@ async function seedWorkbenchPlateLineage(repo) {
   return geminiClient;
 }
 
-const geminiClient = await seedWorkbenchPlateLineage(baseRepo);
+const geminiClient = await seedWorkbenchFrameTimeline(baseRepo);
 
 let force500 = false;
 const repository = {
@@ -482,25 +482,25 @@ async function verifyWebpAssetRoute(baseUrl, assetPath) {
   }
 }
 
-async function verifyWorkbenchPlateSeam(baseUrl) {
-  const lineageRes = await fetch(`${baseUrl}/api/illustrations/timeline`);
-  if (!lineageRes.ok) {
-    throw new Error(`/api/illustrations/timeline returned HTTP ${lineageRes.status}`);
+async function verifyWorkbenchTimelineSeam(baseUrl) {
+  const timelineRes = await fetch(`${baseUrl}/api/illustrations/timeline`);
+  if (!timelineRes.ok) {
+    throw new Error(`/api/illustrations/timeline returned HTTP ${timelineRes.status}`);
   }
 
-  const lineage = await lineageRes.json();
+  const timeline = await timelineRes.json();
   if (
-    !Array.isArray(lineage.nodes) ||
-    lineage.nodes.length < 3 ||
-    !lineage.activeCanonicalIllustrationId
+    !Array.isArray(timeline.nodes) ||
+    timeline.nodes.length < 3 ||
+    !timeline.activeCanonicalIllustrationId
   ) {
     throw new Error(
       "Expected >= 3 seeded GeneratedIllustration nodes and activeCanonicalIllustrationId in /api/illustrations/timeline"
     );
   }
 
-  const activeNode = lineage.nodes.find(
-    (node) => node.plate.illustrationId === lineage.activeCanonicalIllustrationId
+  const activeNode = timeline.nodes.find(
+    (node) => node.plate.illustrationId === timeline.activeCanonicalIllustrationId
   );
   if (!activeNode) {
     throw new Error("Active canonical node missing from /api/illustrations/timeline nodes");
@@ -539,7 +539,7 @@ server.listen(PORT, HOST, async () => {
         (chain, path) => chain.then(() => verifySmokeRoute(baseUrl, path)),
         Promise.resolve()
       );
-      await verifyWorkbenchPlateSeam(baseUrl);
+      await verifyWorkbenchTimelineSeam(baseUrl);
       console.log(
         "Widget workbench smoke check OK (/, /bundle.js, /atlas-tokens.css, /api/repairs/changelog, /api/efficiency/scorecard, /api/illustrations/*)"
       );

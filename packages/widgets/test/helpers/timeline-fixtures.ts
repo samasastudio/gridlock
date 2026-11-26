@@ -3,18 +3,18 @@ import { Buffer } from "node:buffer";
 import type { AddressInfo } from "node:net";
 import {
   ARTIFACT_BUCKET_URI, bootstrapCanvas, branchTimeline, createCorridorBaseCanvasWebp, createGridlockHttpServer,
-  createInMemoryGridlockRepository, getFrameTimeline, ObservationSchema, paintMilestoneDelta,
-  PlateLineageResponseSchema, RawCaptureSchema,
-  type GeminiInteractionsClient, type GridlockHttpDeps, type PlateLineageResponse,
+  createInMemoryGridlockRepository, FrameTimelineResponseSchema, getFrameTimeline, ObservationSchema,
+  paintMilestoneDelta, RawCaptureSchema,
+  type FrameTimelineResponse, type GeminiInteractionsClient, type GridlockHttpDeps,
 } from "@samasastudio/gridlock-core";
 
-const PLATE_FIXTURE_NOW = new Date("2026-11-15T12:00:00.000Z");
+const TIMELINE_FIXTURE_NOW = new Date("2026-11-15T12:00:00.000Z");
 
-export async function withTestPlatesServer(
+export async function withTestTimelineServer(
   deps: GridlockHttpDeps,
   run: (apiBaseUrl: string) => Promise<void>
 ): Promise<void> {
-  const server = createGridlockHttpServer({ now: () => PLATE_FIXTURE_NOW, ...deps });
+  const server = createGridlockHttpServer({ now: () => TIMELINE_FIXTURE_NOW, ...deps });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     await run(`http://127.0.0.1:${(server.address() as AddressInfo).port}`);
@@ -33,7 +33,7 @@ function buildFixtureArtifact(sha256: string, expiresAt: string | null) {
   });
 }
 
-export async function seedTestPlateLineage() {
+export async function seedTestFrameTimeline() {
   const repository = createInMemoryGridlockRepository();
   const [h1, h2, hAged] = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
   const gzBytes = Buffer.from("gridlock-fixture-gz");
@@ -72,7 +72,7 @@ export async function seedTestPlateLineage() {
         }
         seq += 1;
         return {
-          id: `inter_plate_seed_${seq}`,
+          id: `inter_timeline_seed_${seq}`,
           status: "completed",
           output_image: { mime_type: "image/webp", data: createCorridorBaseCanvasWebp(`corridor-seed-${seq}`).toString("base64") },
           usage: { total_tokens: 140 },
@@ -101,32 +101,32 @@ export async function seedTestPlateLineage() {
   assert.equal(b2.status, "illustration_painted");
   assert.equal(b2.illustration.rebootstrappedFromParentWebp, true);
 
-  const hydrated = await getFrameTimeline({ now: PLATE_FIXTURE_NOW }, { repository });
+  const hydrated = await getFrameTimeline({ now: TIMELINE_FIXTURE_NOW }, { repository });
   if (!hydrated.ok) throw new Error(hydrated.message);
 
-  return { repository, geminiClient, lineage: hydrated.timeline, t1: t1.illustration, t2: t2.illustration, b1: b1.illustration, b2: b2.illustration, h1, h2, hAged };
+  return { repository, geminiClient, timeline: hydrated.timeline, t1: t1.illustration, t2: t2.illustration, b1: b1.illustration, b2: b2.illustration, h1, h2, hAged };
 }
 
-export function buildBranchOnlyLineage(
-  lineage: PlateLineageResponse,
-  b1PlateId: string,
-  b2PlateId: string
-): PlateLineageResponse {
-  const b1Node = lineage.nodes.find((node) => node.plate.illustrationId === b1PlateId)!;
-  const b2Node = lineage.nodes.find((node) => node.plate.illustrationId === b2PlateId)!;
+export function buildBranchOnlyTimeline(
+  timeline: FrameTimelineResponse,
+  b1IllustrationId: string,
+  b2IllustrationId: string
+): FrameTimelineResponse {
+  const b1Node = timeline.nodes.find((node) => node.plate.illustrationId === b1IllustrationId)!;
+  const b2Node = timeline.nodes.find((node) => node.plate.illustrationId === b2IllustrationId)!;
 
-  return PlateLineageResponseSchema.parse({
-    timelineId: lineage.timelineId,
+  return FrameTimelineResponseSchema.parse({
+    timelineId: timeline.timelineId,
     activeCanonicalIllustrationId: null,
     nodes: [b1Node, b2Node],
-    edges: lineage.edges.filter(
-      (edge) => edge.parentIllustrationId === b1PlateId && edge.childIllustrationId === b2PlateId
+    edges: timeline.edges.filter(
+      (edge) => edge.parentIllustrationId === b1IllustrationId && edge.childIllustrationId === b2IllustrationId
     ),
   });
 }
 
-export async function seedTurn1ForkLineage(
-  seeded: Awaited<ReturnType<typeof seedTestPlateLineage>>
+export async function seedTurn1ForkTimeline(
+  seeded: Awaited<ReturnType<typeof seedTestFrameTimeline>>
 ) {
   const bFromT1 = await branchTimeline(
     {
@@ -137,17 +137,17 @@ export async function seedTurn1ForkLineage(
     { repository: seeded.repository, geminiClient: seeded.geminiClient }
   );
   const refreshed = await getFrameTimeline(
-    { now: PLATE_FIXTURE_NOW },
+    { now: TIMELINE_FIXTURE_NOW },
     { repository: seeded.repository }
   );
 
   if (bFromT1.status !== "illustration_painted" || !refreshed.ok) {
-    assert.fail("Expected Turn 1 scenario branch and lineage hydration to succeed");
+    assert.fail("Expected Turn 1 scenario branch and timeline hydration to succeed");
   }
 
   return {
-    lineage: refreshed.timeline,
-    branchPlate: bFromT1.illustration,
+    timeline: refreshed.timeline,
+    branchIllustration: bFromT1.illustration,
   };
 }
 
