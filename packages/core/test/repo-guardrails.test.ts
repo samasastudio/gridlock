@@ -1,7 +1,14 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
@@ -437,5 +444,60 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
       false,
       "scripts/lint-checks.mjs must lazy-import ./type-hygiene.mjs so --check-branch and --check-pr-size work without node_modules"
     );
+  });
+
+  test(".githooks/pre-commit is executable so local commits enforce branch and lint checks", () => {
+    const hookStats = statSync(join(process.cwd(), ".githooks/pre-commit"));
+    assert.ok(
+      (hookStats.mode & 0o111) !== 0,
+      ".githooks/pre-commit must have executable permissions (+x)"
+    );
+  });
+
+  test("evaluateSourceFileLintRules rejects single-line multi-statement arrow blocks while allowing single-statement callbacks", () => {
+    const golfed = evaluateSourceFileLintRules(
+      "packages/core/test/sample.test.ts",
+      [
+        "let calls = 0;",
+        "const fn = async () => { calls += 1; return calls; };",
+      ].join("\n")
+    );
+    assert.equal(golfed.length, 1);
+    assert.ok(golfed[0]?.includes("Avoid line-golfing multiple statements"));
+
+    const singleStatement = evaluateSourceFileLintRules(
+      "packages/widgets/src/Sample.tsx",
+      "const attach = (node: unknown) => { refs.push(node); };\n"
+    );
+    assert.equal(singleStatement.length, 0);
+  });
+
+  test("checkPullRequestDiffSize --working-tree counts untracked non-ignored files without git add -N", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "gridlock-pr-size-"));
+    try {
+      execFileSync("git", ["init", "-b", "main"], { cwd: tempDir, stdio: "ignore" });
+      execFileSync("git", ["config", "user.name", "Gridlock Test"], {
+        cwd: tempDir,
+        stdio: "ignore",
+      });
+      execFileSync("git", ["config", "user.email", "test@gridlock.local"], {
+        cwd: tempDir,
+        stdio: "ignore",
+      });
+      writeFileSync(join(tempDir, "README.md"), "hello\n");
+      execFileSync("git", ["add", "README.md"], { cwd: tempDir, stdio: "ignore" });
+      execFileSync("git", ["commit", "-m", "init"], { cwd: tempDir, stdio: "ignore" });
+
+      writeFileSync(join(tempDir, "new-test.ts"), "line1\nline2\nline3\n");
+      const result = checkPullRequestDiffSize(tempDir, {
+        baseRef: "main",
+        workingTree: true,
+      });
+      assert.equal(result.insertions, 3);
+      assert.equal(result.deletions, 0);
+      assert.equal(result.violations.length, 0);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
