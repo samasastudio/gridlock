@@ -17,7 +17,7 @@ const EfficiencyQueryParamsSchema = z
   })
   .strict();
 
-export async function handleGetEfficiencyTelemetry(
+export async function handleGetEfficiencyScorecard(
   req: IncomingMessage,
   res: ServerResponse,
   parsedUrl: URL,
@@ -28,7 +28,7 @@ export async function handleGetEfficiencyTelemetry(
   if (req.method !== "GET") {
     sendJson(res, 405, {
       error: "method_not_allowed",
-      message: "Only GET is supported on /api/telemetry/efficiency",
+      message: "Only GET is supported on /api/efficiency/scorecard",
     });
     return;
   }
@@ -72,5 +72,5 @@ export async function handleGetEfficiencyTelemetry(
     return;
   }
 
-  sendJson(res, 200, result.ledger);
+  sendJson(res, 200, result.scorecard);
 }

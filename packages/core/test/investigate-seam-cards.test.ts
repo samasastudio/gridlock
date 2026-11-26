@@ -210,7 +210,7 @@ async function seedFullFiveCardRepository(): Promise<{
 }
 
 describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () => {
-  test("hydrates a full 6-node workspace across all 5 canonical card types with bounded telemetry and escaped prose", async () => {
+  test("hydrates a full 6-node workspace across all 5 canonical card types with bounded scorecard runs and escaped prose", async () => {
     const { repository, canonicalPlateId, branchPlateId } =
       await seedFullFiveCardRepository();
 
@@ -378,7 +378,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
       healthNode
     );
     assert.equal(
-      healthNode.ledger.recentRuns.length,
+      healthNode.scorecard.recentRuns.length,
       CONNECTOR_HEALTH_RECENT_RUNS_LIMIT
     );
     assert.equal(healthNode.changelog.activeVersion, 2);
@@ -589,14 +589,14 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
     assert.equal(zeroCitationPlateRes.error, "unresolvable_provenance");
   });
 
-  test("defensively slices unsliced ledger recentRuns and fails closed on unknown Connector IDs or corrupted records", async () => {
+  test("defensively slices unsliced scorecard recentRuns and fails closed on unknown Connector IDs or corrupted records", async () => {
     const { repository } = await seedFullFiveCardRepository();
 
-    const unslicedLedgerRes = await hydrateInvestigationWorkspace(
+    const unslicedScorecardRes = await hydrateInvestigationWorkspace(
       {
         nodes: [
           {
-            nodeId: "unsliced-ledger-card",
+            nodeId: "unsliced-scorecard-card",
             component: "ConnectorHealthCard",
             connectorId: "tdlr-tabs",
           },
@@ -605,18 +605,18 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
       {
         repository: {
           ...repository,
-          getEfficiencyLedger: async () => repository.getEfficiencyLedger(),
+          getEfficiencyScorecard: async () => repository.getEfficiencyScorecard(),
         },
       },
       { now: NOW }
     );
-    assert.equal(unslicedLedgerRes.ok, true);
-    const slicedHealthNode = unslicedLedgerRes.workspace.nodes[0];
+    assert.equal(unslicedScorecardRes.ok, true);
+    const slicedHealthNode = unslicedScorecardRes.workspace.nodes[0];
     assert.ok(
       slicedHealthNode && slicedHealthNode.component === "ConnectorHealthCard"
     );
     assert.equal(
-      slicedHealthNode.ledger.recentRuns.length,
+      slicedHealthNode.scorecard.recentRuns.length,
       CONNECTOR_HEALTH_RECENT_RUNS_LIMIT
     );
 
@@ -680,11 +680,11 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
     assert.equal(corruptConfigRes.ok, false);
     assert.equal(corruptConfigRes.error, "repository_integrity_error");
 
-    const corruptLedgerRes = await hydrateInvestigationWorkspace(
+    const corruptScorecardRes = await hydrateInvestigationWorkspace(
       {
         nodes: [
           {
-            nodeId: "corrupt-ledger-card",
+            nodeId: "corrupt-scorecard-card",
             component: "ConnectorHealthCard",
             connectorId: "tdlr-tabs",
           },
@@ -693,13 +693,13 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
       {
         repository: {
           ...repository,
-          getEfficiencyLedger: async () =>
-            ({ ledgerId: "broken_ledger", totalRunsCount: -5 }) as never,
+          getEfficiencyScorecard: async () =>
+            ({ ledgerId: "broken_scorecard", totalRunsCount: -5 }) as never,
         },
       },
       { now: NOW }
     );
-    assert.equal(corruptLedgerRes.ok, false);
-    assert.equal(corruptLedgerRes.error, "repository_integrity_error");
+    assert.equal(corruptScorecardRes.ok, false);
+    assert.equal(corruptScorecardRes.error, "repository_integrity_error");
   });
 });

@@ -235,12 +235,12 @@ export async function runOutOfBandRepairAgent(
   const existingQuarantined = await deps.repository.getRawCaptureByHash(
     changelogEntry.quarantinedArtifactHash
   );
-  const currentLedger = await deps.repository.getEfficiencyLedger();
+  const currentScorecard = await deps.repository.getEfficiencyScorecard();
   const promotion = applyConnectorPromotion({
     changelogEntry,
     allChangelogEntries: [...existingChangelog, changelogEntry],
     quarantinedArtifact: existingQuarantined ?? undefined,
-    ledger: currentLedger,
+    scorecard: currentScorecard,
   });
 
   await deps.repository.promoteConnectorConfig(

@@ -700,7 +700,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
     assert.equal(recordedRequests[0]?.store, true);
   });
 
-  test("Enforces 0-token / 0-telemetry preconditions across 405, 400 (including >16KB), 404, and 429 quota with post-TTL recovery", async () => {
+  test("Enforces 0-token / 0-run-record preconditions across 405, 400 (including >16KB), 404, and 429 quota with post-TTL recovery", async () => {
     const { repository, t1, t2, b1 } = await seedLineageGraph();
     let clock = new Date("2026-11-01T00:00:00.000Z");
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
@@ -723,7 +723,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
     };
 
     const runsBefore = (await repository.listRunRecords()).length;
-    const agenticBefore = (await repository.getEfficiencyLedger()).agenticRunsCount;
+    const agenticBefore = (await repository.getEfficiencyScorecard()).agenticRunsCount;
 
     await withPlatesServer(
       {
@@ -852,7 +852,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         assert.equal(recordedRequests.length, 0);
         assert.equal((await repository.listRunRecords()).length, runsBefore);
         assert.equal(
-          (await repository.getEfficiencyLedger()).agenticRunsCount,
+          (await repository.getEfficiencyScorecard()).agenticRunsCount,
           agenticBefore
         );
 
@@ -1180,7 +1180,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           `${baseUrl}/api/plates/branch`,
           JSON.stringify({
             interactionId: teleT2.interactionId,
-            scenarioPrompt: "Telemetry overlap HTTP A",
+            scenarioPrompt: "Scorecard overlap HTTP A",
           })
         );
         await savedPromise;
@@ -1189,7 +1189,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           `${baseUrl}/api/plates/branch`,
           JSON.stringify({
             interactionId: teleT2.interactionId,
-            scenarioPrompt: "Telemetry overlap HTTP B",
+            scenarioPrompt: "Scorecard overlap HTTP B",
           })
         );
         assert.equal(post2Res.status, 201);

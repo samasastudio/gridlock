@@ -7,7 +7,7 @@ import type {
   RawCapture,
 } from "./filing-models.ts";
 import type {
-  EfficiencyLedger,
+  EfficiencyScorecard,
   ExecutionMode,
   RunRecord,
   RunSpan,
@@ -21,12 +21,12 @@ export interface RunPainterDeltas {
 }
 
 export interface RunStateUpdate {
-  updatedLedger: EfficiencyLedger;
+  updatedScorecard: EfficiencyScorecard;
   updatedChangelog?: readonly RepairChangelogEntry[];
 }
 
 export interface ConnectorPromotionStateUpdate {
-  updatedLedger: EfficiencyLedger;
+  updatedScorecard: EfficiencyScorecard;
   promotedArtifact?: RawCapture;
 }
 
@@ -56,10 +56,10 @@ export interface GridlockRepository {
   recordRunRecord(
     run: RunRecord,
     stateUpdate: RunStateUpdate
-  ): Promise<EfficiencyLedger>;
-  getEfficiencyLedger(
+  ): Promise<EfficiencyScorecard>;
+  getEfficiencyScorecard(
     options?: ScorecardQueryOptions
-  ): Promise<EfficiencyLedger>;
+  ): Promise<EfficiencyScorecard>;
   listRunRecords(
     options?: ScorecardQueryOptions
   ): Promise<RunRecord[]>;

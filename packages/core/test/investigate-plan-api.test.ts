@@ -114,9 +114,9 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
       }
     );
 
-    const ledger = await repository.getEfficiencyLedger();
-    assert.equal(ledger.agenticRunsCount, 2);
-    assert.equal(ledger.actualTokensUsed, 540);
+    const scorecard = await repository.getEfficiencyScorecard();
+    assert.equal(scorecard.agenticRunsCount, 2);
+    assert.equal(scorecard.actualTokensUsed, 540);
   });
 
   test("enforces 405 method guard, 400 query/body validation, 503 missing client, and 500 corrupt storage at 0 tokens", async () => {
@@ -214,7 +214,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
     assert.equal((await repository.listRunRecords()).length, 0);
   });
 
-  test("maps upstream/structural AI errors to 502 and unresolvable entities to 422 with agentic_failed telemetry", async () => {
+  test("maps upstream/structural AI errors to 502 and unresolvable entities to 422 with agentic_failed run records", async () => {
     const repository = await seedFilingPlannerRepository();
     const oversizedNodes = Array.from(
       { length: MAX_WORKSPACE_NODES + 1 },
@@ -457,7 +457,7 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
 });
 
 describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
-  test("accepts 20-60 KiB currentAst refinement payloads with hasCurrentAst telemetry", async () => {
+  test("accepts 20-60 KiB currentAst refinement payloads with hasCurrentAst span attributes", async () => {
     assert.equal(MAX_INVESTIGATE_BODY_BYTES, 131_072);
     const { repository, canonicalArtifactHash, branchPlateId } =
       await seedFiveCardPlannerRepository();

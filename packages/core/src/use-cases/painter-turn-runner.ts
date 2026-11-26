@@ -95,7 +95,7 @@ async function recordMilestoneSkip(
   ctx: PainterTurnContext,
   observations: readonly Observation[]
 ): Promise<StatefulPainterResult> {
-  const { ledger } = await recordStageRun(
+  const { scorecard } = await recordStageRun(
     {
       stage: "painter_milestone_gate",
       ...observationRunRef(observations),
@@ -117,7 +117,7 @@ async function recordMilestoneSkip(
     status: "skipped_no_milestone",
     lineageId: ctx.lineageId,
     tokensUsed: 0,
-    imageGenerationsAvoided: ledger.imageGenerationsAvoided,
+    imageGenerationsAvoided: scorecard.imageGenerationsAvoided,
     activePlate: ctx.activePlate,
   };
 }

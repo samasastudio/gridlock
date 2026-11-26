@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { DEFAULT_EFFICIENCY_LEDGER, type EfficiencyLedger, type RepairChangelogEntry, type RunRecord } from "@samasastudio/gridlock-core/schemas";
+import { DEFAULT_EFFICIENCY_SCORECARD, type EfficiencyScorecard, type RepairChangelogEntry, type RunRecord } from "@samasastudio/gridlock-core/schemas";
 import { GridlockRepairLogWidget, type GridlockRepairLogWidgetProps } from "../src/index.ts";
 
 export interface StoryMeta<TProps> {
@@ -54,8 +54,8 @@ const ZERO_ANOMALY_RUNS = RECENT_RUN_RECORDS.filter((run) => run.execution_mode 
 const ANOMALY_RUN = makeDegradedRun("run_tdlr_anom_029", "e", "selector_anomaly", 31, "2026-11-05T14:00:00.000Z");
 const WAF_BLOCKED_RUN = makeDegradedRun("run_tdlr_waf_030", "f", "blocked_by_waf", 8, "2026-11-06T14:00:00.000Z");
 
-const HEALED_LEDGER: EfficiencyLedger = {
-  ...DEFAULT_EFFICIENCY_LEDGER,
+const HEALED_SCORECARD: EfficiencyScorecard = {
+  ...DEFAULT_EFFICIENCY_SCORECARD,
   totalRunsCount: 28, deterministicRunsCount: 26, agenticRunsCount: 2,
   deterministicExecutionRatio: 0.9286, deterministicExecutionPercentage: 92.86,
   naiveTokensAvoided: 650_000, actualTokensUsed: 790, tokenReductionPercentage: 99.88,
@@ -107,8 +107,8 @@ export default repairLogWidgetMeta;
 export const HealthyZeroAnomalies: StoryObj<GridlockRepairLogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "healthy", activeVersion: 1, entries: [] },
-    efficiencyLedger: {
-      ...DEFAULT_EFFICIENCY_LEDGER, totalRunsCount: 4, deterministicRunsCount: 4,
+    efficiencyScorecard: {
+      ...DEFAULT_EFFICIENCY_SCORECARD, totalRunsCount: 4, deterministicRunsCount: 4,
       naiveTokensAvoided: 316_000, estimatedCostSavedUsd: 0.79, updatedAt: "2026-10-30T14:00:00.000Z", recentRuns: ZERO_ANOMALY_RUNS,
     },
     theme: "diurnal",
@@ -118,7 +118,7 @@ export const HealthyZeroAnomalies: StoryObj<GridlockRepairLogWidgetProps> = {
 export const HealedWithAmortization: StoryObj<GridlockRepairLogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "healthy", activeVersion: 3, entries: PROMOTED_ENTRIES },
-    efficiencyLedger: HEALED_LEDGER,
+    efficiencyScorecard: HEALED_SCORECARD,
     theme: "diurnal",
   },
 };
@@ -126,8 +126,8 @@ export const HealedWithAmortization: StoryObj<GridlockRepairLogWidgetProps> = {
 export const SelectorAnomalyDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "selector_anomaly", activeVersion: 3, entries: PROMOTED_ENTRIES },
-    efficiencyLedger: {
-      ...HEALED_LEDGER, totalRunsCount: 29, failedOrBlockedRunsCount: 1,
+    efficiencyScorecard: {
+      ...HEALED_SCORECARD, totalRunsCount: 29, failedOrBlockedRunsCount: 1,
       deterministicExecutionRatio: 0.8966, deterministicExecutionPercentage: 89.66,
       updatedAt: "2026-11-05T14:00:00.000Z", recentRuns: [...RECENT_RUN_RECORDS, ANOMALY_RUN],
     },
@@ -138,8 +138,8 @@ export const SelectorAnomalyDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
 export const BlockedByWafDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "blocked_by_waf", activeVersion: 3, entries: PROMOTED_ENTRIES },
-    efficiencyLedger: {
-      ...HEALED_LEDGER, totalRunsCount: 30, failedOrBlockedRunsCount: 2,
+    efficiencyScorecard: {
+      ...HEALED_SCORECARD, totalRunsCount: 30, failedOrBlockedRunsCount: 2,
       deterministicExecutionRatio: 0.8667, deterministicExecutionPercentage: 86.67,
       updatedAt: "2026-11-06T14:00:00.000Z", recentRuns: [...RECENT_RUN_RECORDS, ANOMALY_RUN, WAF_BLOCKED_RUN],
     },

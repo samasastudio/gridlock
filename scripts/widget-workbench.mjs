@@ -28,8 +28,8 @@ const PORT = IS_SMOKE_CHECK ? 0 : Number(process.env.PORT ?? 6006);
 const HOST = process.env.HOST ?? (IS_SMOKE_CHECK ? "127.0.0.1" : existsSync("/mnt/shared") ? "0.0.0.0" : "127.0.0.1");
 
 const healedArgs = HealedWithAmortization.args;
-const baseRepo = createInMemoryGridlockRepository(DEFAULT_TDLR_CONNECTOR_CONFIG, healedArgs.efficiencyLedger);
-if (healedArgs.changelog && healedArgs.efficiencyLedger) {
+const baseRepo = createInMemoryGridlockRepository(DEFAULT_TDLR_CONNECTOR_CONFIG, healedArgs.efficiencyScorecard);
+if (healedArgs.changelog && healedArgs.efficiencyScorecard) {
   let activeCfg = { ...DEFAULT_TDLR_CONNECTOR_CONFIG, fieldLabels: { ...DEFAULT_TDLR_CONNECTOR_CONFIG.fieldLabels } };
   for (const entry of healedArgs.changelog.entries) {
     activeCfg = { ...activeCfg, version: entry.promotedVersion, fieldLabels: { ...activeCfg.fieldLabels } };
@@ -40,7 +40,7 @@ if (healedArgs.changelog && healedArgs.efficiencyLedger) {
         activeCfg[diff.field] = diff.after;
       }
     }
-    await baseRepo.promoteConnectorConfig(activeCfg, entry, { updatedLedger: healedArgs.efficiencyLedger });
+    await baseRepo.promoteConnectorConfig(activeCfg, entry, { updatedScorecard: healedArgs.efficiencyScorecard });
   }
 }
 
@@ -448,7 +448,7 @@ const SMOKE_ROUTES = [
   "/bundle.js",
   "/atlas-tokens.css",
   "/api/repairs/changelog",
-  "/api/telemetry/efficiency",
+  "/api/efficiency/scorecard",
 ];
 
 async function verifySmokeRoute(baseUrl, path) {
@@ -457,10 +457,10 @@ async function verifySmokeRoute(baseUrl, path) {
     throw new Error(`${path} returned HTTP ${res.status}`);
   }
 
-  if (path === "/api/telemetry/efficiency") {
-    const ledger = await res.json();
-    if (!Array.isArray(ledger.recentRuns) || ledger.recentRuns.length === 0) {
-      throw new Error("Expected seeded recentRuns in /api/telemetry/efficiency");
+  if (path === "/api/efficiency/scorecard") {
+    const scorecard = await res.json();
+    if (!Array.isArray(scorecard.recentRuns) || scorecard.recentRuns.length === 0) {
+      throw new Error("Expected seeded recentRuns in /api/efficiency/scorecard");
     }
   }
 }
@@ -541,7 +541,7 @@ server.listen(PORT, HOST, async () => {
       );
       await verifyWorkbenchPlateSeam(baseUrl);
       console.log(
-        "Widget workbench smoke check OK (/, /bundle.js, /atlas-tokens.css, /api/repairs/changelog, /api/telemetry/efficiency, /api/plates/*)"
+        "Widget workbench smoke check OK (/, /bundle.js, /atlas-tokens.css, /api/repairs/changelog, /api/efficiency/scorecard, /api/plates/*)"
       );
       server.close(() => process.exit(0));
     } catch (err) {

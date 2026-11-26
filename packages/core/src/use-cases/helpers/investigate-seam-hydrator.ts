@@ -5,7 +5,7 @@ import {
   VisualPlateScrubberNodeSchema,
   type CitedProject,
   type ConnectorHealthCardNode,
-  type EfficiencyLedger,
+  type EfficiencyScorecard,
   type LineageNode,
   type Observation,
   type PlannerNodeSpec,
@@ -41,7 +41,7 @@ export interface WorkspaceNodeHydrationContext {
   artifactsByHash: ReadonlyMap<string, RawCapture | null>;
   lineageById: ReadonlyMap<string, PlateLineageResponse>;
   changelogByConnector: ReadonlyMap<string, RepairChangelogResponse>;
-  compactLedger: EfficiencyLedger | null;
+  compactScorecard: EfficiencyScorecard | null;
   nowMs: number;
 }
 
@@ -197,7 +197,7 @@ function buildVisualPlateScrubberNode(
 function buildConnectorHealthCardNode(
   nodeId: string,
   changelog: RepairChangelogResponse,
-  ledger: EfficiencyLedger
+  scorecard: EfficiencyScorecard
 ): { ok: true; node: ConnectorHealthCardNode } | HydratorStepFailure {
   const sanitizedChangelog: RepairChangelogResponse = {
     ...changelog,
@@ -212,9 +212,11 @@ function buildConnectorHealthCardNode(
     nodeId,
     component: "ConnectorHealthCard",
     changelog: sanitizedChangelog,
-    ledger: {
-      ...ledger,
-      recentRuns: ledger.recentRuns.slice(-CONNECTOR_HEALTH_RECENT_RUNS_LIMIT),
+    scorecard: {
+      ...scorecard,
+      recentRuns: scorecard.recentRuns.slice(
+        -CONNECTOR_HEALTH_RECENT_RUNS_LIMIT
+      ),
     },
   });
   if (!parsedNode.success) {
@@ -268,11 +270,11 @@ export function hydrateWorkspaceNodes(
         );
       case "ConnectorHealthCard": {
         const changelog = ctx.changelogByConnector.get(specNode.connectorId);
-        return changelog && ctx.compactLedger
+        return changelog && ctx.compactScorecard
           ? buildConnectorHealthCardNode(
               specNode.nodeId,
               changelog,
-              ctx.compactLedger
+              ctx.compactScorecard
             )
           : stepFailure(
               "entity_not_found",

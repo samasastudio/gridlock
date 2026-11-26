@@ -150,7 +150,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       },
       { repository }
     );
-    assert.equal(afterBootstrap.ledger.visualPlateCacheEfficiencyPercentage, 50);
+    assert.equal(afterBootstrap.scorecard.visualPlateCacheEfficiencyPercentage, 50);
 
     // Failed/blocked runs must never inflate imageGenerationsAvoided or visualPlateCacheHits
     await recordStageRun(
@@ -185,7 +185,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       { lineageId: "texas-corridor-main", observations: [routineObs] },
       { repository }
     );
-    const { ledger } = await recordAgenticStageRun(
+    const { scorecard } = await recordAgenticStageRun(
       {
         stage: "painter_milestone_delta",
         status: "agentic_completed",
@@ -197,9 +197,9 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       },
       { repository }
     );
-    assert.equal(ledger.imageGenerationsAvoided, 2);
-    assert.equal(ledger.visualPlateCacheHits, 1);
-    assert.equal(ledger.visualPlateCacheEfficiencyPercentage, 75);
+    assert.equal(scorecard.imageGenerationsAvoided, 2);
+    assert.equal(scorecard.visualPlateCacheHits, 1);
+    assert.equal(scorecard.visualPlateCacheEfficiencyPercentage, 75);
   });
 
   test("Part 2 (Turn 1 bootstrapCanvas, Real PNG->WebP Lossless Codec, Artifact Pinning & Fail-Closed Guards): validates corridor base canvas, transcodes PNG to RFC-9649 WebP, pins RawCapture retention, and fails closed across status/ID/image sad paths", async () => {
@@ -293,7 +293,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(recordedRequests.length, 7);
     assert.equal((await repository.listVisualPlatesByLineage("texas-corridor-main")).length, 1);
     assert.equal((await repository.listVisualPlatesByLineage("corridor-corrupt-img")).length, 0);
-    assert.equal((await repository.getEfficiencyLedger()).actualTokensUsed, 1840 + 320 + 150 + 210 + 190 + 410);
+    assert.equal((await repository.getEfficiencyScorecard()).actualTokensUsed, 1840 + 320 + 150 + 210 + 190 + 410);
     assert.equal(emittedSpans.at(-1)?.status, "agentic_failed");
   });
 
@@ -408,7 +408,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(turn4.status, "plate_painted");
     assert.equal(turn4.rebootstrappedFromParentWebp, true);
     assert.equal(turn4.tokensUsed, 45 + 1200);
-    assert.equal((await repository.getEfficiencyLedger()).visualPlateCacheHits, 2);
+    assert.equal((await repository.getEfficiencyScorecard()).visualPlateCacheHits, 2);
 
     // 5. Sad Path: non-expiry errors (401 key expired, 400 API key expired, 404 model not found, budget_exceeded) must NEVER trigger fallback
     const nonExpiryFaults: Array<{ fault: () => GeminiInteractionResponse; expectedTokens: number }> = [
@@ -454,7 +454,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(recordedRequests.length, callsBeforeMissingCache + 1);
   });
 
-  test("Part 4 (branchLineage Ephemeral Scenario Forking, Pixel+XMP Watermark, Chunk Preservation, Sibling Isolation & +90d TTL): stamps legible watermark glyphs, preserves extended WebP chunks, isolates sibling plateIds, and enforces TTL/quota without unbounded rejection telemetry", async () => {
+  test("Part 4 (branchLineage Ephemeral Scenario Forking, Pixel+XMP Watermark, Chunk Preservation, Sibling Isolation & +90d TTL): stamps legible watermark glyphs, preserves extended WebP chunks, isolates sibling plateIds, and enforces TTL/quota without unbounded rejection run records", async () => {
     const repository = createInMemoryGridlockRepository();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const { milestoneObs: rootObs } = createPainterTestObservations();
@@ -679,7 +679,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
 
     // 4. Pre-Gemini validation & quota rejections write zero run_records and zero Gemini requests; +90d TTL frees quota & blocks expired parents
     const runsBeforePreconditions = (await repository.listRunRecords()).length;
-    const agenticBeforePreconditions = (await repository.getEfficiencyLedger()).agenticRunsCount;
+    const agenticBeforePreconditions = (await repository.getEfficiencyScorecard()).agenticRunsCount;
     const callsBeforePreconditions = recordedRequests.length;
 
     const emptyPrompt = await branchLineage({ parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "   ", now: branchNow }, { repository, geminiClient });
@@ -721,7 +721,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
 
     assert.equal(recordedRequests.length, callsBeforePreconditions);
     assert.equal((await repository.listRunRecords()).length, runsBeforePreconditions);
-    assert.equal((await repository.getEfficiencyLedger()).agenticRunsCount, agenticBeforePreconditions);
+    assert.equal((await repository.getEfficiencyScorecard()).agenticRunsCount, agenticBeforePreconditions);
 
     // After +90d TTL elapses, prior ephemeral branches no longer consume maxBranchesPerLineage=1
     responseQueue.push({
@@ -738,7 +738,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(postExpiryBranch.status, "plate_painted");
   });
 
-  test("Part 5 (branchLineage Serialized Slot Admission & Post-Save Telemetry Release): avoids double-counting slots during telemetry writes and prevents stale-snapshot over-admission", async () => {
+  test("Part 5 (branchLineage Serialized Slot Admission & Post-Save Scorecard Release): avoids double-counting slots during scorecard writes and prevents stale-snapshot over-admission", async () => {
     const baseRepo = createInMemoryGridlockRepository();
     const { milestoneObs: obs } = createPainterTestObservations();
     await baseRepo.appendObservation(obs);
@@ -816,7 +816,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     const secondBranchResult = await branchLineage(
       {
         parentInteractionId: rootRelease.plate.interactionId,
-        scenarioPrompt: "Slot release branch 2 during telemetry write",
+        scenarioPrompt: "Slot release branch 2 during scorecard write",
         maxBranchesPerLineage: 2,
         now: nowRelease,
       },

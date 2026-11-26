@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from "react";
 import { motion } from "motion/react";
-import type { EfficiencyLedger } from "@samasastudio/gridlock-core/schemas";
+import type { EfficiencyScorecard } from "@samasastudio/gridlock-core/schemas";
 import { EDITORIAL_EASE } from "./DossierPrimitives.tsx";
 import {
   buildCumulativeSeries,
@@ -14,14 +14,14 @@ import {
 
 export function EfficiencyLineChart(props: {
   baseId: string;
-  ledger: EfficiencyLedger;
+  scorecard: EfficiencyScorecard;
   connectorId?: string;
   selectableInteractions?: ReadonlyMap<string, string>;
   activeInteractionId?: string;
   onSelectInteraction?: (interactionId: string) => void;
 }) {
-  const { activeInteractionId, baseId, connectorId, ledger, onSelectInteraction, selectableInteractions } = props;
-  const { points, startDate, endDate, sampledCount } = buildCumulativeSeries(ledger, connectorId);
+  const { activeInteractionId, baseId, connectorId, scorecard, onSelectInteraction, selectableInteractions } = props;
+  const { points, startDate, endDate, sampledCount } = buildCumulativeSeries(scorecard, connectorId);
   const bottomY = SVG_HEIGHT - PAD_BOTTOM;
   const midY = Number(((PAD_TOP + bottomY) / 2).toFixed(2));
   const avoidedLineD = toPathD(points, "avoidedY");
@@ -37,11 +37,11 @@ export function EfficiencyLineChart(props: {
         <span className="gridlock-chart-legend">
           <span className="gridlock-legend-item">
             <span className="gridlock-legend-swatch" data-swatch="avoided" aria-hidden="true" />
-            <span>Avoided ({ledger.naiveTokensAvoided.toLocaleString("en-US")})</span>
+            <span>Avoided ({scorecard.naiveTokensAvoided.toLocaleString("en-US")})</span>
           </span>
           <span className="gridlock-legend-item">
             <span className="gridlock-legend-swatch" data-swatch="actual" aria-hidden="true" />
-            <span>Actual LLM spend ({ledger.actualTokensUsed.toLocaleString("en-US")})</span>
+            <span>Actual LLM spend ({scorecard.actualTokensUsed.toLocaleString("en-US")})</span>
           </span>
         </span>
       </figcaption>
@@ -50,7 +50,7 @@ export function EfficiencyLineChart(props: {
         className="gridlock-line-svg"
         viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
         role="group"
-        aria-label={`Cumulative tokens avoided climbing to ${ledger.naiveTokensAvoided.toLocaleString("en-US")} versus ${ledger.actualTokensUsed.toLocaleString("en-US")} actual LLM tokens used`}
+        aria-label={`Cumulative tokens avoided climbing to ${scorecard.naiveTokensAvoided.toLocaleString("en-US")} versus ${scorecard.actualTokensUsed.toLocaleString("en-US")} actual LLM tokens used`}
       >
         <line x1={PAD_X} y1={PAD_TOP} x2={SVG_WIDTH - PAD_X} y2={PAD_TOP} stroke="var(--gridlock-border)" strokeDasharray="2 4" />
         <line x1={PAD_X} y1={midY} x2={SVG_WIDTH - PAD_X} y2={midY} stroke="var(--gridlock-border)" strokeDasharray="2 4" />
@@ -143,7 +143,7 @@ export function EfficiencyLineChart(props: {
 
       <div className="gridlock-chart-axis" aria-hidden="true">
         <span>{startDate ?? "Baseline"}</span>
-        <span>{sampledCount.toLocaleString("en-US")} {ledger.recentRuns.length > 0 ? "recent runs" : "total runs"}</span>
+        <span>{sampledCount.toLocaleString("en-US")} {scorecard.recentRuns.length > 0 ? "recent runs" : "total runs"}</span>
         <span>{endDate ?? "Latest"}</span>
       </div>
     </figure>

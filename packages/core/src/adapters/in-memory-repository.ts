@@ -1,9 +1,9 @@
 import { Buffer } from "node:buffer";
 import {
   ConnectorConfigSchema,
-  DEFAULT_EFFICIENCY_LEDGER,
+  DEFAULT_EFFICIENCY_SCORECARD,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
-  EfficiencyLedgerSchema,
+  EfficiencyScorecardSchema,
   ObservationSchema,
   ProjectSchema,
   RepairChangelogEntrySchema,
@@ -14,7 +14,7 @@ import {
   type ConnectorConfig,
   type ConnectorPromotionStateUpdate,
   type ConnectorStatus,
-  type EfficiencyLedger,
+  type EfficiencyScorecard,
   type GridlockRepository,
   type Observation,
   type Project,
@@ -28,7 +28,7 @@ import {
 
 export function createInMemoryGridlockRepository(
   initialConfig: ConnectorConfig = DEFAULT_TDLR_CONNECTOR_CONFIG,
-  initialLedger: EfficiencyLedger = DEFAULT_EFFICIENCY_LEDGER
+  initialScorecard: EfficiencyScorecard = DEFAULT_EFFICIENCY_SCORECARD
 ): GridlockRepository {
   const configs = new Map<string, ConnectorConfig>([
     [initialConfig.connectorId, ConnectorConfigSchema.parse(initialConfig)],
@@ -40,14 +40,14 @@ export function createInMemoryGridlockRepository(
   const projects = new Map<string, Project>();
   const observations: Observation[] = [];
   const runRecords: RunRecord[] = [
-    ...initialLedger.recentRuns.map((run) =>
+    ...initialScorecard.recentRuns.map((run) =>
       structuredClone(RunRecordSchema.parse(run))
     ),
   ];
   const state = {
     repairChangelog: [] as RepairChangelogEntry[],
-    efficiencyLedger: structuredClone(
-      EfficiencyLedgerSchema.parse(initialLedger)
+    efficiencyScorecard: structuredClone(
+      EfficiencyScorecardSchema.parse(initialScorecard)
     ),
   };
 
@@ -122,29 +122,29 @@ export function createInMemoryGridlockRepository(
     async recordRunRecord(
       run: RunRecord,
       stateUpdate: RunStateUpdate
-    ): Promise<EfficiencyLedger> {
+    ): Promise<EfficiencyScorecard> {
       const validatedRun = RunRecordSchema.parse(run);
       runRecords.push(structuredClone(validatedRun));
-      state.efficiencyLedger = structuredClone(
-        EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
+      state.efficiencyScorecard = structuredClone(
+        EfficiencyScorecardSchema.parse(stateUpdate.updatedScorecard)
       );
       if (stateUpdate.updatedChangelog) {
         state.repairChangelog = stateUpdate.updatedChangelog.map((entry) =>
           structuredClone(RepairChangelogEntrySchema.parse(entry))
         );
       }
-      return structuredClone(state.efficiencyLedger);
+      return structuredClone(state.efficiencyScorecard);
     },
 
-    async getEfficiencyLedger(
+    async getEfficiencyScorecard(
       options?: ScorecardQueryOptions
-    ): Promise<EfficiencyLedger> {
+    ): Promise<EfficiencyScorecard> {
       const boundedRuns = await this.listRunRecords({
         ...options,
         limit: options?.limit ?? 50,
       });
-      return EfficiencyLedgerSchema.parse({
-        ...structuredClone(state.efficiencyLedger),
+      return EfficiencyScorecardSchema.parse({
+        ...structuredClone(state.efficiencyScorecard),
         recentRuns: boundedRuns,
       });
     },
@@ -179,8 +179,8 @@ export function createInMemoryGridlockRepository(
           structuredClone(RawCaptureSchema.parse(stateUpdate.promotedArtifact))
         );
       }
-      state.efficiencyLedger = structuredClone(
-        EfficiencyLedgerSchema.parse(stateUpdate.updatedLedger)
+      state.efficiencyScorecard = structuredClone(
+        EfficiencyScorecardSchema.parse(stateUpdate.updatedScorecard)
       );
     },
 

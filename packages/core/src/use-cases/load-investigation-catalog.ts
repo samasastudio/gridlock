@@ -142,7 +142,7 @@ export async function loadPlannerGroundingCatalog(
     const candidateConnectorIds = collectCandidateConnectorIds(
       validatedChangelogs.connectorIds,
       filingEntries.artifactsByHash,
-      scorecardResult.ledger.recentRuns,
+      scorecardResult.scorecard.recentRuns,
       validLineages
     );
     const changelogResults = await Promise.all(

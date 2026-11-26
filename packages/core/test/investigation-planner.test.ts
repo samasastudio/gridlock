@@ -34,7 +34,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(RunStageSchema.safeParse("investigation_planner").success, true);
   });
 
-  test("hydrates filing cards, filters uncitable catalog projects, redacts PII, and records telemetry", async () => {
+  test("hydrates filing cards, filters uncitable catalog projects, redacts PII, and records run scorecard", async () => {
     const repository = await seedFilingPlannerRepository();
     const spans: RunSpan[] = [];
     const { geminiClient, recordedRequests } = createPlannerClientStub(async () => ({
@@ -120,9 +120,9 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(runs[0]?.status, "agentic_completed");
     assert.equal(runs[0]?.tokensUsed, 340);
     assert.equal(runs[0]?.expiresAt, null);
-    const ledger = await repository.getEfficiencyLedger();
-    assert.equal(ledger.agenticRunsCount, 1);
-    assert.equal(ledger.actualTokensUsed, 340);
+    const scorecard = await repository.getEfficiencyScorecard();
+    assert.equal(scorecard.agenticRunsCount, 1);
+    assert.equal(scorecard.actualTokensUsed, 340);
     assert.equal(spans.length, 1);
     assert.equal(spans[0]?.stage, "investigation_planner");
     assert.equal(spans[0]?.attributes?.nodeCount, 3);
@@ -212,7 +212,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal(entry1001?.hasMilestone, true);
   });
 
-  test("hydrates zero-match empty workspace (isEmpty: true) and records completed telemetry", async () => {
+  test("hydrates zero-match empty workspace (isEmpty: true) and records completed run records", async () => {
     const repository = await seedFilingPlannerRepository();
     const { geminiClient } = createPlannerClientStub(async () => ({
       id: "ix_planner_empty",
@@ -327,7 +327,7 @@ describe("runInvestigationPlanner (Core filing planner & preconditions)", () => 
     assert.equal((await repository.listRunRecords()).length, 0);
   });
 
-  test("maps upstream and structural AI failures to 502 with agentic_failed telemetry", async () => {
+  test("maps upstream and structural AI failures to 502 with agentic_failed run records", async () => {
     const repository = await seedFilingPlannerRepository();
 
     const thrownOutcome = await runInvestigationPlanner(

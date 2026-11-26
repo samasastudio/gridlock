@@ -1,6 +1,6 @@
 import {
   type ConnectorConfig,
-  type EfficiencyLedger,
+  type EfficiencyScorecard,
   type ExecutionMode,
   type GridlockRepository,
   type RunPainterDeltas,
@@ -12,7 +12,7 @@ import {
 } from "../interfaces/index.ts";
 import {
   applyHealAmortization,
-  applyRunRecordToLedger,
+  applyRunRecordToScorecard,
   buildRunRecord,
   buildRunSpan,
 } from "./helpers/scorecard-math.ts";
@@ -53,7 +53,7 @@ export async function recordStageRun(
     repository: GridlockRepository;
     spanSink?: RunSpanSink;
   }
-): Promise<{ run: RunRecord; span: RunSpan; ledger: EfficiencyLedger }> {
+): Promise<{ run: RunRecord; span: RunSpan; scorecard: EfficiencyScorecard }> {
   const durationMs = Math.max(
     0,
     input.endedAt.getTime() - input.startedAt.getTime()
@@ -84,11 +84,11 @@ export async function recordStageRun(
     recordedAt: input.recordedAt ?? input.endedAt.toISOString(),
   });
 
-  const currentLedger = await deps.repository.getEfficiencyLedger();
+  const currentScorecard = await deps.repository.getEfficiencyScorecard();
   const existingRuns = await deps.repository.listRunRecords();
   const recentSlice = [...existingRuns, run].slice(-50);
-  const ledgerAfterRun = applyRunRecordToLedger(
-    currentLedger,
+  const scorecardAfterRun = applyRunRecordToScorecard(
+    currentScorecard,
     run,
     recentSlice,
     input
@@ -104,11 +104,11 @@ export async function recordStageRun(
     run,
     activeConfig,
     repairChangelog: currentChangelog,
-    ledger: ledgerAfterRun,
+    scorecard: scorecardAfterRun,
   });
 
-  const ledger = await deps.repository.recordRunRecord(run, {
-    updatedLedger: amortized.updatedLedger,
+  const scorecard = await deps.repository.recordRunRecord(run, {
+    updatedScorecard: amortized.updatedScorecard,
     updatedChangelog: amortized.updatedChangelog,
   });
 
@@ -131,7 +131,7 @@ export async function recordStageRun(
   const sink = deps.spanSink ?? noopSpanSink;
   sink(span);
 
-  return { run, span, ledger };
+  return { run, span, scorecard };
 }
 
 export async function recordAgenticStageRun(
@@ -153,7 +153,7 @@ export async function recordAgenticStageRun(
     repository: GridlockRepository;
     spanSink?: RunSpanSink;
   }
-): Promise<{ run: RunRecord; span: RunSpan; ledger: EfficiencyLedger }> {
+): Promise<{ run: RunRecord; span: RunSpan; scorecard: EfficiencyScorecard }> {
   return recordStageRun(
     {
       ...input,
