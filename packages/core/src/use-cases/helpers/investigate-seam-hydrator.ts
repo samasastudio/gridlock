@@ -11,7 +11,7 @@ import {
   type PlannerNodeSpec,
   type PlateLineageResponse,
   type RepairChangelogResponse,
-  type SourceArtifact,
+  type RawCapture,
   type UiWidgetNode,
   type VisualPlateScrubberNode,
 } from "../../interfaces/index.ts";
@@ -38,7 +38,7 @@ export interface WorkspaceLookupKeys {
 export interface WorkspaceNodeHydrationContext {
   citedByNumber: ReadonlyMap<string, CitedProject>;
   observationsByProject: ReadonlyMap<string, Observation[]>;
-  artifactsByHash: ReadonlyMap<string, SourceArtifact | null>;
+  artifactsByHash: ReadonlyMap<string, RawCapture | null>;
   lineageById: ReadonlyMap<string, PlateLineageResponse>;
   changelogByConnector: ReadonlyMap<string, RepairChangelogResponse>;
   compactLedger: EfficiencyLedger | null;
@@ -153,17 +153,17 @@ function buildVisualPlateScrubberNode(
   }
 
   const unresolvableNode = lineage.nodes.find((node) => {
-    const hasInvalidUrl = node.sourceArtifacts.some(
+    const hasInvalidUrl = node.rawCaptures.some(
       (art) => !/^https?:\/\//i.test(art.sourceUrl)
     );
-    const expectedCitationCount = new Set(node.plate.sourceArtifactHashes).size;
+    const expectedCitationCount = new Set(node.plate.rawCaptureHashes).size;
     const expectedObservationCount = new Set(
       node.plate.triggeringObservationIds
     ).size;
     return (
       expectedCitationCount === 0 ||
       hasInvalidUrl ||
-      node.sourceArtifacts.length !== expectedCitationCount ||
+      node.rawCaptures.length !== expectedCitationCount ||
       node.triggeringObservations.length !== expectedObservationCount
     );
   });
@@ -171,7 +171,7 @@ function buildVisualPlateScrubberNode(
   if (unresolvableNode) {
     return stepFailure(
       "unresolvable_provenance",
-      `Visual Plate "${unresolvableNode.plate.plateId}" in lineage "${lineage.lineageId}" lacks resolvable Source Artifact provenance`
+      `Visual Plate "${unresolvableNode.plate.plateId}" in lineage "${lineage.lineageId}" lacks resolvable Raw Capture provenance`
     );
   }
 

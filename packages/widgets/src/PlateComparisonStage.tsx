@@ -83,7 +83,7 @@ function PlateViewportFrame(props: {
           </div>
           <p className="gridlock-plate-fallback-copy">
             WebP asset for <code>{plate.plateId}</code> could not be loaded; verified Observations
-            and cryptographic Source Artifact provenance remain inspectable.
+            and cryptographic Raw Capture provenance remain inspectable.
           </p>
         </div>
       )}

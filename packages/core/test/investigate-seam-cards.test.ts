@@ -25,7 +25,7 @@ import {
 } from "../src/index.ts";
 import {
   createFixtureWebpBuffer,
-  createTestSourceArtifact,
+  createTestRawCapture,
   FROZEN_TABS_2027003697_HTML,
   HISTORICAL_FIXTURE_V1_HTML,
   MUTATED_PORTAL_V2_HTML,
@@ -102,7 +102,7 @@ async function seedFullFiveCardRepository(): Promise<{
   const repairResult = await runOutOfBandRepairAgent(
     {
       connectorId: "tdlr-tabs",
-      quarantinedArtifact: anomaly.sourceArtifact,
+      quarantinedArtifact: anomaly.rawCapture,
       brokenInvariants: [
         ...anomaly.invariantErrors,
         "Selector <div class=\"project-details\"> missing; ping sre_oncall@example.com",
@@ -481,10 +481,10 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
       (plate) => plate.plateId === canonicalPlateId
     );
     assert.ok(canonicalPlate);
-    const canonicalArtifactHash = canonicalPlate.sourceArtifactHashes[0];
+    const canonicalArtifactHash = canonicalPlate.rawCaptureHashes[0];
     assert.ok(canonicalArtifactHash);
 
-    const quarantinedArtifact = createTestSourceArtifact(
+    const quarantinedArtifact = createTestRawCapture(
       canonicalArtifactHash,
       "TABS2027003697",
       {
@@ -507,10 +507,10 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
         {
           repository: {
             ...repository,
-            getSourceArtifactByHash: async (sha256) =>
+            getRawCaptureByHash: async (sha256) =>
               sha256 === canonicalArtifactHash
                 ? overrideArtifact
-                : repository.getSourceArtifactByHash(sha256),
+                : repository.getRawCaptureByHash(sha256),
           },
         },
         { now: NOW }
@@ -532,10 +532,10 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
           repository: {
             ...repository,
             listVisualPlatesByLineage: async () => branchOnlyPlates,
-            getSourceArtifactByHash: async (sha256) =>
+            getRawCaptureByHash: async (sha256) =>
               sha256 === canonicalArtifactHash
                 ? overrideArtifact
-                : repository.getSourceArtifactByHash(sha256),
+                : repository.getRawCaptureByHash(sha256),
           },
         },
         { now: NOW }
@@ -579,7 +579,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 3", () =
         repository: {
           ...repository,
           listVisualPlatesByLineage: async () => [
-            { ...canonicalPlate, sourceArtifactHashes: [] },
+            { ...canonicalPlate, rawCaptureHashes: [] },
           ],
         },
       },

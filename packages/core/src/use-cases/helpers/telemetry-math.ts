@@ -3,14 +3,14 @@ import {
   EfficiencyLedgerSchema,
   NAIVE_COST_PER_TOKEN_USD,
   RepairChangelogEntrySchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   TelemetryRunSchema,
   TelemetrySpanSchema,
   type ConnectorConfig,
   type EfficiencyLedger,
   type ExecutionMode,
   type RepairChangelogEntry,
-  type SourceArtifact,
+  type RawCapture,
   type TelemetryPainterDeltas,
   type TelemetryRun,
   type TelemetryRunStatus,
@@ -76,7 +76,7 @@ export function buildTelemetryRun(params: {
   stage: TelemetryStage;
   connectorId?: string;
   projectNumber?: string;
-  sourceArtifactHash?: string;
+  rawCaptureHash?: string;
   execution_mode: ExecutionMode;
   status: TelemetryRunStatus;
   durationMs: number;
@@ -101,8 +101,8 @@ export function buildTelemetryRun(params: {
     ...(params.projectNumber !== undefined
       ? { projectNumber: params.projectNumber }
       : {}),
-    ...(params.sourceArtifactHash !== undefined
-      ? { sourceArtifactHash: params.sourceArtifactHash }
+    ...(params.rawCaptureHash !== undefined
+      ? { rawCaptureHash: params.rawCaptureHash }
       : {}),
     execution_mode: params.execution_mode,
     status: params.status,
@@ -257,17 +257,17 @@ export function applyHealAmortization(params: {
 export function applyConnectorPromotion(params: {
   changelogEntry: RepairChangelogEntry;
   allChangelogEntries: readonly RepairChangelogEntry[];
-  quarantinedArtifact: SourceArtifact | undefined;
+  quarantinedArtifact: RawCapture | undefined;
   ledger: EfficiencyLedger;
 }): {
-  promotedArtifact: SourceArtifact | undefined;
+  promotedArtifact: RawCapture | undefined;
   updatedLedger: EfficiencyLedger;
 } {
   const { changelogEntry, allChangelogEntries, quarantinedArtifact, ledger } =
     params;
 
   const promotedArtifact = quarantinedArtifact
-    ? SourceArtifactSchema.parse({
+    ? RawCaptureSchema.parse({
         ...quarantinedArtifact,
         referencedByMilestone: true,
         expiresAt: null,

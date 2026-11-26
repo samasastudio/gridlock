@@ -100,7 +100,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     const zeroObsLineage = PlateLineageResponseSchema.parse({
       lineageId: seeded.lineage.lineageId,
       activeCanonicalPlateId: t1Node.plate.plateId,
-      nodes: [{ ...t1Node, plate: { ...t1Node.plate, projectNumbers: [], triggeringObservationIds: [], sourceArtifactHashes: [] }, triggeringObservations: [], sourceArtifacts: [] }],
+      nodes: [{ ...t1Node, plate: { ...t1Node.plate, projectNumbers: [], triggeringObservationIds: [], rawCaptureHashes: [] }, triggeringObservations: [], rawCaptures: [] }],
       edges: [],
     });
     const baselineHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={zeroObsLineage} apiBaseUrl="" />);

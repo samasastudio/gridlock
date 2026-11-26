@@ -51,7 +51,7 @@ describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive
     const repair = await runOutOfBandRepairAgent(
       {
         connectorId: "tdlr-tabs",
-        quarantinedArtifact: anomaly.sourceArtifact,
+        quarantinedArtifact: anomaly.rawCapture,
         brokenInvariants: anomaly.invariantErrors,
         historicalFixtures: [HISTORICAL_HTML],
         anomalyDetectedAt: new Date("2026-10-27T14:00:00.000Z"),
@@ -126,14 +126,14 @@ describe("<GridlockRepairLogWidget /> Timeline, Live Core Pipeline & Interactive
     const hadWindowBefore = "window" in globalThis;
     const navDescBefore = Object.getOwnPropertyDescriptor(globalThis, "navigator");
     await withWidgetDom(async ({ container, root, getLastCopiedText }) => {
-      await act(async () => { root.render(<CopyCitationButton value="sha_alpha" displayLabel="sha256:alpha" citationKind="Source Artifact SHA-256" />); });
+      await act(async () => { root.render(<CopyCitationButton value="sha_alpha" displayLabel="sha256:alpha" citationKind="Raw Capture SHA-256" />); });
       const btn = container.querySelector("button")!;
       await act(async () => { btn.click(); });
       assert.equal(getLastCopiedText(), "sha_alpha");
       assert.equal(btn.getAttribute("data-copied"), "true");
-      await act(async () => { root.render(<CopyCitationButton value="sha_beta" displayLabel="sha256:beta" citationKind="Source Artifact SHA-256" />); });
+      await act(async () => { root.render(<CopyCitationButton value="sha_beta" displayLabel="sha256:beta" citationKind="Raw Capture SHA-256" />); });
       assert.equal(btn.getAttribute("data-copied"), "false");
-      assert.match(btn.getAttribute("aria-label") ?? "", /Copy Source Artifact SHA-256 sha256:beta/);
+      assert.match(btn.getAttribute("aria-label") ?? "", /Copy Raw Capture SHA-256 sha256:beta/);
     });
     assert.equal("window" in globalThis, hadWindowBefore);
     assert.equal(typeof Object.getOwnPropertyDescriptor(globalThis, "navigator")?.get, typeof navDescBefore?.get);

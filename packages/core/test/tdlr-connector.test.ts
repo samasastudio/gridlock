@@ -11,7 +11,7 @@ import {
   GRIDLOCK_USER_AGENT,
   ProjectSchema,
   ObservationSchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   ConnectorConfigSchema,
 } from "../src/index.ts";
 import { FROZEN_TABS_2027003697_HTML } from "./helpers/fixtures.ts";
@@ -39,7 +39,7 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     await harness.close();
   });
 
-  test("extracts valid Project and append-only Observation from frozen TDLR HTML and stores a gzipped SHA-256 SourceArtifact", async () => {
+  test("extracts valid Project and append-only Observation from frozen TDLR HTML and stores a gzipped SHA-256 RawCapture", async () => {
     routeMap.set("/TABS/Search/Project/TABS2027003697", {
       body: FROZEN_TABS_2027003697_HTML,
     });
@@ -63,7 +63,7 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
       .digest("hex");
 
     // Validate runtime Zod schemas on returned records
-    const parsedArtifact = SourceArtifactSchema.parse(result.sourceArtifact);
+    const parsedArtifact = RawCaptureSchema.parse(result.rawCapture);
     const parsedProject = ProjectSchema.parse(result.project);
     const parsedObservation = ObservationSchema.parse(result.observation);
     const activeConfig = await repository.getActiveConnectorConfig("tdlr-tabs");
@@ -74,9 +74,9 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     assert.equal(parsedArtifact.expiresAt, null);
     assert.equal(parsedArtifact.rawByteLength, Buffer.byteLength(FROZEN_TABS_2027003697_HTML, "utf-8"));
 
-    // Verify stored gzipped Source Artifact decompresses back to exact frozen HTML
+    // Verify stored gzipped Raw Capture decompresses back to exact frozen HTML
     const storedGzipBuffer = await repository.readArtifactGzip(parsedArtifact.sha256);
-    assert.ok(storedGzipBuffer, "Expected gzipped Source Artifact buffer in storage");
+    assert.ok(storedGzipBuffer, "Expected gzipped Raw Capture buffer in storage");
     assert.equal(gunzipSync(storedGzipBuffer).toString("utf-8"), FROZEN_TABS_2027003697_HTML);
 
     assert.equal(parsedProject.projectNumber, "TABS2027003697");
@@ -98,10 +98,10 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     assert.equal(parsedProject.currentStatus, "Project Registered");
     assert.equal(parsedProject.startDate, "2024-12-01");
     assert.equal(parsedProject.completionDate, "2028-08-22");
-    assert.equal(parsedProject.latestSourceArtifactHash, expectedSha256);
+    assert.equal(parsedProject.latestRawCaptureHash, expectedSha256);
 
     assert.equal(parsedObservation.projectNumber, "TABS2027003697");
-    assert.equal(parsedObservation.sourceArtifactHash, expectedSha256);
+    assert.equal(parsedObservation.rawCaptureHash, expectedSha256);
     assert.equal(parsedObservation.observedAt, "2026-10-25T14:00:00.000Z");
     assert.equal(parsedObservation.status, "Project Registered");
     assert.equal(parsedObservation.estimatedCostUsd, 100_000_000);
@@ -109,7 +109,7 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     assert.equal(parsedObservation.isMilestone, true);
   });
 
-  test("short-circuits with unchanged_artifact and zero duplicate writes on an identical SHA-256 Source Artifact, and sets +90d TTL on non-milestone artifacts", async () => {
+  test("short-circuits with unchanged_artifact and zero duplicate writes on an identical SHA-256 Raw Capture, and sets +90d TTL on non-milestone artifacts", async () => {
     routeMap.set("/TABS/Search/Project/TABS2027003697", {
       body: FROZEN_TABS_2027003697_HTML,
     });
@@ -129,7 +129,7 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
       { repository }
     );
     assert.equal(secondResult.status, "unchanged_artifact");
-    assert.equal(secondResult.sourceArtifact.sha256, firstResult.sourceArtifact.sha256);
+    assert.equal(secondResult.rawCapture.sha256, firstResult.rawCapture.sha256);
 
     const observations = await repository.listObservationsByProject("TABS2027003697");
     const projects = await repository.listProjects();
@@ -150,7 +150,7 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     );
     assert.equal(minorResult.status, "ingested");
     assert.equal(minorResult.observation.isMilestone, false);
-    assert.equal(minorResult.sourceArtifact.expiresAt, "2027-01-23T14:00:00.000Z");
+    assert.equal(minorResult.rawCapture.expiresAt, "2027-01-23T14:00:00.000Z");
   });
 
   test("quarantines artifact with selector_anomaly and zero entity writes when required <dt>/<dd> fields are missing or malformed", async () => {
@@ -179,10 +179,10 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
     );
     assert.equal(costAnomaly.status, "selector_anomaly");
     assert.ok(costAnomaly.invariantErrors.some((err) => err.includes("estimatedCostUsd")));
-    assert.equal(costAnomaly.sourceArtifact.expiresAt, "2027-01-23T14:00:00.000Z");
-    assert.ok(costAnomaly.sourceArtifact.storageUri.includes("/quarantine/"));
+    assert.equal(costAnomaly.rawCapture.expiresAt, "2027-01-23T14:00:00.000Z");
+    assert.ok(costAnomaly.rawCapture.storageUri.includes("/quarantine/"));
 
-    // Re-running on a quarantined Source Artifact does not falsely short-circuit as unchanged_artifact
+    // Re-running on a quarantined Raw Capture does not falsely short-circuit as unchanged_artifact
     const repeatAnomaly = await ingestTdlrFiling(
       { projectNumber: "TABS2027003697", baseUrl, now },
       { repository }
@@ -743,7 +743,7 @@ describe("TDLR TABS Connector Tracer Bullet (Seam 1)", () => {
       );
       assert.ok(observations.length >= 1);
       const gzipBlob = await repository.readArtifactGzip(
-        firstProject.latestSourceArtifactHash
+        firstProject.latestRawCaptureHash
       );
       assert.ok(gzipBlob !== null && gzipBlob.byteLength > 0);
     }

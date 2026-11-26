@@ -7,7 +7,7 @@ import {
   ObservationSchema,
   ProjectSchema,
   RepairChangelogEntrySchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   TelemetryRunSchema,
   UnknownConnectorError,
   VisualPlateSchema,
@@ -19,7 +19,7 @@ import {
   type Observation,
   type Project,
   type RepairChangelogEntry,
-  type SourceArtifact,
+  type RawCapture,
   type TelemetryLedgerQueryOptions,
   type TelemetryRun,
   type TelemetryStateUpdate,
@@ -33,7 +33,7 @@ export function createInMemoryGridlockRepository(
   const configs = new Map<string, ConnectorConfig>([
     [initialConfig.connectorId, ConnectorConfigSchema.parse(initialConfig)],
   ]);
-  const artifacts = new Map<string, SourceArtifact>();
+  const artifacts = new Map<string, RawCapture>();
   const artifactBlobs = new Map<string, Buffer>();
   const visualPlates = new Map<string, VisualPlate>();
   const visualPlateWebpBlobs = new Map<string, Buffer>();
@@ -75,16 +75,16 @@ export function createInMemoryGridlockRepository(
       return structuredClone(updated);
     },
 
-    async getSourceArtifactByHash(sha256: string): Promise<SourceArtifact | null> {
+    async getRawCaptureByHash(sha256: string): Promise<RawCapture | null> {
       const found = artifacts.get(sha256);
       return found ? structuredClone(found) : null;
     },
 
-    async saveSourceArtifact(
-      artifact: SourceArtifact,
+    async saveRawCapture(
+      artifact: RawCapture,
       gzipBuffer: Buffer
     ): Promise<void> {
-      const validated = SourceArtifactSchema.parse(artifact);
+      const validated = RawCaptureSchema.parse(artifact);
       artifacts.set(validated.sha256, structuredClone(validated));
       artifactBlobs.set(validated.sha256, Buffer.from(gzipBuffer));
     },
@@ -176,7 +176,7 @@ export function createInMemoryGridlockRepository(
       if (stateUpdate.promotedArtifact) {
         artifacts.set(
           validatedEntry.quarantinedArtifactHash,
-          structuredClone(SourceArtifactSchema.parse(stateUpdate.promotedArtifact))
+          structuredClone(RawCaptureSchema.parse(stateUpdate.promotedArtifact))
         );
       }
       state.efficiencyLedger = structuredClone(

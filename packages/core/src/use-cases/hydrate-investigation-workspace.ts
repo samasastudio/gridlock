@@ -32,7 +32,7 @@ export interface HydrateInvestigationWorkspaceDeps {
   repository: Pick<
     GridlockRepository,
     | "getProjectByNumber"
-    | "getSourceArtifactByHash"
+    | "getRawCaptureByHash"
     | "listObservationsByProject"
     | "listVisualPlatesByLineage"
     | "getActiveConnectorConfig"
@@ -173,7 +173,7 @@ export async function hydrateInvestigationWorkspace(
     const rawArtifacts = await Promise.all(
       uniqueArtifactHashes.map(async (sha256) => ({
         sha256,
-        raw: await deps.repository.getSourceArtifactByHash(sha256),
+        raw: await deps.repository.getRawCaptureByHash(sha256),
       }))
     );
 

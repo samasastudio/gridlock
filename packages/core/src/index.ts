@@ -76,7 +76,7 @@ export {
   SCENARIO_BRANCH_WATERMARK,
   SelectorDiffEntrySchema,
   Sha256HashSchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   TdlrFieldLabelsSchema,
   TdlrProjectNumberSchema,
   TdlrSearchRowSchema,

@@ -242,7 +242,7 @@ export function buildVisualPlateRecord(
     rebootstrappedFromParentWebp: params.rebootstrappedFromParentWebp,
     projectNumbers: Array.from(new Set(params.observations.map((obs) => obs.projectNumber))),
     triggeringObservationIds: params.observations.map((obs) => obs.id),
-    sourceArtifactHashes: Array.from(new Set(params.observations.map((obs) => obs.sourceArtifactHash))),
+    rawCaptureHashes: Array.from(new Set(params.observations.map((obs) => obs.rawCaptureHash))),
     prompt: params.prompt,
     storageUri: `${ARTIFACT_BUCKET_URI}/${variant.storageDir}/${params.lineageId}/${plateId}.webp`,
     mimeType: "image/webp",

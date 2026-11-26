@@ -36,7 +36,7 @@ export async function recordStageTelemetry(
     stage: TelemetryStage;
     connectorId?: string;
     projectNumber?: string;
-    sourceArtifactHash?: string;
+    rawCaptureHash?: string;
     execution_mode: ExecutionMode;
     status: TelemetryRunStatus;
     rawByteLength: number;
@@ -66,8 +66,8 @@ export async function recordStageTelemetry(
     ...(input.projectNumber !== undefined
       ? { projectNumber: input.projectNumber }
       : {}),
-    ...(input.sourceArtifactHash !== undefined
-      ? { sourceArtifactHash: input.sourceArtifactHash }
+    ...(input.rawCaptureHash !== undefined
+      ? { rawCaptureHash: input.rawCaptureHash }
       : {}),
     execution_mode: input.execution_mode,
     status: input.status,
@@ -139,7 +139,7 @@ export async function recordAgenticStageTelemetry(
     stage: TelemetryStage;
     connectorId?: string;
     projectNumber?: string;
-    sourceArtifactHash?: string;
+    rawCaptureHash?: string;
     status: "agentic_completed" | "agentic_failed";
     tokensUsed: number;
     interactionId?: string;

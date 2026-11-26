@@ -16,7 +16,7 @@ import {
   ObservationSchema,
   paintMilestoneDelta,
   ProjectSchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
 } from "../packages/core/src/index.ts";
 import { HealedWithAmortization } from "../packages/widgets/stories/GridlockRepairLogWidget.stories.tsx";
 
@@ -51,7 +51,7 @@ function isoDaysFrom(anchorMs, daysDelta) {
 }
 
 function buildWorkbenchArtifact(sha256, capturedAt, expiresAt) {
-  return SourceArtifactSchema.parse({
+  return RawCaptureSchema.parse({
     sha256,
     connectorId: "tdlr-tabs",
     sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${sha256.slice(0, 8)}`,
@@ -87,7 +87,7 @@ async function seedWorkbenchPlateLineage(repo) {
       currentStatus: "Construction Started",
       startDate: "2026-11-01",
       completionDate: "2027-09-30",
-      latestSourceArtifactHash: hashT2,
+      latestRawCaptureHash: hashT2,
       updatedAt: isoDaysFrom(anchorMs, -2),
     }),
     ProjectSchema.parse({
@@ -104,7 +104,7 @@ async function seedWorkbenchPlateLineage(repo) {
       currentStatus: "Project Registered",
       startDate: "2026-11-15",
       completionDate: "2027-10-15",
-      latestSourceArtifactHash: hashAged,
+      latestRawCaptureHash: hashAged,
       updatedAt: isoDaysFrom(anchorMs, -2),
     }),
   ];
@@ -112,11 +112,11 @@ async function seedWorkbenchPlateLineage(repo) {
   await Promise.all(projects.map((project) => repo.upsertProject(project)));
 
   await Promise.all([
-    repo.saveSourceArtifact(
+    repo.saveRawCapture(
       buildWorkbenchArtifact(hashT1, isoDaysFrom(anchorMs, -4), isoDaysFrom(anchorMs, 85)),
       gzBytes
     ),
-    repo.saveSourceArtifact(
+    repo.saveRawCapture(
       buildWorkbenchArtifact(hashT2, isoDaysFrom(anchorMs, -3), isoDaysFrom(anchorMs, 85)),
       gzBytes
     ),
@@ -125,7 +125,7 @@ async function seedWorkbenchPlateLineage(repo) {
   const obs1 = ObservationSchema.parse({
     id: "obs_workbench_3697_t1",
     projectNumber: "TABS2027003697",
-    sourceArtifactHash: hashT1,
+    rawCaptureHash: hashT1,
     observedAt: isoDaysFrom(anchorMs, -4),
     status: "Project Registered",
     estimatedCostUsd: 125_000_000,
@@ -137,7 +137,7 @@ async function seedWorkbenchPlateLineage(repo) {
   const obs2 = ObservationSchema.parse({
     ...obs1,
     id: "obs_workbench_3697_t2",
-    sourceArtifactHash: hashT2,
+    rawCaptureHash: hashT2,
     observedAt: isoDaysFrom(anchorMs, -3),
     status: "Construction Started",
     scopeOfWork: "250,000 sq ft structural steel erection and chilled-water loop expansion",
@@ -146,7 +146,7 @@ async function seedWorkbenchPlateLineage(repo) {
   const obs3 = ObservationSchema.parse({
     id: "obs_workbench_4200_t2",
     projectNumber: "TABS2027004200",
-    sourceArtifactHash: hashAged,
+    rawCaptureHash: hashAged,
     observedAt: isoDaysFrom(anchorMs, -3),
     status: "Project Registered",
     estimatedCostUsd: 65_000_000,
@@ -195,7 +195,7 @@ async function seedWorkbenchPlateLineage(repo) {
     throw new Error(`Failed to paint workbench Turn 2: ${t2Result.status}`);
   }
 
-  await repo.saveSourceArtifact(
+  await repo.saveRawCapture(
     buildWorkbenchArtifact(hashAged, isoDaysFrom(anchorMs, -100), isoDaysFrom(anchorMs, -10)),
     gzBytes
   );

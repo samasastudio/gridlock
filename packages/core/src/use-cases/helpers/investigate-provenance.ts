@@ -1,12 +1,12 @@
 import {
   ObservationSchema,
   ProjectSchema,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   type HydrateWorkspaceErrorCode,
   type LineageSourceCitation,
   type Observation,
   type Project,
-  type SourceArtifact,
+  type RawCapture,
 } from "../../interfaces/index.ts";
 import {
   sanitizeLocationAddressPii,
@@ -206,12 +206,12 @@ export function validateStoredObservationsByProject(
 export function validateStoredArtifacts(
   entries: ReadonlyArray<{ sha256: string; raw: unknown }>
 ):
-  | { ok: true; artifactsByHash: Map<string, SourceArtifact | null> }
+  | { ok: true; artifactsByHash: Map<string, RawCapture | null> }
   | HydratorStepFailure {
   const checked = entries.map(({ sha256, raw }) =>
     raw === null || raw === undefined
       ? ({ sha256, parsed: null })
-      : ({ sha256, parsed: SourceArtifactSchema.safeParse(raw) })
+      : ({ sha256, parsed: RawCaptureSchema.safeParse(raw) })
   );
 
   const corrupted = checked.find(
@@ -221,7 +221,7 @@ export function validateStoredArtifacts(
   if (corrupted) {
     return stepFailure(
       "repository_integrity_error",
-      `Stored Source Artifact "${corrupted.sha256}" failed runtime schema validation`
+      `Stored Raw Capture "${corrupted.sha256}" failed runtime schema validation`
     );
   }
 
@@ -238,7 +238,7 @@ export function validateStoredArtifacts(
 
 export function resolveLiveCitation(
   sha256: string,
-  artifactsByHash: ReadonlyMap<string, SourceArtifact | null>,
+  artifactsByHash: ReadonlyMap<string, RawCapture | null>,
   nowMs: number
 ):
   | { ok: true; citation: LineageSourceCitation }
@@ -252,28 +252,28 @@ export function resolveLiveCitation(
     return {
       ok: false,
       reason: "missing",
-      message: `Source Artifact "${sha256}" was not found in GridlockRepository`,
+      message: `Raw Capture "${sha256}" was not found in GridlockRepository`,
     };
   }
   if (artifact.storageUri.includes("/quarantine/")) {
     return {
       ok: false,
       reason: "quarantined",
-      message: `Source Artifact "${sha256}" is quarantined and cannot back a UI AST citation`,
+      message: `Raw Capture "${sha256}" is quarantined and cannot back a UI AST citation`,
     };
   }
   if (!/^https?:\/\//i.test(artifact.sourceUrl)) {
     return {
       ok: false,
       reason: "invalid_url",
-      message: `Source Artifact "${sha256}" must use an http:// or https:// sourceUrl`,
+      message: `Raw Capture "${sha256}" must use an http:// or https:// sourceUrl`,
     };
   }
   if (artifact.expiresAt !== null && Date.parse(artifact.expiresAt) <= nowMs) {
     return {
       ok: false,
       reason: "expired",
-      message: `Source Artifact "${sha256}" has expired and cannot back a required UI AST citation`,
+      message: `Raw Capture "${sha256}" has expired and cannot back a required UI AST citation`,
     };
   }
   return {

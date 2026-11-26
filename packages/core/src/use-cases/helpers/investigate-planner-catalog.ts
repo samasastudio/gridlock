@@ -3,7 +3,7 @@ import {
   ProjectSchema,
   Sha256HashSchema,
   type Project,
-  type SourceArtifact,
+  type RawCapture,
 } from "../../interfaces/index.ts";
 import {
   resolveLiveCitation,
@@ -88,7 +88,7 @@ export function selectCitableCatalogProjects(
   rawArtifacts: ReadonlyArray<{ sha256: string; raw: unknown }>,
   nowMs: number
 ):
-  | { ok: true; selected: Project[]; artifactsByHash: Map<string, SourceArtifact | null> }
+  | { ok: true; selected: Project[]; artifactsByHash: Map<string, RawCapture | null> }
   | HydratorStepFailure {
   const artifactsResult = validateStoredArtifacts(rawArtifacts);
   if (!artifactsResult.ok) {
@@ -99,7 +99,7 @@ export function selectCitableCatalogProjects(
     .filter(
       (project) =>
         resolveLiveCitation(
-          project.latestSourceArtifactHash,
+          project.latestRawCaptureHash,
           artifactsResult.artifactsByHash,
           nowMs
         ).ok
@@ -121,7 +121,7 @@ export function extractUnseenObservationHashes(
           ? raw.flatMap((item: unknown) => {
               const rawHash =
                 typeof item === "object" && item !== null
-                  ? (item as Record<string, unknown>).sourceArtifactHash
+                  ? (item as Record<string, unknown>).rawCaptureHash
                   : undefined;
               const parsedHash = Sha256HashSchema.safeParse(rawHash);
               return parsedHash.success && !knownHashes.has(parsedHash.data)
@@ -136,7 +136,7 @@ export function extractUnseenObservationHashes(
 
 export function buildFilingCatalogEntries(
   selected: readonly Project[],
-  baseArtifactsByHash: ReadonlyMap<string, SourceArtifact | null>,
+  baseArtifactsByHash: ReadonlyMap<string, RawCapture | null>,
   rawObservationsByProject: ReadonlyArray<{ projectNumber: string; raw: unknown }>,
   extraRawArtifacts: ReadonlyArray<{ sha256: string; raw: unknown }>,
   nowMs: number
@@ -144,7 +144,7 @@ export function buildFilingCatalogEntries(
   | {
       ok: true;
       projects: PlannerCatalogProjectEntry[];
-      artifactsByHash: Map<string, SourceArtifact | null>;
+      artifactsByHash: Map<string, RawCapture | null>;
     }
   | HydratorStepFailure {
   const observationsResult = validateStoredObservationsByProject(rawObservationsByProject);
@@ -168,7 +168,7 @@ export function buildFilingCatalogEntries(
     return extraArtifactsResult;
   }
 
-  const artifactsByHash = new Map<string, SourceArtifact | null>([
+  const artifactsByHash = new Map<string, RawCapture | null>([
     ...baseArtifactsByHash,
     ...extraArtifactsResult.artifactsByHash,
   ]);
@@ -177,7 +177,7 @@ export function buildFilingCatalogEntries(
     const observations = observationsResult.observationsByProject.get(project.projectNumber) ?? [];
     const resolved = observations.map((obs) => ({
       obs,
-      citation: resolveLiveCitation(obs.sourceArtifactHash, artifactsByHash, nowMs),
+      citation: resolveLiveCitation(obs.rawCaptureHash, artifactsByHash, nowMs),
     }));
     const timelineHydratable = resolved.every(
       ({ obs, citation }) => citation.ok || (citation.reason === "expired" && !obs.isMilestone)

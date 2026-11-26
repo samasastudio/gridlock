@@ -89,7 +89,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.match(nocturnalHtml, /data-citation-transition="scramble"/);
     assert.match(renderToStaticMarkup(<DossierStatusBadge tone="alert" label="quarantined" />), /data-tone="alert"[\s\S]*quarantined/);
     assert.match(renderToStaticMarkup(<ConnectorStatusBadge connectorStatus="healthy" activeVersion={2} />), /v2 · healthy/);
-    assert.match(renderToStaticMarkup(<CopyCitationButton value="sha_alpha" displayLabel="sha256:alpha" citationKind="Source Artifact SHA-256" />), /Copy Source Artifact SHA-256 sha256:alpha/);
+    assert.match(renderToStaticMarkup(<CopyCitationButton value="sha_alpha" displayLabel="sha256:alpha" citationKind="Raw Capture SHA-256" />), /Copy Raw Capture SHA-256 sha256:alpha/);
   });
 
   test("Seam 2 End-to-End API + Sad Paths: renders degraded alerts, validates static props, normalizes rejected snapshotPromise, and streams live HTTP 200/500/network states", async () => {

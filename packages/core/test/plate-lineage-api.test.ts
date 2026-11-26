@@ -21,7 +21,7 @@ import {
   paintMilestoneDelta,
   PlateLineageResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
-  SourceArtifactSchema,
+  RawCaptureSchema,
   VisualPlateSchema,
   type GeminiInteractionCreateRequest,
   type GeminiInteractionResponse,
@@ -87,7 +87,7 @@ async function seedLineageGraph() {
     storageUri: string,
     expiresAt: string | null
   ) =>
-    SourceArtifactSchema.parse({
+    RawCaptureSchema.parse({
       sha256,
       connectorId: "tdlr-tabs",
       sourceUrl: `https://www.tdlr.texas.gov/TABS/Search/Project/${sha256.slice(0, 8)}`,
@@ -105,7 +105,7 @@ async function seedLineageGraph() {
     [h2, "artifacts"],
     [hQuar, "quarantine"],
   ] as const) {
-    await repository.saveSourceArtifact(
+    await repository.saveRawCapture(
       mkArtifact(
         hash,
         `${ARTIFACT_BUCKET_URI}/${dir}/${hash}.gz`,
@@ -119,7 +119,7 @@ async function seedLineageGraph() {
     ObservationSchema.parse({
       ...obs1,
       id: `obs_TABS2027003697_m${index + 2}`,
-      sourceArtifactHash: hash,
+      rawCaptureHash: hash,
       observedAt: `2026-10-27T14:1${index}:00.000Z`,
     })
   );
@@ -153,7 +153,7 @@ async function seedLineageGraph() {
     },
     { repository, geminiClient }
   );
-  await repository.saveSourceArtifact(
+  await repository.saveRawCapture(
     mkArtifact(
       hAged,
       `${ARTIFACT_BUCKET_URI}/artifacts/${hAged}.gz`,
@@ -236,7 +236,7 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
       plate: t1,
       assetPath: `/api/plates/assets/${t1.plateId}.webp`,
       triggeringObservations: [obs1],
-      sourceArtifacts: [],
+      rawCaptures: [],
     };
     assert.equal(
       LineageNodeSchema.safeParse({
@@ -292,16 +292,16 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
           initial.nodes[2]?.plate.epistemicLabel,
           SCENARIO_BRANCH_WATERMARK
         );
-        assert.equal(initial.nodes[0]?.sourceArtifacts[0]?.sha256, h1);
+        assert.equal(initial.nodes[0]?.rawCaptures[0]?.sha256, h1);
         assert.equal(
-          initial.nodes[0]?.sourceArtifacts[0]?.referencedByMilestone,
+          initial.nodes[0]?.rawCaptures[0]?.referencedByMilestone,
           true
         );
         assert.deepEqual(
-          initial.nodes[1]?.sourceArtifacts.map((art) => art.sha256),
+          initial.nodes[1]?.rawCaptures.map((art) => art.sha256),
           [h2, hAged]
         );
-        assert.deepEqual(initial.nodes[1]?.plate.sourceArtifactHashes, [
+        assert.deepEqual(initial.nodes[1]?.plate.rawCaptureHashes, [
           h2,
           hAged,
           hQuar,
@@ -327,7 +327,7 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
           },
         ]);
         assert.deepEqual(
-          afterTtl.nodes[1]?.sourceArtifacts.map((art) => art.sha256),
+          afterTtl.nodes[1]?.rawCaptures.map((art) => art.sha256),
           [h2]
         );
       }
@@ -353,10 +353,10 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
         fault === "obs"
           ? ([{ id: "bad" }] as never)
           : repository.listObservationsByProject(projectNumber),
-      getSourceArtifactByHash: async (hash) =>
+      getRawCaptureByHash: async (hash) =>
         fault === "art"
           ? ({ sha256: "mismatch" } as never)
-          : repository.getSourceArtifactByHash(hash),
+          : repository.getRawCaptureByHash(hash),
     };
 
     await withPlatesServer(
@@ -646,7 +646,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         assert.equal(created.tokensUsed, 145);
         assert.equal(created.node.triggeringObservations.length, 3);
         assert.deepEqual(
-          created.node.sourceArtifacts.map((art) => art.sha256),
+          created.node.rawCaptures.map((art) => art.sha256),
           [h2, hAged]
         );
 
@@ -888,10 +888,10 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         fault === "obs"
           ? ([{ id: "bad" }] as never)
           : repository.listObservationsByProject(projectNumber),
-      getSourceArtifactByHash: async (hash) =>
+      getRawCaptureByHash: async (hash) =>
         fault === "art"
           ? ({ sha256: "mismatch" } as never)
-          : repository.getSourceArtifactByHash(hash),
+          : repository.getRawCaptureByHash(hash),
     };
 
     const runsBefore503 = (await repository.listTelemetryRuns()).length;

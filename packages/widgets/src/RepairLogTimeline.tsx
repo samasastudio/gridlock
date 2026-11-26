@@ -152,7 +152,7 @@ export function RepairLogTimelineSection(props: {
             <CopyCitationButton
               value={activeEntry.quarantinedArtifactHash}
               displayLabel={`sha256:${activeEntry.quarantinedArtifactHash.slice(0, 12)}`}
-              citationKind="Source Artifact SHA-256"
+              citationKind="Raw Capture SHA-256"
             />
           </div>
 

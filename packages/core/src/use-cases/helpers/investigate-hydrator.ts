@@ -11,7 +11,7 @@ import {
   type ObservationTimelineNode,
   type Project,
   type ProjectDossierCardNode,
-  type SourceArtifact,
+  type RawCapture,
   type TdlrProjectNumber,
 } from "../../interfaces/index.ts";
 import {
@@ -46,10 +46,10 @@ export function collectReferencedArtifactHashes(
 ): string[] {
   const citedProjectHashes = citedProjectNumbers.flatMap((projectNumber) => {
     const project = projectsByNumber.get(projectNumber);
-    return project ? [project.latestSourceArtifactHash] : [];
+    return project ? [project.latestRawCaptureHash] : [];
   });
   const observationHashes = Array.from(observationsByProject.values()).flatMap(
-    (observations) => observations.map((obs) => obs.sourceArtifactHash)
+    (observations) => observations.map((obs) => obs.rawCaptureHash)
   );
   return Array.from(new Set([...citedProjectHashes, ...observationHashes]));
 }
@@ -57,7 +57,7 @@ export function collectReferencedArtifactHashes(
 export function buildCitedProjectsByNumber(
   projectNumbers: readonly string[],
   projectsByNumber: ReadonlyMap<string, Project>,
-  artifactsByHash: ReadonlyMap<string, SourceArtifact | null>,
+  artifactsByHash: ReadonlyMap<string, RawCapture | null>,
   nowMs: number
 ): { ok: true; citedByNumber: Map<string, CitedProject> } | HydratorStepFailure {
   const outcomes = projectNumbers.map((projectNumber) => {
@@ -69,7 +69,7 @@ export function buildCitedProjectsByNumber(
       );
     }
     const citationResult = resolveLiveCitation(
-      project.latestSourceArtifactHash,
+      project.latestRawCaptureHash,
       artifactsByHash,
       nowMs
     );
@@ -138,7 +138,7 @@ export function buildObservationTimelineNode(
   nodeId: string,
   projectNumbers: readonly TdlrProjectNumber[],
   observationsByProject: ReadonlyMap<string, Observation[]>,
-  artifactsByHash: ReadonlyMap<string, SourceArtifact | null>,
+  artifactsByHash: ReadonlyMap<string, RawCapture | null>,
   nowMs: number
 ): { ok: true; node: ObservationTimelineNode } | HydratorStepFailure {
   const allObservations = projectNumbers.flatMap(
@@ -147,7 +147,7 @@ export function buildObservationTimelineNode(
 
   const outcomes = allObservations.map((observation) => {
     const citationResult = resolveLiveCitation(
-      observation.sourceArtifactHash,
+      observation.rawCaptureHash,
       artifactsByHash,
       nowMs
     );

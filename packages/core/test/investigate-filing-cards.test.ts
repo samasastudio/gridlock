@@ -11,12 +11,12 @@ import {
   PlannerLayoutSpecSchema,
   UiWorkspaceAstSchema,
   type GridlockRepository,
-  type SourceArtifact,
+  type RawCapture,
 } from "../src/index.ts";
 import {
   createPainterTestObservations,
   createTestProject,
-  createTestSourceArtifact,
+  createTestRawCapture,
   GZIP_HTML_STUB,
 } from "./helpers/fixtures.ts";
 
@@ -27,34 +27,34 @@ async function seedTwoProjects(repository: GridlockRepository): Promise<void> {
   const hashTie = "2".repeat(64);
   const hashEarly = "3".repeat(64);
 
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(routineObs.sourceArtifactHash, "TABS2027001111", {
+  await repository.saveRawCapture(
+    createTestRawCapture(routineObs.rawCaptureHash, "TABS2027001111", {
       expiresAt: "2027-01-25T14:00:00.000Z",
       referencedByMilestone: false,
     }),
     GZIP_HTML_STUB
   );
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(milestoneObs.sourceArtifactHash, "TABS2027003697"),
+  await repository.saveRawCapture(
+    createTestRawCapture(milestoneObs.rawCaptureHash, "TABS2027003697"),
     GZIP_HTML_STUB
   );
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(hashTie, "TABS2027003697"),
+  await repository.saveRawCapture(
+    createTestRawCapture(hashTie, "TABS2027003697"),
     GZIP_HTML_STUB
   );
-  await repository.saveSourceArtifact(
-    createTestSourceArtifact(hashEarly, "TABS2027001111"),
+  await repository.saveRawCapture(
+    createTestRawCapture(hashEarly, "TABS2027001111"),
     GZIP_HTML_STUB
   );
 
   await repository.upsertProject(
-    createTestProject("TABS2027001111", routineObs.sourceArtifactHash, {
+    createTestProject("TABS2027001111", routineObs.rawCaptureHash, {
       estimatedCostUsd: 2_500_000,
       squareFootage: 12_000,
     })
   );
   await repository.upsertProject(
-    createTestProject("TABS2027003697", milestoneObs.sourceArtifactHash, {
+    createTestProject("TABS2027003697", milestoneObs.rawCaptureHash, {
       estimatedCostUsd: 125_000_000,
       squareFootage: 250_000,
     })
@@ -65,7 +65,7 @@ async function seedTwoProjects(repository: GridlockRepository): Promise<void> {
     ObservationSchema.parse({
       id: "obs_TABS2027003697_tie",
       projectNumber: "TABS2027003697",
-      sourceArtifactHash: hashTie,
+      rawCaptureHash: hashTie,
       observedAt: routineObs.observedAt,
       status: "Review <img src=x>\n *Pending*",
       estimatedCostUsd: 125_000_000,
@@ -79,7 +79,7 @@ async function seedTwoProjects(repository: GridlockRepository): Promise<void> {
     ObservationSchema.parse({
       id: "obs_TABS2027001111_early",
       projectNumber: "TABS2027001111",
-      sourceArtifactHash: hashEarly,
+      rawCaptureHash: hashEarly,
       observedAt: "2026-10-25T09:00:00.000Z",
       status: "Initial Filing",
       estimatedCostUsd: 2_500_000,
@@ -147,7 +147,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
     assert.ok(
       timelineNode.observations.every(
         (entry) =>
-          entry.citation.sha256 === entry.observation.sourceArtifactHash &&
+          entry.citation.sha256 === entry.observation.rawCaptureHash &&
           entry.citation.sourceUrl.startsWith("https://")
       )
     );
@@ -158,7 +158,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
         estimatedCostUsd: row.project.estimatedCostUsd,
         squareFootage: row.project.squareFootage,
         sha256Matches:
-          row.citation.sha256 === row.project.latestSourceArtifactHash,
+          row.citation.sha256 === row.project.latestRawCaptureHash,
       })),
       [
         {
@@ -212,16 +212,16 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
     const expiredRoutineHash = "4".repeat(64);
     const liveMilestoneHash = "5".repeat(64);
 
-    await repository.saveSourceArtifact(
-      createTestSourceArtifact(expiredRoutineHash, "TABS2027005555", {
+    await repository.saveRawCapture(
+      createTestRawCapture(expiredRoutineHash, "TABS2027005555", {
         capturedAt: "2026-07-01T00:00:00.000Z",
         expiresAt: "2026-09-29T00:00:00.000Z",
         referencedByMilestone: false,
       }),
       GZIP_HTML_STUB
     );
-    await repository.saveSourceArtifact(
-      createTestSourceArtifact(liveMilestoneHash, "TABS2027005555", {
+    await repository.saveRawCapture(
+      createTestRawCapture(liveMilestoneHash, "TABS2027005555", {
         expiresAt: null,
         referencedByMilestone: true,
       }),
@@ -234,7 +234,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
       ObservationSchema.parse({
         id: "obs_routine_aged",
         projectNumber: "TABS2027005555",
-        sourceArtifactHash: expiredRoutineHash,
+        rawCaptureHash: expiredRoutineHash,
         observedAt: "2026-07-01T00:00:00.000Z",
         status: "Project Registered",
         estimatedCostUsd: 3_000_000,
@@ -247,7 +247,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
       ObservationSchema.parse({
         id: "obs_milestone_live",
         projectNumber: "TABS2027005555",
-        sourceArtifactHash: liveMilestoneHash,
+        rawCaptureHash: liveMilestoneHash,
         observedAt: "2026-10-20T10:00:00.000Z",
         status: "Construction Started",
         estimatedCostUsd: 80_000_000,
@@ -288,7 +288,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
       ObservationSchema.parse({
         id: "obs_only_aged_routine",
         projectNumber: "TABS2027006666",
-        sourceArtifactHash: expiredRoutineHash,
+        rawCaptureHash: expiredRoutineHash,
         observedAt: "2026-07-01T00:00:00.000Z",
         status: "Project Registered",
         estimatedCostUsd: 3_000_000,
@@ -318,11 +318,11 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
 
     const badObservationCases: ReadonlyArray<{
       isMilestone: boolean;
-      artifact: SourceArtifact | null;
+      artifact: RawCapture | null;
     }> = [
       {
         isMilestone: true,
-        artifact: createTestSourceArtifact("7".repeat(64), "TABS2027005555", {
+        artifact: createTestRawCapture("7".repeat(64), "TABS2027005555", {
           expiresAt: "2026-10-28T15:00:00.000Z",
         }),
       },
@@ -332,7 +332,7 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
       },
       {
         isMilestone: false,
-        artifact: createTestSourceArtifact("7".repeat(64), "TABS2027005555", {
+        artifact: createTestRawCapture("7".repeat(64), "TABS2027005555", {
           storageUri: `${ARTIFACT_BUCKET_URI}/quarantine/${"7".repeat(64)}.gz`,
         }),
       },
@@ -355,13 +355,13 @@ describe("UI AST Contracts & Deterministic Workspace Hydrator — Phase 2", () =
             ...repository,
             getProjectByNumber: async () =>
               createTestProject("TABS2027005555", liveMilestoneHash),
-            getSourceArtifactByHash: async (sha256) =>
+            getRawCaptureByHash: async (sha256) =>
               sha256 === targetHash ? badCase.artifact : null,
             listObservationsByProject: async () => [
               ObservationSchema.parse({
                 id: "obs_bad_prov",
                 projectNumber: "TABS2027005555",
-                sourceArtifactHash: targetHash,
+                rawCaptureHash: targetHash,
                 observedAt: "2026-10-20T10:00:00.000Z",
                 status: "Project Registered",
                 estimatedCostUsd: 50_000_000,

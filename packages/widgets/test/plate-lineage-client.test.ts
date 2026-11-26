@@ -43,10 +43,10 @@ describe("Plate Lineage HTTP Client (Ticket #34 Phase 1)", () => {
       assert.equal(okSnap.lineage.nodes.length, 4);
       const t2Node = okSnap.lineage.nodes.find((n) => n.plate.plateId === seeded.t2.plateId);
       assert.deepEqual(
-        t2Node?.sourceArtifacts.map((a) => a.sha256),
+        t2Node?.rawCaptures.map((a) => a.sha256),
         [seeded.h2]
       );
-      assert.ok(t2Node?.plate.sourceArtifactHashes.includes(seeded.hAged));
+      assert.ok(t2Node?.plate.rawCaptureHashes.includes(seeded.hAged));
 
       const emptySnap = await fetchPlateLineageSnapshot({
         apiBaseUrl,

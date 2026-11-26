@@ -3,7 +3,7 @@ import {
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   type GridlockRepository,
   type PlateLineageResponse,
-  type SourceArtifact,
+  type RawCapture,
   type TelemetryRun,
 } from "../interfaces/index.ts";
 import { getEfficiencyScorecard } from "./get-efficiency-scorecard.ts";
@@ -25,7 +25,7 @@ import {
 
 function collectCandidateConnectorIds(
   changelogConnectorIds: readonly string[],
-  artifactsByHash: ReadonlyMap<string, SourceArtifact | null>,
+  artifactsByHash: ReadonlyMap<string, RawCapture | null>,
   recentRuns: readonly TelemetryRun[],
   validLineages: readonly PlateLineageResponse[]
 ): string[] {
@@ -39,7 +39,7 @@ function collectCandidateConnectorIds(
       ...recentRuns.flatMap((run) => (run.connectorId ? [run.connectorId] : [])),
       ...validLineages.flatMap((lineage) =>
         lineage.nodes.flatMap((node) =>
-          node.sourceArtifacts.map((artifact) => artifact.connectorId)
+          node.rawCaptures.map((artifact) => artifact.connectorId)
         )
       ),
     ])
@@ -78,12 +78,12 @@ export async function loadPlannerGroundingCatalog(
     }
 
     const projectHashes = Array.from(
-      new Set(validatedProjects.projects.map((project) => project.latestSourceArtifactHash))
+      new Set(validatedProjects.projects.map((project) => project.latestRawCaptureHash))
     );
     const rawProjectArtifacts = await Promise.all(
       projectHashes.map(async (sha256) => ({
         sha256,
-        raw: await repository.getSourceArtifactByHash(sha256),
+        raw: await repository.getRawCaptureByHash(sha256),
       }))
     );
 
@@ -111,7 +111,7 @@ export async function loadPlannerGroundingCatalog(
     const extraRawArtifacts = await Promise.all(
       unseenHashes.map(async (sha256) => ({
         sha256,
-        raw: await repository.getSourceArtifactByHash(sha256),
+        raw: await repository.getRawCaptureByHash(sha256),
       }))
     );
 

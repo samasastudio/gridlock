@@ -15,7 +15,7 @@ export interface StoryObj<TProps> {
 function makeDetRun(runId: string, hashChar: string, avoided: number, durationMs: number, recordedAt: string): TelemetryRun {
   return {
     runId, stage: "tdlr_ingest", connectorId: "tdlr-tabs", projectNumber: "TABS2027003697",
-    sourceArtifactHash: hashChar.repeat(64), execution_mode: "deterministic",
+    rawCaptureHash: hashChar.repeat(64), execution_mode: "deterministic",
     status: durationMs < 20 ? "unchanged_artifact" : "ingested", durationMs, rawByteLength: avoided * 4,
     tokensUsed: 0, naiveTokensAvoided: avoided, estimatedCostSavedUsd: Number((avoided * 0.0000025).toFixed(4)),
     recordedAt, expiresAt: null,
@@ -24,7 +24,7 @@ function makeDetRun(runId: string, hashChar: string, avoided: number, durationMs
 
 function makeAgentRun(runId: string, hashChar: string, tokensUsed: number, durationMs: number, interactionId: string, recordedAt: string): TelemetryRun {
   return {
-    runId, stage: "repair_agent", connectorId: "tdlr-tabs", sourceArtifactHash: hashChar.repeat(64),
+    runId, stage: "repair_agent", connectorId: "tdlr-tabs", rawCaptureHash: hashChar.repeat(64),
     execution_mode: "agentic", status: "agentic_completed", durationMs, rawByteLength: 102_400,
     tokensUsed, naiveTokensAvoided: 0, estimatedCostSavedUsd: 0, interactionId, recordedAt, expiresAt: null,
   };
@@ -32,7 +32,7 @@ function makeAgentRun(runId: string, hashChar: string, tokensUsed: number, durat
 
 function makeDegradedRun(runId: string, hashChar: string, status: "selector_anomaly" | "blocked_by_waf", durationMs: number, recordedAt: string): TelemetryRun {
   return {
-    runId, stage: "tdlr_ingest", connectorId: "tdlr-tabs", sourceArtifactHash: hashChar.repeat(64),
+    runId, stage: "tdlr_ingest", connectorId: "tdlr-tabs", rawCaptureHash: hashChar.repeat(64),
     execution_mode: "deterministic", status, durationMs, rawByteLength: 40_960,
     tokensUsed: 0, naiveTokensAvoided: 0, estimatedCostSavedUsd: 0, recordedAt, expiresAt: null,
   };

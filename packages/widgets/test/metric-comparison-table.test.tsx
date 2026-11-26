@@ -20,7 +20,7 @@ function makeSubstationCitedProject() {
       county: "Williamson",
       estimatedCostUsd: 52_000_000,
       squareFootage: 85_000,
-      latestSourceArtifactHash: hash,
+      latestRawCaptureHash: hash,
     },
     citation: {
       sha256: hash,

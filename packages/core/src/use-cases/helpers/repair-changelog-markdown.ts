@@ -35,7 +35,7 @@ function formatEntrySection(entry: RepairChangelogEntry): string {
     `## v${entry.previousVersion} -> v${entry.promotedVersion} (${entry.patchPromotedAt})`,
     "",
     `- **Repair ID**: ${formatMarkdownCodeSpan(entry.id)} · **Interaction**: ${formatMarkdownCodeSpan(entry.interactionId)}`,
-    `- **Quarantined Source Artifact**: \`sha256:${entry.quarantinedArtifactHash}\``,
+    `- **Quarantined Raw Capture**: \`sha256:${entry.quarantinedArtifactHash}\``,
     `- **Root Cause**: ${formatMarkdownProse(entry.rootCauseSummary)}`,
     `- **Broken Invariants**: ${entry.brokenInvariants.map(formatMarkdownProse).join("; ")}`,
     `- **Sandbox Replay Gate**: ${entry.historicalFixturesPassed}/${entry.historicalFixturesTested} historical fixtures passed (${entry.totalFixturesVerified} total verified)`,
