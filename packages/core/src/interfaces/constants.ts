@@ -49,7 +49,7 @@ export const DEFAULT_TDLR_SEARCH_FILTERS: readonly TdlrSearchFilter[] = [
 ];
 
 export const DEFAULT_EFFICIENCY_SCORECARD: EfficiencyScorecard = {
-  ledgerId: "efficiency_scorecard",
+  scorecardId: "efficiency_scorecard",
   deterministicRunsCount: 0,
   agenticRunsCount: 0,
   failedOrBlockedRunsCount: 0,

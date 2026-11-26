@@ -295,7 +295,7 @@ describe("Efficiency Scorecard & Cloud Trace Spans (Ticket #4)", () => {
       }) {
         if (simulateCorruptedScorecard) {
           return {
-            ledgerId: "efficiency_scorecard",
+            scorecardId: "efficiency_scorecard",
             deterministicRunsCount: -999,
             naiveTokensAvoided: "corrupted-not-a-number",
           } as unknown as Awaited<

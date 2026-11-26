@@ -694,7 +694,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         repository: {
           ...repository,
           getEfficiencyScorecard: async () =>
-            ({ ledgerId: "broken_scorecard", totalRunsCount: -5 }) as never,
+            ({ scorecardId: "broken_scorecard", totalRunsCount: -5 }) as never,
         },
       },
       { now: NOW }

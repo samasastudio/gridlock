@@ -73,7 +73,7 @@ export const RunRecordSchema = z.object({
 export type RunRecord = z.infer<typeof RunRecordSchema>;
 
 export const EfficiencyScorecardSchema = z.object({
-  ledgerId: z.string().min(1),
+  scorecardId: z.string().min(1),
   deterministicRunsCount: z.number().int().nonnegative(),
   agenticRunsCount: z.number().int().nonnegative(),
   failedOrBlockedRunsCount: z.number().int().nonnegative(),
