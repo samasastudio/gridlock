@@ -20,7 +20,7 @@
     "pretest:live:gemini": "bash ./scripts/ensure-ext4-deps.sh",
     "test:live:gemini": "LIVE_GEMINI_TEST=1 node --env-file-if-exists=.env.local --import ./scripts/tsx-loader.mjs --test packages/core/test/sharp-image-encoder.test.ts",
     "pretest:live:tdlr": "bash ./scripts/ensure-ext4-deps.sh",
-    "test:live:tdlr": "LIVE_ACCESS_TEST=1 node --import ./scripts/tsx-loader.mjs --test packages/core/test/tdlr-discovery.test.ts",
+    "test:live:tdlr": "LIVE_ACCESS_TEST=1 node --import ./scripts/tsx-loader.mjs --test packages/core/test/tdlr-connector.test.ts",
     "preverify": "bash ./scripts/ensure-ext4-deps.sh",
     "verify": "node ./scripts/lint-checks.mjs && node --import ./scripts/tsx-loader.mjs --test --test-reporter=dot 'packages/core/test/*.test.ts' 'packages/widgets/test/*.test.ts' 'packages/widgets/test/*.test.tsx' && node --import ./scripts/tsx-loader.mjs ./scripts/widget-workbench.mjs --smoke-check",
     "prepreview:widgets": "bash ./scripts/ensure-ext4-deps.sh",

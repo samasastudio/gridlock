@@ -1,19 +1,67 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, posix, relative } from "node:path";
+import { dirname, join, posix, relative } from "node:path";
 import { spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
-import { runTypeHygieneChecks } from "./type-hygiene.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-export const BANNED_GLOSSARY_TERMS = [
-  { pattern: /\bCompute Atlas\b/i, useInstead: "Gridlock" },
-  { pattern: /\braw payload\b/i, useInstead: "Raw Capture" },
-  { pattern: /\bcached page\b/i, useInstead: "Raw Capture" },
-  { pattern: /\bscrape dump\b/i, useInstead: "Raw Capture" },
-  { pattern: /\bLLM scraper\b/i, useInstead: "Connector" },
-  { pattern: /\blive LLM parser\b/i, useInstead: "Repair Agent" },
-  { pattern: /\bauto-committer\b/i, useInstead: "Repair Agent" },
-  { pattern: /\bslippy map tile\b/i, useInstead: "Generated Illustration" },
-];
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+export const NON_LINTABLE_GLOSSARY_WORDS = new Set([
+  "site",
+  "record",
+  "item",
+  "canonical frame",
+]);
+
+// TODO(#82): remove once Slices 6-8 finish renaming Visual Plate / Lineage.
+export const PENDING_GLOSSARY_MIGRATION_TERMS = new Set([
+  "visual plate",
+  "lineage",
+]);
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function parseGlossaryAvoidTerms(glossaryMarkdown) {
+  const entries = [];
+  let currentTerm = null;
+  for (const line of glossaryMarkdown.split("\n")) {
+    const headingMatch = line.match(/^\*\*(.+?)\*\*:/);
+    if (headingMatch?.[1]) {
+      currentTerm = headingMatch[1].trim();
+      continue;
+    }
+    const avoidMatch = line.match(/^_Avoid_:\s*(.+)$/);
+    if (avoidMatch?.[1] && currentTerm) {
+      for (const raw of avoidMatch[1].split(",")) {
+        const term = raw.trim();
+        if (!term) continue;
+        entries.push({
+          term,
+          pattern: new RegExp(`\\b${escapeRegExp(term)}\\b`, "i"),
+          useInstead: currentTerm,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+export function loadBannedGlossaryTerms(repoRoot = REPO_ROOT) {
+  const glossaryPath = join(repoRoot, "GLOSSARY.md");
+  const glossaryMarkdown = readFileSync(glossaryPath, "utf-8");
+  return parseGlossaryAvoidTerms(glossaryMarkdown)
+    .filter(({ term }) => {
+      const normalized = term.toLowerCase();
+      return (
+        !NON_LINTABLE_GLOSSARY_WORDS.has(normalized) &&
+        !PENDING_GLOSSARY_MIGRATION_TERMS.has(normalized)
+      );
+    })
+    .map(({ pattern, useInstead }) => ({ pattern, useInstead }));
+}
+
+export const BANNED_GLOSSARY_TERMS = loadBannedGlossaryTerms();
 
 export const MAX_TSX_LINES = 280;
 export const MAX_CORE_TS_LINES = 400;
@@ -409,6 +457,14 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
         if (/\bprocess\.env\b/.test(stripped) || /\bBuffer\s*(?:\.|\()/.test(stripped)) {
           violations.push(
             `${relPath}:${index + 1}: Browser schema boundary violation — avoid runtime Node globals (\`Buffer\`, \`process.env\`) in packages/core/src/interfaces/ ("@samasastudio/gridlock-core/schemas")`
+          );
+        }
+        const retiredKeyMatch = stripped.match(
+          /^\s*(ledger[A-Z]\w*|telemetry[A-Z]\w*|ast[A-Z]\w*|[a-z]\w*(?:Ledger|Telemetry))\s*:/
+        );
+        if (retiredKeyMatch?.[1]) {
+          violations.push(
+            `${relPath}:${index + 1}: Retired glossary stem in schema property "${retiredKeyMatch[1]}" — align field name with GLOSSARY.md`
           );
         }
       }
@@ -817,6 +873,7 @@ if (
     process.exit(tscResult.status ?? 1);
   }
 
+  const { runTypeHygieneChecks } = await import("./type-hygiene.mjs");
   const violations = [
     ...runRepoLintChecks(repoRoot),
     ...runTypeHygieneChecks(repoRoot),

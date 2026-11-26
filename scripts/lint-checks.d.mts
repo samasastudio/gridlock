@@ -1,3 +1,14 @@
+export const NON_LINTABLE_GLOSSARY_WORDS: Set<string>;
+export const PENDING_GLOSSARY_MIGRATION_TERMS: Set<string>;
+export function parseGlossaryAvoidTerms(glossaryMarkdown: string): Array<{
+  term: string;
+  pattern: RegExp;
+  useInstead: string;
+}>;
+export function loadBannedGlossaryTerms(repoRoot?: string): Array<{
+  pattern: RegExp;
+  useInstead: string;
+}>;
 export const BANNED_GLOSSARY_TERMS: ReadonlyArray<{
   pattern: RegExp;
   useInstead: string;
