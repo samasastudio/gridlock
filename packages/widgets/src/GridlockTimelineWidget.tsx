@@ -1,6 +1,6 @@
 import { Suspense, use, useEffect, useId, useRef, useState, type Ref } from "react";
 import { MotionConfig } from "motion/react";
-import { PlateLineageResponseSchema, type PlateLineageResponse } from "@samasastudio/gridlock-core/schemas";
+import { FrameTimelineResponseSchema, type FrameTimelineResponse } from "@samasastudio/gridlock-core/schemas";
 import { DossierStatusBadge, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { fetchFrameTimelineSnapshot, type FrameTimelineQuery, type FrameTimelineSnapshotResult } from "./frame-timeline-client.ts";
 import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
@@ -14,36 +14,36 @@ import { useTimelineBranching } from "./useTimelineBranching.ts";
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
 const LOADING_PLACEHOLDER_NODE = <TimelineWidgetLoadingPlaceholder />;
 const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<FrameTimelineSnapshotResult>, Promise<FrameTimelineSnapshotResult>>();
-const LINEAGE_TITLE = "Corridor Plate Lineage";
-const LINEAGE_ERROR_PREFIX = "Unable to load Plate Lineage:";
+const TIMELINE_TITLE = "Corridor Frame Timeline";
+const TIMELINE_ERROR_PREFIX = "Unable to load Frame Timeline:";
 
-interface PlateViewOptions {
+interface TimelineViewOptions {
   apiBaseUrl?: string;
   timelineId?: string;
-  selectedPlateId?: string;
+  selectedIllustrationId?: string;
   initialIllustrationId?: string;
-  onSelectPlate?: (illustrationId: string) => void;
+  onSelectIllustration?: (illustrationId: string) => void;
   assetUrlOverrides?: Readonly<Record<string, string>>;
 }
 
-interface PlateWidgetBaseProps extends Omit<PlateViewOptions, "apiBaseUrl" | "timelineId"> {
+interface TimelineWidgetBaseProps extends Omit<TimelineViewOptions, "apiBaseUrl" | "timelineId"> {
   theme?: GridlockWidgetTheme;
   ref?: Ref<HTMLElement>;
 }
 
-export type GridlockPlateWidgetProps =
-  | (PlateWidgetBaseProps & Partial<FrameTimelineQuery> & {
-      lineage: PlateLineageResponse;
+export type GridlockTimelineWidgetProps =
+  | (TimelineWidgetBaseProps & Partial<FrameTimelineQuery> & {
+      timeline: FrameTimelineResponse;
       snapshotPromise?: undefined;
       onRetry?: undefined;
     })
-  | (PlateWidgetBaseProps & FrameTimelineQuery & {
-      lineage?: undefined;
+  | (TimelineWidgetBaseProps & FrameTimelineQuery & {
+      timeline?: undefined;
       snapshotPromise?: Promise<FrameTimelineSnapshotResult>;
       onRetry?: () => void;
     });
 
-function matchesLineageQuery(a: FrameTimelineQuery, b: FrameTimelineQuery): boolean {
+function matchesTimelineQuery(a: FrameTimelineQuery, b: FrameTimelineQuery): boolean {
   return a.apiBaseUrl === b.apiBaseUrl && a.timelineId === b.timelineId;
 }
 
@@ -53,33 +53,33 @@ function toSafeSnapshotPromise(promise: Promise<FrameTimelineSnapshotResult>): P
   const safe = promise.catch(
     (error: unknown): FrameTimelineSnapshotResult => ({
       ok: false,
-      message: error instanceof Error ? error.message : "Network error loading Plate Lineage",
+      message: error instanceof Error ? error.message : "Network error loading Frame Timeline",
     })
   );
   SAFE_SNAPSHOT_PROMISES.set(promise, safe);
   return safe;
 }
 
-function LoadedPlateDossierContent(props: {
+function LoadedTimelineDossierContent(props: {
   baseId: string;
-  lineage: PlateLineageResponse;
-  viewOptions: PlateViewOptions;
+  timeline: FrameTimelineResponse;
+  viewOptions: TimelineViewOptions;
 }) {
-  const { baseId, lineage, viewOptions } = props;
+  const { baseId, timeline, viewOptions } = props;
   const branching = useTimelineBranching({
-    baseTimeline: lineage,
+    baseTimeline: timeline,
     apiBaseUrl: viewOptions.apiBaseUrl,
-    selectedIllustrationId: viewOptions.selectedPlateId,
+    selectedIllustrationId: viewOptions.selectedIllustrationId,
     initialIllustrationId: viewOptions.initialIllustrationId,
-    onSelectIllustration: viewOptions.onSelectPlate,
+    onSelectIllustration: viewOptions.onSelectIllustration,
   });
   const { effectiveTimeline, orderedNodes, activeNode } = branching;
-  const frameCountLabel = `${orderedNodes.length} ${orderedNodes.length === 1 ? "Visual Plate" : "Visual Plates"}`;
+  const frameCountLabel = `${orderedNodes.length} ${orderedNodes.length === 1 ? "Generated Illustration" : "Generated Illustrations"}`;
 
   return (
     <>
       <header className="gridlock-repair-header">
-        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={effectiveTimeline.timelineId} />
+        <DossierTitle baseId={baseId} title={TIMELINE_TITLE} connectorId={effectiveTimeline.timelineId} />
         <div className="gridlock-header-controls">
           <DossierStatusBadge tone="healthy" label={frameCountLabel} />
         </div>
@@ -124,26 +124,26 @@ function LoadedPlateDossierContent(props: {
   );
 }
 
-function PromisePlateBoundary(props: {
+function PromiseTimelineBoundary(props: {
   snapshotPromise: Promise<FrameTimelineSnapshotResult>;
   baseId: string;
-  viewOptions: PlateViewOptions;
+  viewOptions: TimelineViewOptions;
   onRetry: () => void;
 }) {
   const result = use(props.snapshotPromise);
   if (!result.ok) {
-    return <DossierErrorShell baseId={props.baseId} title={LINEAGE_TITLE} connectorId={props.viewOptions.timelineId} errorPrefix={LINEAGE_ERROR_PREFIX} message={result.message} onRetry={props.onRetry} />;
+    return <DossierErrorShell baseId={props.baseId} title={TIMELINE_TITLE} connectorId={props.viewOptions.timelineId} errorPrefix={TIMELINE_ERROR_PREFIX} message={result.message} onRetry={props.onRetry} />;
   }
-  return <LoadedPlateDossierContent key={`${result.timeline.timelineId}::${props.viewOptions.initialIllustrationId ?? ""}::${props.viewOptions.apiBaseUrl ?? "::static"}`} baseId={props.baseId} lineage={result.timeline} viewOptions={props.viewOptions} />;
+  return <LoadedTimelineDossierContent key={`${result.timeline.timelineId}::${props.viewOptions.initialIllustrationId ?? ""}::${props.viewOptions.apiBaseUrl ?? "::static"}`} baseId={props.baseId} timeline={result.timeline} viewOptions={props.viewOptions} />;
 }
 
-export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
-  const { lineage, apiBaseUrl, timelineId, snapshotPromise, onRetry, selectedPlateId, initialIllustrationId, onSelectPlate, assetUrlOverrides, theme = "inherit", ref } = props;
+export function GridlockTimelineWidget(props: GridlockTimelineWidgetProps) {
+  const { timeline, apiBaseUrl, timelineId, snapshotPromise, onRetry, selectedIllustrationId, initialIllustrationId, onSelectIllustration, assetUrlOverrides, theme = "inherit", ref } = props;
   const baseId = useId();
   const retryAbortRef = useRef<AbortController | null>(null);
   const [effectEntry, setEffectEntry] = useState<{ query: FrameTimelineQuery; promise: Promise<FrameTimelineSnapshotResult> } | null>(null);
   const [retryEntry, setRetryEntry] = useState<{ query: FrameTimelineQuery; sourcePromise?: Promise<FrameTimelineSnapshotResult>; promise: Promise<FrameTimelineSnapshotResult> } | null>(null);
-  const isStaticMode = lineage !== undefined;
+  const isStaticMode = timeline !== undefined;
 
   useEffect(() => {
     const effectController = !isStaticMode && apiBaseUrl !== undefined && !snapshotPromise ? new AbortController() : null;
@@ -169,21 +169,21 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
     setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchFrameTimelineSnapshot({ ...query, signal: controller.signal }) });
   };
 
-  const viewOptions: PlateViewOptions = { apiBaseUrl, timelineId, selectedPlateId, initialIllustrationId, onSelectPlate, assetUrlOverrides };
+  const viewOptions: TimelineViewOptions = { apiBaseUrl, timelineId, selectedIllustrationId, initialIllustrationId, onSelectIllustration, assetUrlOverrides };
   const currentQuery = apiBaseUrl !== undefined ? { apiBaseUrl, timelineId } : null;
-  const activeRetryPromise = currentQuery && retryEntry && retryEntry.sourcePromise === snapshotPromise && matchesLineageQuery(retryEntry.query, currentQuery) ? retryEntry.promise : null;
-  const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesLineageQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
+  const activeRetryPromise = currentQuery && retryEntry && retryEntry.sourcePromise === snapshotPromise && matchesTimelineQuery(retryEntry.query, currentQuery) ? retryEntry.promise : null;
+  const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesTimelineQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
   const rawActivePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
   const activePromise = rawActivePromise ? toSafeSnapshotPromise(rawActivePromise) : null;
   const loadingShell = (
     <>
       <header className="gridlock-repair-header">
-        <DossierTitle baseId={baseId} title={LINEAGE_TITLE} connectorId={timelineId} />
+        <DossierTitle baseId={baseId} title={TIMELINE_TITLE} connectorId={timelineId} />
       </header>
       {LOADING_PLACEHOLDER_NODE}
     </>
   );
-  const parsedStatic = lineage !== undefined ? PlateLineageResponseSchema.safeParse(lineage) : null;
+  const parsedStatic = timeline !== undefined ? FrameTimelineResponseSchema.safeParse(timeline) : null;
 
   return (
     <MotionConfig reducedMotion="user">
@@ -191,13 +191,13 @@ export function GridlockPlateWidget(props: GridlockPlateWidgetProps) {
         {WIDGET_STYLESHEET_NODE}
         {parsedStatic ? (
           !parsedStatic.success ? (
-            <DossierErrorShell baseId={baseId} title={LINEAGE_TITLE} connectorId={timelineId} errorPrefix={LINEAGE_ERROR_PREFIX} message="Malformed Plate Lineage props" />
+            <DossierErrorShell baseId={baseId} title={TIMELINE_TITLE} connectorId={timelineId} errorPrefix={TIMELINE_ERROR_PREFIX} message="Malformed Frame Timeline props" />
           ) : (
-            <LoadedPlateDossierContent key={`${parsedStatic.data.timelineId}::${viewOptions.initialIllustrationId ?? ""}::${viewOptions.apiBaseUrl !== undefined ? "live" : "static"}`} baseId={baseId} lineage={parsedStatic.data} viewOptions={viewOptions} />
+            <LoadedTimelineDossierContent key={`${parsedStatic.data.timelineId}::${viewOptions.initialIllustrationId ?? ""}::${viewOptions.apiBaseUrl !== undefined ? "live" : "static"}`} baseId={baseId} timeline={parsedStatic.data} viewOptions={viewOptions} />
           )
         ) : activePromise ? (
           <Suspense fallback={loadingShell}>
-            <PromisePlateBoundary snapshotPromise={activePromise} baseId={baseId} viewOptions={viewOptions} onRetry={handleRetry} />
+            <PromiseTimelineBoundary snapshotPromise={activePromise} baseId={baseId} viewOptions={viewOptions} onRetry={handleRetry} />
           </Suspense>
         ) : (
           loadingShell

@@ -7,7 +7,7 @@ import {
   FrameTimelineResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
 } from "@samasastudio/gridlock-core";
-import { GridlockPlateWidget, TimelineFrameStage } from "../src/index.ts";
+import { GridlockTimelineWidget, TimelineFrameStage } from "../src/index.ts";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 import {
   buildBranchOnlyTimeline,
@@ -28,7 +28,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
     const b2Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.b2.illustrationId)!;
 
     const canonicalHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.timeline} selectedPlateId={seeded.t2.illustrationId} apiBaseUrl="" />
+      <GridlockTimelineWidget timeline={seeded.timeline} selectedIllustrationId={seeded.t2.illustrationId} apiBaseUrl="" />
     );
     assert.doesNotMatch(canonicalHtml, /Compare with Canonical/);
     assert.doesNotMatch(canonicalHtml, /data-plate-comparison="split"/);
@@ -41,7 +41,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
     );
 
     const branchOnlyWidgetHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={branchOnlyTimeline} selectedPlateId={seeded.b1.illustrationId} apiBaseUrl="" />
+      <GridlockTimelineWidget timeline={branchOnlyTimeline} selectedIllustrationId={seeded.b1.illustrationId} apiBaseUrl="" />
     );
     assert.match(branchOnlyWidgetHtml, new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`));
     assert.doesNotMatch(branchOnlyWidgetHtml, /Compare with Canonical/);
@@ -67,7 +67,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
     assert.match(standaloneAgedStageHtml, /aria-pressed="false"[^>]*>Compare with Canonical<\/button>/);
 
     const diurnalHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.timeline} selectedPlateId={seeded.b1.illustrationId} theme="diurnal" apiBaseUrl="" />
+      <GridlockTimelineWidget timeline={seeded.timeline} selectedIllustrationId={seeded.b1.illustrationId} theme="diurnal" apiBaseUrl="" />
     );
     const diurnalRemSizes = extractRemFontSizes(diurnalHtml);
     assert.ok(diurnalRemSizes.length > 0 && diurnalRemSizes.every((size) => size >= 0.75));
@@ -77,7 +77,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
     assert.match(diurnalHtml, /aria-pressed="false"[^>]*>Compare with Canonical<\/button>/);
 
     const nocturnalHtml = renderToStaticMarkup(
-      <GridlockPlateWidget lineage={seeded.timeline} selectedPlateId={seeded.b1.illustrationId} theme="nocturnal" apiBaseUrl="" />
+      <GridlockTimelineWidget timeline={seeded.timeline} selectedIllustrationId={seeded.b1.illustrationId} theme="nocturnal" apiBaseUrl="" />
     );
     const nocturnalRemSizes = extractRemFontSizes(nocturnalHtml);
     assert.ok(nocturnalRemSizes.length > 0 && nocturnalRemSizes.every((size) => size >= 0.75));
@@ -93,7 +93,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
 
     await withWidgetDom(async ({ window: win, container, root }) => {
       await act(async () => {
-        root.render(<GridlockPlateWidget lineage={seeded.timeline} initialIllustrationId={seeded.b1.illustrationId} apiBaseUrl="" />);
+        root.render(<GridlockTimelineWidget timeline={seeded.timeline} initialIllustrationId={seeded.b1.illustrationId} apiBaseUrl="" />);
       });
 
       const getCompareToggle = () =>
@@ -172,8 +172,8 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
       ) => {
         await act(async () => {
           root.render(
-            <GridlockPlateWidget
-              lineage={timelineFixture}
+            <GridlockTimelineWidget
+              timeline={timelineFixture}
               initialIllustrationId={branchIllustrationId}
               apiBaseUrl=""
             />

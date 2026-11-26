@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { act } from "react";
 import type { GridlockRepository } from "@samasastudio/gridlock-core";
-import { GridlockPlateWidget } from "../src/index.ts";
+import { GridlockTimelineWidget } from "../src/index.ts";
 import { setTextareaValue, waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
 import { seedTestFrameTimeline, withTestTimelineServer } from "./helpers/timeline-fixtures.ts";
 
-describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #35)", () => {
+describe("<GridlockTimelineWidget /> Scenario Branch Mineral Error Alerts (Ticket #35)", () => {
   test("Surfaces visible 400/429/404/500/network alert copy, preserves canonical selection, and clears stale alerts", async () => {
     const seeded = await seedTestFrameTimeline();
     const sim = {
@@ -33,7 +33,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
       async (apiBaseUrl) => {
         await withWidgetDom(async ({ window: win, container, root }) => {
           await act(async () => {
-            root.render(<GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl={apiBaseUrl} />);
+            root.render(<GridlockTimelineWidget timeline={seeded.timeline} apiBaseUrl={apiBaseUrl} />);
           });
 
           const getForm = () => container.querySelector("form")!;
@@ -135,7 +135,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
 
           await act(async () => {
             root.render(
-              <GridlockPlateWidget lineage={seeded.timeline} apiBaseUrl="http://127.0.0.1:1" />
+              <GridlockTimelineWidget timeline={seeded.timeline} apiBaseUrl="http://127.0.0.1:1" />
             );
           });
           assert.equal(container.querySelector('[role="alert"]'), null);
