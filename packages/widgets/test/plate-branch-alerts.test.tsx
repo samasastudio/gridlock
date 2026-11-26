@@ -72,7 +72,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Mineral Error Alerts (Ticket #
             assert.match(alertEl.textContent ?? "", expected.detail);
             assert.equal(
               container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
-              seeded.t2.plateId
+              seeded.t2.illustrationId
             );
             assert.equal(textarea.value, expected.draft);
             assert.equal(textarea.getAttribute("aria-invalid"), expected.ariaInvalid);

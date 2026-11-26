@@ -96,7 +96,7 @@ export async function handleGetIllustrationAsset(
   req: IncomingMessage,
   res: ServerResponse,
   parsedUrl: URL,
-  plateId: string,
+  illustrationId: string,
   deps: GridlockHttpDeps
 ): Promise<void> {
   if (req.method !== "GET") {
@@ -119,7 +119,7 @@ export async function handleGetIllustrationAsset(
 
   const result = await getGeneratedIllustrationAsset(
     {
-      plateId,
+      illustrationId,
       ...(deps.now ? { now: deps.now() } : {}),
     },
     { repository: deps.repository }

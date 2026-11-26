@@ -45,7 +45,7 @@ function makePlateNode(
 ): LineageNode {
   return {
     plate: { ...plate, timelineId: DEFAULT_LINEAGE_ID, model: PAINTER_AGENT_MODEL, mimeType: "image/webp", byteLength: 129_782 },
-    assetPath: `/api/illustrations/assets/${plate.plateId}.webp`,
+    assetPath: `/api/illustrations/assets/${plate.illustrationId}.webp`,
     triggeringObservations,
     rawCaptures,
   };
@@ -65,8 +65,8 @@ const OBS_T2_SWITCHGEAR = makeMilestoneObs(
 );
 
 const NODE_T1 = makePlateNode({
-  plateId: "plate_corridor_t1", turnNumber: 1, interactionId: "inter_painter_t1",
-  parentInteractionId: null, parentPlateId: null, rebootstrappedFromParentWebp: false,
+  illustrationId: "plate_corridor_t1", turnNumber: 1, interactionId: "inter_painter_t1",
+  parentInteractionId: null, parentIllustrationId: null, rebootstrappedFromParentWebp: false,
   projectNumbers: ["TABS2027003697"], triggeringObservationIds: [OBS_T1.id], rawCaptureHashes: [HASH_T1],
   prompt: "Bootstrap Ellis County 345kV data center corridor plate from TABS2027003697",
   storageUri: `${ARTIFACT_BUCKET_URI}/illustrations/plate_corridor_t1.webp`, sha256: "1".repeat(64),
@@ -75,8 +75,8 @@ const NODE_T1 = makePlateNode({
 }, [OBS_T1], [makeCitation(HASH_T1, "2026-10-27T14:00:00.000Z")]);
 
 const NODE_T2 = makePlateNode({
-  plateId: "plate_corridor_t2", turnNumber: 2, interactionId: "inter_painter_t2",
-  parentInteractionId: "inter_painter_t1", parentPlateId: "plate_corridor_t1", rebootstrappedFromParentWebp: false,
+  illustrationId: "plate_corridor_t2", turnNumber: 2, interactionId: "inter_painter_t2",
+  parentInteractionId: "inter_painter_t1", parentIllustrationId: "plate_corridor_t1", rebootstrappedFromParentWebp: false,
   projectNumbers: ["TABS2027003697", "TABS2027004200"],
   triggeringObservationIds: [OBS_T2_PRIMARY.id, OBS_T2_SWITCHGEAR.id], rawCaptureHashes: [HASH_T2, HASH_AGED],
   prompt: "Paint chilled-water loop expansion and TABS2027004200 switchgear interconnect pad",
@@ -86,8 +86,8 @@ const NODE_T2 = makePlateNode({
 }, [OBS_T2_PRIMARY, OBS_T2_SWITCHGEAR], [makeCitation(HASH_T2, "2026-10-28T09:00:00.000Z")]);
 
 const NODE_B3 = makePlateNode({
-  plateId: "plate_branch_t3", turnNumber: 3, interactionId: "inter_painter_b3",
-  parentInteractionId: "inter_painter_t2", parentPlateId: "plate_corridor_t2", rebootstrappedFromParentWebp: true,
+  illustrationId: "plate_branch_t3", turnNumber: 3, interactionId: "inter_painter_b3",
+  parentInteractionId: "inter_painter_t2", parentIllustrationId: "plate_corridor_t2", rebootstrappedFromParentWebp: true,
   projectNumbers: ["TABS2027003697", "TABS2027004200"], triggeringObservationIds: [], rawCaptureHashes: [HASH_T2],
   prompt: "Project +400MW ERCOT 345kV substation queue delay reroute across Red Oak campus",
   storageUri: `${ARTIFACT_BUCKET_URI}/branches/ephemeral/plate_branch_t3.webp`, sha256: "3".repeat(64),
@@ -98,11 +98,11 @@ const NODE_B3 = makePlateNode({
 
 const NODE_B4 = makePlateNode(
   {
-    plateId: "plate_branch_t4",
+    illustrationId: "plate_branch_t4",
     turnNumber: 4,
     interactionId: "inter_painter_b4",
     parentInteractionId: "inter_painter_b3",
-    parentPlateId: "plate_branch_t3",
+    parentIllustrationId: "plate_branch_t3",
     rebootstrappedFromParentWebp: false,
     projectNumbers: ["TABS2027003697", "TABS2027004200"],
     triggeringObservationIds: [],
@@ -124,16 +124,16 @@ const NODE_B4 = makePlateNode(
 function makeEdge(parent: LineageNode, child: LineageNode): LineageEdge {
   return {
     parentInteractionId: parent.plate.interactionId, childInteractionId: child.plate.interactionId,
-    parentPlateId: parent.plate.plateId, childPlateId: child.plate.plateId, isBranch: child.plate.isBranch,
+    parentIllustrationId: parent.plate.illustrationId, childIllustrationId: child.plate.illustrationId, isBranch: child.plate.isBranch,
   };
 }
 
-function makeLineage(activeCanonicalPlateId: string | null, nodes: LineageNode[], edges: LineageEdge[] = []) {
-  return PlateLineageResponseSchema.parse({ timelineId: DEFAULT_LINEAGE_ID, activeCanonicalPlateId, nodes, edges });
+function makeLineage(activeCanonicalIllustrationId: string | null, nodes: LineageNode[], edges: LineageEdge[] = []) {
+  return PlateLineageResponseSchema.parse({ timelineId: DEFAULT_LINEAGE_ID, activeCanonicalIllustrationId, nodes, edges });
 }
 
 const EDGE_T1_T2 = makeEdge(NODE_T1, NODE_T2);
-const FULL_LINEAGE = makeLineage(NODE_T2.plate.plateId, [NODE_T1, NODE_T2, NODE_B3], [EDGE_T1_T2, makeEdge(NODE_T2, NODE_B3)]);
+const FULL_LINEAGE = makeLineage(NODE_T2.plate.illustrationId, [NODE_T1, NODE_T2, NODE_B3], [EDGE_T1_T2, makeEdge(NODE_T2, NODE_B3)]);
 const ALL_OVERRIDES = { plate_corridor_t1: WEBP_T1, plate_corridor_t2: WEBP_T2, plate_branch_t3: WEBP_B3 };
 
 const plateWidgetMeta: StoryMeta<GridlockPlateWidgetProps> = {
@@ -149,11 +149,11 @@ export const CanonicalAndBranchLineage: StoryObj<GridlockPlateWidgetProps> = {
 };
 
 export const ScenarioBranchSelected: StoryObj<GridlockPlateWidgetProps> = {
-  args: { ...CanonicalAndBranchLineage.args, initialPlateId: "plate_branch_t3" },
+  args: { ...CanonicalAndBranchLineage.args, initialIllustrationId: "plate_branch_t3" },
 };
 
 export const SingleFrameBootstrap: StoryObj<GridlockPlateWidgetProps> = {
-  args: { lineage: makeLineage(NODE_T1.plate.plateId, [NODE_T1]), assetUrlOverrides: { plate_corridor_t1: WEBP_T1 }, theme: "diurnal" },
+  args: { lineage: makeLineage(NODE_T1.plate.illustrationId, [NODE_T1]), assetUrlOverrides: { plate_corridor_t1: WEBP_T1 }, theme: "diurnal" },
 };
 
 export const EmptyLineage: StoryObj<GridlockPlateWidgetProps> = {
@@ -161,7 +161,7 @@ export const EmptyLineage: StoryObj<GridlockPlateWidgetProps> = {
 };
 
 export const BrokenAssetFallback: StoryObj<GridlockPlateWidgetProps> = {
-  args: { lineage: makeLineage(NODE_T2.plate.plateId, [NODE_T1, NODE_T2], [EDGE_T1_T2]), assetUrlOverrides: { plate_corridor_t1: WEBP_T1 }, theme: "diurnal" },
+  args: { lineage: makeLineage(NODE_T2.plate.illustrationId, [NODE_T1, NODE_T2], [EDGE_T1_T2]), assetUrlOverrides: { plate_corridor_t1: WEBP_T1 }, theme: "diurnal" },
 };
 
 export const NocturnalTheme: StoryObj<GridlockPlateWidgetProps> = {
@@ -171,7 +171,7 @@ export const NocturnalTheme: StoryObj<GridlockPlateWidgetProps> = {
 export const MultiHopBranchComparison: StoryObj<GridlockPlateWidgetProps> = {
   args: {
     lineage: makeLineage(
-      NODE_T2.plate.plateId,
+      NODE_T2.plate.illustrationId,
       [NODE_T1, NODE_T2, NODE_B3, NODE_B4],
       [EDGE_T1_T2, makeEdge(NODE_T2, NODE_B3), makeEdge(NODE_B3, NODE_B4)]
     ),
@@ -179,7 +179,7 @@ export const MultiHopBranchComparison: StoryObj<GridlockPlateWidgetProps> = {
       ...ALL_OVERRIDES,
       plate_branch_t4: WEBP_B3,
     },
-    initialPlateId: "plate_branch_t4",
+    initialIllustrationId: "plate_branch_t4",
     theme: "diurnal",
   },
 };

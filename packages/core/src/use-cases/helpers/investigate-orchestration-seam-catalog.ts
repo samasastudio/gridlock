@@ -14,7 +14,7 @@ import {
 } from "./investigate-provenance.ts";
 
 export interface OrchestrationCatalogIllustrationSummary {
-  plateId: string;
+  illustrationId: string;
   turnNumber: number;
   isBranch: boolean;
   epistemicLabel: EpistemicIllustrationLabel;
@@ -24,7 +24,7 @@ export interface OrchestrationCatalogIllustrationSummary {
 
 export interface OrchestrationCatalogTimelineEntry {
   timelineId: string;
-  activeCanonicalPlateId: string | null;
+  activeCanonicalIllustrationId: string | null;
   plates: readonly OrchestrationCatalogIllustrationSummary[];
 }
 
@@ -42,7 +42,7 @@ function isTimelineNodeHydratable(node: FrameTimelineNode): boolean {
     /^https?:\/\//i.test(artifact.sourceUrl)
   );
   return (
-    SafeLayoutIdSchema.safeParse(node.plate.plateId).success &&
+    SafeLayoutIdSchema.safeParse(node.plate.illustrationId).success &&
     expectedCitationCount > 0 &&
     allHttpUrls &&
     node.rawCaptures.length === expectedCitationCount &&
@@ -77,11 +77,11 @@ export function extractValidatedTimelineIds(
   }
 
   const parsedPlates = parsedItems.flatMap((parsed) => (parsed.success ? [parsed.data] : []));
-  const uniquePlateIds = new Set(parsedPlates.map((plate) => plate.plateId));
+  const uniquePlateIds = new Set(parsedPlates.map((plate) => plate.illustrationId));
   if (uniquePlateIds.size !== parsedPlates.length) {
     return stepFailure(
       "repository_integrity_error",
-      "Duplicate plateId found in stored GeneratedIllustration list"
+      "Duplicate illustrationId found in stored GeneratedIllustration list"
     );
   }
 
@@ -171,9 +171,9 @@ export function buildTimelineCatalogEntries(
       .sort((left, right) => left.timelineId.localeCompare(right.timelineId))
       .map((timeline) => ({
         timelineId: timeline.timelineId,
-        activeCanonicalPlateId: timeline.activeCanonicalPlateId,
+        activeCanonicalIllustrationId: timeline.activeCanonicalIllustrationId,
         plates: timeline.nodes.map((node): OrchestrationCatalogIllustrationSummary => ({
-          plateId: node.plate.plateId,
+          illustrationId: node.plate.illustrationId,
           turnNumber: node.plate.turnNumber,
           isBranch: node.plate.isBranch,
           epistemicLabel: node.plate.epistemicLabel,

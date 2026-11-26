@@ -52,7 +52,7 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
         assert.equal(container.querySelector('[role="alert"]'), null);
         assert.equal(
           container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
-          seeded.t2.plateId
+          seeded.t2.illustrationId
         );
         assert.match(
           container.querySelector(".gridlock-plate-lead")?.textContent ?? "",
@@ -86,8 +86,8 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
         });
         await waitForDom(() => container.querySelector(".gridlock-plate-viewport") !== null);
         assert.deepEqual(requestedUrls, ["/api/illustrations/timeline"]);
-        assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t2.plateId);
-        assert.equal(container.querySelector("img")?.getAttribute("src"), `/api/illustrations/assets/${seeded.t2.plateId}.webp`);
+        assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t2.illustrationId);
+        assert.equal(container.querySelector("img")?.getAttribute("src"), `/api/illustrations/assets/${seeded.t2.illustrationId}.webp`);
 
         await act(async () => {
           root.render(

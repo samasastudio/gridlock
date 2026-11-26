@@ -100,7 +100,7 @@ export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: Painter
   if (ctx.activeIllustration !== null) {
     return failClosedPainter(ctx, {
       stage: "painter_bootstrap",
-      reason: `Timeline "${ctx.timelineId}" is already bootstrapped (${ctx.activeIllustration.plateId})`,
+      reason: `Timeline "${ctx.timelineId}" is already bootstrapped (${ctx.activeIllustration.illustrationId})`,
       errorCode: "timeline_already_bootstrapped",
       tokensUsed: 0,
       observations: milestoneObservations,

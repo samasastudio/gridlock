@@ -189,7 +189,7 @@ const FrameTimelineScrubberNodeBaseSchema = z
     nodeId: SafeLayoutIdSchema,
     component: z.literal("FrameTimelineScrubber"),
     timeline: NonEmptyFrameTimelineSchema,
-    initialPlateId: SafeLayoutIdSchema.optional(),
+    initialIllustrationId: SafeLayoutIdSchema.optional(),
   })
   .strict();
 
@@ -198,13 +198,13 @@ function refineFrameTimelineScrubberNode(
   ctx: z.RefinementCtx
 ): void {
   if (
-    node.initialPlateId !== undefined &&
-    !node.timeline.nodes.some((n) => n.plate.plateId === node.initialPlateId)
+    node.initialIllustrationId !== undefined &&
+    !node.timeline.nodes.some((n) => n.plate.illustrationId === node.initialIllustrationId)
   ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ["initialPlateId"],
-      message: "initialPlateId must reference an active node in timeline.nodes",
+      path: ["initialIllustrationId"],
+      message: "initialIllustrationId must reference an active node in timeline.nodes",
     });
   }
 }

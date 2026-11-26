@@ -377,13 +377,13 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
           nodeId: "scrubber-unknown-plate",
           component: "FrameTimelineScrubber",
           timelineId: DEFAULT_TIMELINE_ID,
-          initialPlateId: "plate_unknown_999",
+          initialIllustrationId: "plate_unknown_999",
         }),
         singleNodeLayout({
           nodeId: "scrubber-expired-plate",
           component: "FrameTimelineScrubber",
           timelineId: DEFAULT_TIMELINE_ID,
-          initialPlateId: "plate_expired_branch",
+          initialIllustrationId: "plate_expired_branch",
         }),
         singleNodeLayout({
           nodeId: "scrubber-quarantined",
@@ -424,8 +424,8 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
         );
         assert.equal(scrubberNode?.component, "FrameTimelineScrubber");
         if (scrubberNode?.component === "FrameTimelineScrubber") {
-          assert.equal(scrubberNode.initialPlateId, branchPlateId);
-          const frameIds = scrubberNode.timeline.nodes.map((n) => n.plate.plateId);
+          assert.equal(scrubberNode.initialIllustrationId, branchPlateId);
+          const frameIds = scrubberNode.timeline.nodes.map((n) => n.plate.illustrationId);
           assert.equal(frameIds.length, 2);
           assert.equal(frameIds.includes(branchPlateId), true);
           assert.equal(frameIds.includes("plate_expired_branch"), false);
@@ -488,7 +488,7 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
               nodeId: "scrubber-corridor",
               component: "FrameTimelineScrubber",
               timelineId: DEFAULT_TIMELINE_ID,
-              initialPlateId: branchPlateId,
+              initialIllustrationId: branchPlateId,
             },
             {
               nodeId: "dossier-1002",

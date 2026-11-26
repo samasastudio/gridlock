@@ -137,7 +137,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
         });
         assert.equal(res.status, 201);
         const body = (await res.json()) as {
-          plate: { plateId: string; watermarkText: string };
+          plate: { illustrationId: string; watermarkText: string };
         };
         assert.equal(body.plate.watermarkText, SCENARIO_BRANCH_WATERMARK);
         assert.deepEqual(capturedSdkRequests[1]?.response_format, {
@@ -145,7 +145,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
         });
 
         const assetRes = await fetch(
-          `${baseUrl}/api/illustrations/assets/${encodeURIComponent(body.plate.plateId)}.webp`
+          `${baseUrl}/api/illustrations/assets/${encodeURIComponent(body.plate.illustrationId)}.webp`
         );
         assert.equal(assetRes.status, 200);
         const branchWebp = Buffer.from(await assetRes.arrayBuffer());

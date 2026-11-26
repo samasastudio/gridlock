@@ -21,17 +21,17 @@ export interface UsePlateBranchingOptions {
   baseLineage: PlateLineageResponse;
   apiBaseUrl?: string;
   selectedPlateId?: string;
-  initialPlateId?: string;
-  onSelectPlate?: (plateId: string) => void;
+  initialIllustrationId?: string;
+  onSelectPlate?: (illustrationId: string) => void;
 }
 
 export function usePlateBranching(options: UsePlateBranchingOptions) {
-  const { baseLineage, apiBaseUrl, selectedPlateId, initialPlateId, onSelectPlate } = options;
+  const { baseLineage, apiBaseUrl, selectedPlateId, initialIllustrationId, onSelectPlate } = options;
   const queryKey = `${apiBaseUrl ?? "::static"}::${baseLineage.timelineId}`;
 
   const [internalPlateEntry, setInternalPlateEntry] = useState<{
     queryKey: string;
-    plateId: string | null;
+    illustrationId: string | null;
   } | null>(null);
   const [localBranchEntries, setLocalBranchEntries] = useState<
     readonly { queryKey: string; branch: BranchPlateResponse }[]
@@ -51,8 +51,8 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
 
   const internalPlateId =
     internalPlateEntry?.queryKey === queryKey
-      ? internalPlateEntry.plateId
-      : (initialPlateId ?? null);
+      ? internalPlateEntry.illustrationId
+      : (initialIllustrationId ?? null);
   const isComparing =
     isComparingEntry?.queryKey === queryKey ? isComparingEntry.value : false;
 
@@ -66,9 +66,9 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
   const orderedNodes = orderLineageNodes(effectiveLineage.nodes);
   const activeNode = resolveActiveLineageNode({
     orderedNodes,
-    activeCanonicalPlateId: effectiveLineage.activeCanonicalPlateId,
+    activeCanonicalIllustrationId: effectiveLineage.activeCanonicalIllustrationId,
     selectedPlateId: selectedPlateId ?? internalPlateId,
-    initialPlateId,
+    initialIllustrationId,
   });
 
   const branchError =
@@ -91,16 +91,16 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
     setIsComparingEntry({ queryKey, value });
   };
 
-  const selectPlateForQuery = (targetKey: string, plateId: string) => {
+  const selectPlateForQuery = (targetKey: string, illustrationId: string) => {
     setBranchErrorEntry(null);
     if (selectedPlateId === undefined) {
-      setInternalPlateEntry({ queryKey: targetKey, plateId });
+      setInternalPlateEntry({ queryKey: targetKey, illustrationId });
     }
-    onSelectPlate?.(plateId);
+    onSelectPlate?.(illustrationId);
   };
 
-  const selectPlate = (plateId: string) => {
-    selectPlateForQuery(queryKey, plateId);
+  const selectPlate = (illustrationId: string) => {
+    selectPlateForQuery(queryKey, illustrationId);
   };
 
   const updateScenarioPrompt = (nextPrompt: string) => {
@@ -178,7 +178,7 @@ export function usePlateBranching(options: UsePlateBranchingOptions) {
     setScenarioPrompt("");
     setBranchErrorEntry(null);
     setIsComparingEntry({ queryKey: targetQueryKey, value: true });
-    selectPlateForQuery(targetQueryKey, result.branch.plate.plateId);
+    selectPlateForQuery(targetQueryKey, result.branch.plate.illustrationId);
   };
 
   return {

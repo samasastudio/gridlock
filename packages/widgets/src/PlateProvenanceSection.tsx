@@ -11,7 +11,7 @@ import {
 export interface PlateProvenanceSectionProps {
   lineage: PlateLineageResponse;
   activeNode: LineageNode;
-  onSelectPlate: (plateId: string) => void;
+  onSelectPlate: (illustrationId: string) => void;
 }
 
 function formatTurnLabel(hop: ProvenanceHop): string {
@@ -21,11 +21,11 @@ function formatTurnLabel(hop: ProvenanceHop): string {
 function ProvenanceHopRow(props: {
   hop: ProvenanceHop;
   turnLabel?: string;
-  onSelectPlate: (plateId: string) => void;
+  onSelectPlate: (illustrationId: string) => void;
 }) {
   const { hop, turnLabel, onSelectPlate } = props;
   const resolvedTurnLabel = turnLabel ?? formatTurnLabel(hop);
-  const selectablePlateId = !hop.isActiveTarget && !hop.isAgedOutParent ? hop.plateId : null;
+  const selectablePlateId = !hop.isActiveTarget && !hop.isAgedOutParent ? hop.illustrationId : null;
 
   return (
     <li className="gridlock-provenance-hop" aria-current={hop.isActiveTarget ? "step" : undefined}>
@@ -36,7 +36,7 @@ function ProvenanceHopRow(props: {
       ) : hop.isAgedOutParent ? (
         <span>
           <code>{hop.interactionId}</code>
-          {hop.plateId ? ` (${hop.plateId})` : null}
+          {hop.illustrationId ? ` (${hop.illustrationId})` : null}
         </span>
       ) : (
         <strong>
@@ -71,7 +71,7 @@ export function PlateProvenanceSection(props: PlateProvenanceSectionProps) {
   return (
     <>
       {citations.length > 0 ? (
-        <div key={`citations-${plate.plateId}`} className="gridlock-citations-row" aria-label="Raw Capture citations">
+        <div key={`citations-${plate.illustrationId}`} className="gridlock-citations-row" aria-label="Raw Capture citations">
           {citations.map((citation) => (
             <span key={citation.sha256} className="gridlock-citation-item">
               <CopyCitationButton
@@ -92,7 +92,7 @@ export function PlateProvenanceSection(props: PlateProvenanceSectionProps) {
         </div>
       ) : null}
 
-      <details key={`prov-${plate.plateId}`} className="gridlock-plate-disclosure">
+      <details key={`prov-${plate.illustrationId}`} className="gridlock-plate-disclosure">
         <summary className="gridlock-plate-disclosure-summary">
           <span>Inspect Stateful Painter provenance ({hops.length} {hops.length === 1 ? "turn" : "turns"})</span>
         </summary>
@@ -111,7 +111,7 @@ export function PlateProvenanceSection(props: PlateProvenanceSectionProps) {
               <ProvenanceHopRow
                 key={hop.interactionId}
                 hop={hop}
-                turnLabel={hop.plateId ? turnLabels.get(hop.plateId) : undefined}
+                turnLabel={hop.illustrationId ? turnLabels.get(hop.illustrationId) : undefined}
                 onSelectPlate={onSelectPlate}
               />
             ))}

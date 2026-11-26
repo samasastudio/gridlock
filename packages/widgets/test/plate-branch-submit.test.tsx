@@ -33,7 +33,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
     const seeded = await seedTestPlateLineage();
     const emptyLineage = PlateLineageResponseSchema.parse({
       timelineId: "empty-corridor",
-      activeCanonicalPlateId: null,
+      activeCanonicalIllustrationId: null,
       nodes: [],
       edges: [],
     });
@@ -101,7 +101,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
           });
           assert.equal(
             container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
-            seeded.t1.plateId
+            seeded.t1.illustrationId
           );
           assert.equal(
             container.querySelector(".gridlock-plate-branch-target")?.textContent,
@@ -124,7 +124,7 @@ describe("<GridlockPlateWidget /> Scenario Branch Submission & Auto-Compare (Tic
           );
           assert.equal(
             container.querySelector('[data-comparison-slot="canonical"]')?.getAttribute("data-plate-id"),
-            seeded.t2.plateId
+            seeded.t2.illustrationId
           );
           assert.match(
             container.querySelector('[data-comparison-slot="branch"]')?.textContent ?? "",

@@ -12,11 +12,11 @@ const BRANCH_CUE_DOT = <span className="gridlock-branch-dot" aria-hidden="true" 
 export interface PlateFrameStageProps {
   nodes: readonly LineageNode[];
   edges?: readonly LineageEdge[];
-  activeCanonicalPlateId?: string | null;
+  activeCanonicalIllustrationId?: string | null;
   activePlateId?: string | null;
   isComparing?: boolean;
   onCompareChange?: (isComparing: boolean) => void;
-  onSelectPlate: (plateId: string) => void;
+  onSelectPlate: (illustrationId: string) => void;
   apiBaseUrl?: string;
   assetUrlOverrides?: Readonly<Record<string, string>>;
   baseId?: string;
@@ -57,7 +57,7 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
     event.preventDefault();
     const target = orderedNodes[nextIndex];
     if (!target) return;
-    props.onSelectPlate(target.plate.plateId);
+    props.onSelectPlate(target.plate.illustrationId);
     tabRefs.current[nextIndex]?.focus();
   };
 
@@ -70,22 +70,22 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
           {activeNode ? (
             <div role="tablist" aria-label="Visual Plate Lineage turns" className="gridlock-tab-list">
               {orderedNodes.map((node, index) => {
-                const isSelected = node.plate.plateId === activeNode.plate.plateId;
+                const isSelected = node.plate.illustrationId === activeNode.plate.illustrationId;
                 const label =
-                  turnLabels.get(node.plate.plateId) ??
+                  turnLabels.get(node.plate.illustrationId) ??
                   (node.plate.isBranch ? `Branch · Turn ${node.plate.turnNumber}` : `Turn ${node.plate.turnNumber}`);
                 return (
                   <button
-                    key={node.plate.plateId}
+                    key={node.plate.illustrationId}
                     ref={(el) => { tabRefs.current[index] = el; }}
-                    id={`${stageId}-tab-${node.plate.plateId}`}
+                    id={`${stageId}-tab-${node.plate.illustrationId}`}
                     role="tab"
                     type="button"
                     aria-selected={isSelected}
-                    aria-controls={`${stageId}-panel-${node.plate.plateId}`}
+                    aria-controls={`${stageId}-panel-${node.plate.illustrationId}`}
                     tabIndex={isSelected ? 0 : -1}
                     className="gridlock-plate-tab"
-                    onClick={() => props.onSelectPlate(node.plate.plateId)}
+                    onClick={() => props.onSelectPlate(node.plate.illustrationId)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                   >
                     {node.plate.isBranch ? BRANCH_CUE_DOT : null}
@@ -105,11 +105,11 @@ export function PlateFrameStage(props: PlateFrameStageProps) {
           ) : null}
         </div>
         {activeNode ? (
-          <div id={`${stageId}-panel-${activeNode.plate.plateId}`} role="tabpanel" aria-labelledby={`${stageId}-tab-${activeNode.plate.plateId}`} className="gridlock-plate-panel">
+          <div id={`${stageId}-panel-${activeNode.plate.illustrationId}`} role="tabpanel" aria-labelledby={`${stageId}-tab-${activeNode.plate.illustrationId}`} className="gridlock-plate-panel">
             <PlateComparisonStage
               nodes={orderedNodes}
               edges={props.edges}
-              activeCanonicalPlateId={props.activeCanonicalPlateId}
+              activeCanonicalIllustrationId={props.activeCanonicalIllustrationId}
               activeNode={activeNode}
               isComparing={effectiveComparing}
               onToggleCompare={handleToggleCompare}

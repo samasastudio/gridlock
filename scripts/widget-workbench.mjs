@@ -492,15 +492,15 @@ async function verifyWorkbenchPlateSeam(baseUrl) {
   if (
     !Array.isArray(lineage.nodes) ||
     lineage.nodes.length < 3 ||
-    !lineage.activeCanonicalPlateId
+    !lineage.activeCanonicalIllustrationId
   ) {
     throw new Error(
-      "Expected >= 3 seeded GeneratedIllustration nodes and activeCanonicalPlateId in /api/illustrations/timeline"
+      "Expected >= 3 seeded GeneratedIllustration nodes and activeCanonicalIllustrationId in /api/illustrations/timeline"
     );
   }
 
   const activeNode = lineage.nodes.find(
-    (node) => node.plate.plateId === lineage.activeCanonicalPlateId
+    (node) => node.plate.illustrationId === lineage.activeCanonicalIllustrationId
   );
   if (!activeNode) {
     throw new Error("Active canonical node missing from /api/illustrations/timeline nodes");

@@ -199,12 +199,12 @@ export function createInMemoryGridlockRepository(
       webpBuffer: Buffer
     ): Promise<void> {
       const validated = GeneratedIllustrationSchema.parse(plate);
-      generatedIllustrations.set(validated.plateId, structuredClone(validated));
-      illustrationWebpBlobs.set(validated.plateId, Buffer.from(webpBuffer));
+      generatedIllustrations.set(validated.illustrationId, structuredClone(validated));
+      illustrationWebpBlobs.set(validated.illustrationId, Buffer.from(webpBuffer));
     },
 
-    async getGeneratedIllustrationById(plateId: string): Promise<GeneratedIllustration | null> {
-      const found = generatedIllustrations.get(plateId);
+    async getGeneratedIllustrationById(illustrationId: string): Promise<GeneratedIllustration | null> {
+      const found = generatedIllustrations.get(illustrationId);
       return found ? structuredClone(found) : null;
     },
 
@@ -230,8 +230,8 @@ export function createInMemoryGridlockRepository(
         .map((plate) => structuredClone(plate));
     },
 
-    async readGeneratedIllustrationWebp(plateId: string): Promise<Buffer | null> {
-      const blob = illustrationWebpBlobs.get(plateId);
+    async readGeneratedIllustrationWebp(illustrationId: string): Promise<Buffer | null> {
+      const blob = illustrationWebpBlobs.get(illustrationId);
       return blob ? Buffer.from(blob) : null;
     },
   };

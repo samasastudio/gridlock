@@ -53,7 +53,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     assert.match(nocturnalHtml, /color-scheme:\s*only dark/);
   });
 
-  test("Live HTTP 200 end-to-end: anchors to activeCanonicalPlateId, renders KPI trio + multi-observation prose, and serves valid image/webp bytes", async () => {
+  test("Live HTTP 200 end-to-end: anchors to activeCanonicalIllustrationId, renders KPI trio + multi-observation prose, and serves valid image/webp bytes", async () => {
     const seeded = await seedTestPlateLineage();
 
     await withTestPlatesServer({ repository: seeded.repository }, async (apiBaseUrl) => {
@@ -62,8 +62,8 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
       assert.doesNotMatch(html, new RegExp(SCENARIO_BRANCH_WATERMARK));
       assert.deepEqual(readKpiValues(html), [2, 2, 2]);
       for (const pattern of [
-        new RegExp(`data-plate-id="${seeded.t2.plateId}"`), /data-branch="false"/, new RegExp(CANONICAL_MILESTONE_LABEL), /4 Visual Plates/,
-        /Canonical Milestones/, new RegExp(`head ${seeded.t2.plateId}`), /Scenario Branches/, /90-day ephemeral projections/, /Linked Filings/, /distinct TDLR project IDs/,
+        new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`), /data-branch="false"/, new RegExp(CANONICAL_MILESTONE_LABEL), /4 Visual Plates/,
+        /Canonical Milestones/, new RegExp(`head ${seeded.t2.illustrationId}`), /Scenario Branches/, /90-day ephemeral projections/, /Linked Filings/, /distinct TDLR project IDs/,
         /250,000 sq ft structural steel erection and chilled-water loop expansion/, /TABS2027003697/, /Construction Started/, /\$125,000,000/, /250,000 sq ft/, /2026-10-28/,
         /TABS2027004200/, /140,000 sq ft adjacent switchgear interconnect building/, /\$65,000,000/,
       ]) {
@@ -71,7 +71,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
       }
 
       const imgSrc = html.match(/<img[^>]*src="([^"]+)"/)?.[1];
-      assert.equal(imgSrc, `${apiBaseUrl}/api/illustrations/assets/${seeded.t2.plateId}.webp`);
+      assert.equal(imgSrc, `${apiBaseUrl}/api/illustrations/assets/${seeded.t2.illustrationId}.webp`);
       const imgRes = await fetch(imgSrc!);
       assert.equal(imgRes.status, 200);
       assert.equal(imgRes.headers.get("content-type"), "image/webp");
@@ -83,23 +83,23 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     const seeded = await seedTestPlateLineage();
 
     const sameOriginHtml = await streamHtml(<GridlockPlateWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, lineage: seeded.lineage })} />);
-    assert.match(sameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.plateId}\\.webp"`));
+    assert.match(sameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.illustrationId}\\.webp"`));
 
-    const branchHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} selectedPlateId={seeded.b1.plateId} apiBaseUrl="" />);
+    const branchHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} selectedPlateId={seeded.b1.illustrationId} apiBaseUrl="" />);
     for (const pattern of [
-      new RegExp(`data-plate-id="${seeded.b1.plateId}"`), /data-branch="true"/, /data-tone="alert"/, new RegExp(SCENARIO_BRANCH_WATERMARK),
-      /Simulate \+400MW ERCOT substation interconnection delay/, /Unverified projection/, new RegExp(`Forked from Turn 2 \\(${seeded.t2.plateId}\\)`), /Expires/,
+      new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`), /data-branch="true"/, /data-tone="alert"/, new RegExp(SCENARIO_BRANCH_WATERMARK),
+      /Simulate \+400MW ERCOT substation interconnection delay/, /Unverified projection/, new RegExp(`Forked from Turn 2 \\(${seeded.t2.illustrationId}\\)`), /Expires/,
     ]) {
       assert.match(branchHtml, pattern);
     }
 
     const staleSelectionHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} selectedPlateId="plate_missing" apiBaseUrl="" />);
-    assert.match(staleSelectionHtml, new RegExp(`data-plate-id="${seeded.t2.plateId}"`));
+    assert.match(staleSelectionHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
 
-    const t1Node = seeded.lineage.nodes.find((node) => node.plate.plateId === seeded.t1.plateId)!;
+    const t1Node = seeded.lineage.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
     const zeroObsLineage = PlateLineageResponseSchema.parse({
       timelineId: seeded.lineage.timelineId,
-      activeCanonicalPlateId: t1Node.plate.plateId,
+      activeCanonicalIllustrationId: t1Node.plate.illustrationId,
       nodes: [{ ...t1Node, plate: { ...t1Node.plate, projectNumbers: [], triggeringObservationIds: [], rawCaptureHashes: [] }, triggeringObservations: [], rawCaptures: [] }],
       edges: [],
     });
@@ -108,7 +108,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     assert.match(baselineHtml, /Baseline Turn 1/);
     assert.match(baselineHtml, /1 Visual Plate(?!s)/);
 
-    const emptyLineage = PlateLineageResponseSchema.parse({ timelineId: "empty-corridor", activeCanonicalPlateId: null, nodes: [], edges: [] });
+    const emptyLineage = PlateLineageResponseSchema.parse({ timelineId: "empty-corridor", activeCanonicalIllustrationId: null, nodes: [], edges: [] });
     const emptyHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={emptyLineage} />);
     assert.deepEqual(readKpiValues(emptyHtml), [0, 0, 0]);
     assert.match(emptyHtml, /awaiting Turn 1 bootstrap/);
@@ -136,7 +136,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
 
       force500 = false;
       const subsequentHtml = await streamHtml(<GridlockPlateWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchPlateLineageSnapshot({ apiBaseUrl })} />);
-      assert.match(subsequentHtml, new RegExp(`data-plate-id="${seeded.t2.plateId}"`));
+      assert.match(subsequentHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
     });
   });
 });

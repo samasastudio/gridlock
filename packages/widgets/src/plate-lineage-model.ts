@@ -29,7 +29,7 @@ export function orderLineageNodes(nodes: readonly LineageNode[]): LineageNode[] 
     const createdDiff = left.plate.createdAt.localeCompare(right.plate.createdAt);
     if (createdDiff !== 0) return createdDiff;
 
-    return left.plate.plateId.localeCompare(right.plate.plateId);
+    return left.plate.illustrationId.localeCompare(right.plate.illustrationId);
   });
 }
 
@@ -42,7 +42,7 @@ export function resolveStageActiveNode(
   }
 
   if (activePlateId) {
-    const matched = orderedNodes.find((node) => node.plate.plateId === activePlateId);
+    const matched = orderedNodes.find((node) => node.plate.illustrationId === activePlateId);
     if (matched) {
       return matched;
     }
@@ -85,7 +85,7 @@ export function buildPlateTurnLabels(
     readonly entries: readonly (readonly [string, string])[];
   }>(
     (acc, node) => {
-      const { plateId, turnNumber, isBranch } = node.plate;
+      const { illustrationId, turnNumber, isBranch } = node.plate;
       const key = toTurnGroupKey(node);
       const total = groupCounts.get(key) ?? 1;
       const ordinal = (acc.seen.get(key) ?? 0) + 1;
@@ -93,7 +93,7 @@ export function buildPlateTurnLabels(
 
       return {
         seen: new Map([...acc.seen, [key, ordinal]]),
-        entries: [...acc.entries, [plateId, label] as const],
+        entries: [...acc.entries, [illustrationId, label] as const],
       };
     },
     { seen: new Map(), entries: [] }
@@ -112,17 +112,17 @@ export function computePlateLineageKpis(lineage: PlateLineageResponse): PlateLin
 
 export function resolveActiveLineageNode(options: {
   orderedNodes: readonly LineageNode[];
-  activeCanonicalPlateId: string | null;
+  activeCanonicalIllustrationId: string | null;
   selectedPlateId?: string | null;
-  initialPlateId?: string | null;
+  initialIllustrationId?: string | null;
 }): LineageNode | undefined {
-  const { orderedNodes, activeCanonicalPlateId, selectedPlateId, initialPlateId } = options;
+  const { orderedNodes, activeCanonicalIllustrationId, selectedPlateId, initialIllustrationId } = options;
   if (orderedNodes.length === 0) {
     return undefined;
   }
 
-  const byPlateId = new Map(orderedNodes.map((node) => [node.plate.plateId, node]));
-  const matchedCandidateId = [selectedPlateId, initialPlateId, activeCanonicalPlateId].find(
+  const byPlateId = new Map(orderedNodes.map((node) => [node.plate.illustrationId, node]));
+  const matchedCandidateId = [selectedPlateId, initialIllustrationId, activeCanonicalIllustrationId].find(
     (candidateId): candidateId is string => Boolean(candidateId && byPlateId.has(candidateId))
   );
 
@@ -140,7 +140,7 @@ export type ResolvedPlateCitation =
 export interface ProvenanceHop {
   interactionId: string;
   parentInteractionId: string | null;
-  plateId: string | null;
+  illustrationId: string | null;
   turnNumber: number | null;
   isBranch: boolean;
   isActiveTarget: boolean;
@@ -180,10 +180,10 @@ export function buildAncestorProvenanceChain(
     const currentHop: ProvenanceHop = {
       interactionId: current.plate.interactionId,
       parentInteractionId,
-      plateId: current.plate.plateId,
+      illustrationId: current.plate.illustrationId,
       turnNumber: current.plate.turnNumber,
       isBranch: current.plate.isBranch,
-      isActiveTarget: current.plate.plateId === activeNode.plate.plateId,
+      isActiveTarget: current.plate.illustrationId === activeNode.plate.illustrationId,
       isAgedOutParent: false,
       rebootstrappedFromParentWebp: current.plate.rebootstrappedFromParentWebp,
     };
@@ -197,7 +197,7 @@ export function buildAncestorProvenanceChain(
       const agedOutParentHop: ProvenanceHop = {
         interactionId: parentInteractionId,
         parentInteractionId: null,
-        plateId: current.plate.parentPlateId,
+        illustrationId: current.plate.parentIllustrationId,
         turnNumber: null,
         isBranch: true,
         isActiveTarget: false,
@@ -218,15 +218,15 @@ export function resolveCanonicalBaselineNode(options: {
   nodes: readonly LineageNode[];
   activeNode: LineageNode | undefined;
   edges?: readonly LineageEdge[];
-  activeCanonicalPlateId?: string | null;
+  activeCanonicalIllustrationId?: string | null;
 }): LineageNode | undefined {
-  const { nodes, activeNode, edges, activeCanonicalPlateId } = options;
+  const { nodes, activeNode, edges, activeCanonicalIllustrationId } = options;
   if (!activeNode || !activeNode.plate.isBranch || nodes.length === 0) {
     return undefined;
   }
 
   const byInteraction = new Map(nodes.map((node) => [node.plate.interactionId, node]));
-  const byPlateId = new Map(nodes.map((node) => [node.plate.plateId, node]));
+  const byPlateId = new Map(nodes.map((node) => [node.plate.illustrationId, node]));
   const edgeByChild = new Map((edges ?? []).map((edge) => [edge.childInteractionId, edge]));
 
   const findCanonicalAncestor = (
@@ -238,7 +238,7 @@ export function resolveCanonicalBaselineNode(options: {
       current.plate.parentInteractionId;
     const parentNode =
       (parentInteractionId ? byInteraction.get(parentInteractionId) : undefined) ??
-      (current.plate.parentPlateId ? byPlateId.get(current.plate.parentPlateId) : undefined);
+      (current.plate.parentIllustrationId ? byPlateId.get(current.plate.parentIllustrationId) : undefined);
 
     if (!parentNode || visited.has(parentNode.plate.interactionId)) {
       return undefined;
@@ -262,12 +262,12 @@ export function resolveCanonicalBaselineNode(options: {
     return directAncestor;
   }
 
-  if (activeCanonicalPlateId) {
-    const headCandidate = byPlateId.get(activeCanonicalPlateId);
+  if (activeCanonicalIllustrationId) {
+    const headCandidate = byPlateId.get(activeCanonicalIllustrationId);
     return headCandidate && !headCandidate.plate.isBranch ? headCandidate : undefined;
   }
 
-  if (activeCanonicalPlateId === null) {
+  if (activeCanonicalIllustrationId === null) {
     return undefined;
   }
 
@@ -290,7 +290,7 @@ export function mergeBranchedNodeIntoLineage(
   const incomingPlate = branch.node.plate;
   const remainingNodes = lineage.nodes.filter(
     (existing) =>
-      existing.plate.plateId !== incomingPlate.plateId &&
+      existing.plate.illustrationId !== incomingPlate.illustrationId &&
       existing.plate.interactionId !== incomingPlate.interactionId
   );
   const nextNodes = orderLineageNodes([...remainingNodes, branch.node]);
@@ -316,8 +316,8 @@ export function mergeBranchedNodeIntoLineage(
           {
             parentInteractionId: parentNode.plate.interactionId,
             childInteractionId: incomingPlate.interactionId,
-            parentPlateId: parentNode.plate.plateId,
-            childPlateId: incomingPlate.plateId,
+            parentIllustrationId: parentNode.plate.illustrationId,
+            childIllustrationId: incomingPlate.illustrationId,
             isBranch: incomingPlate.isBranch,
           },
         ]

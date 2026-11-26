@@ -485,7 +485,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
     );
     assert.equal(scrubberNode?.component, "FrameTimelineScrubber");
     if (scrubberNode?.component === "FrameTimelineScrubber") {
-      const frameIds = scrubberNode.timeline.nodes.map((n) => n.plate.plateId);
+      const frameIds = scrubberNode.timeline.nodes.map((n) => n.plate.illustrationId);
       assert.equal(frameIds.length, 2);
       assert.equal(frameIds.includes(branchPlateId), true);
       assert.equal(frameIds.includes("plate_expired_branch"), false);
@@ -495,7 +495,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
     const parsedPrompt = JSON.parse(promptText) as {
       catalog: {
         projects: Array<{ projectNumber: string }>;
-        timelines: Array<{ timelineId: string; plates: Array<{ plateId: string }> }>;
+        timelines: Array<{ timelineId: string; plates: Array<{ illustrationId: string }> }>;
         connectors: Array<{ connectorId: string; activeVersion: number; repairCount: number }>;
       };
     };
@@ -574,7 +574,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
     const corruptVariants: GridlockRepository[] = [
       {
         ...repository,
-        listGeneratedIllustrationsByTimeline: async () => [{ plateId: "bad" }] as never,
+        listGeneratedIllustrationsByTimeline: async () => [{ illustrationId: "bad" }] as never,
       },
       {
         ...repository,
@@ -616,7 +616,7 @@ describe("runUiOrchestrationAgent (In-place workspace refinement)", () => {
               nodeId: "scrubber-corridor",
               component: "FrameTimelineScrubber",
               timelineId: DEFAULT_TIMELINE_ID,
-              initialPlateId: branchPlateId,
+              initialIllustrationId: branchPlateId,
             },
             {
               nodeId: "dossier-1002",
