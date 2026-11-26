@@ -12,12 +12,6 @@ export const NON_LINTABLE_GLOSSARY_WORDS = new Set([
   "canonical frame",
 ]);
 
-// TODO(#82): remove once Slices 6-8 finish renaming Visual Plate / Lineage.
-export const PENDING_GLOSSARY_MIGRATION_TERMS = new Set([
-  "visual plate",
-  "lineage",
-]);
-
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -51,13 +45,7 @@ export function loadBannedGlossaryTerms(repoRoot = REPO_ROOT) {
   const glossaryPath = join(repoRoot, "GLOSSARY.md");
   const glossaryMarkdown = readFileSync(glossaryPath, "utf-8");
   return parseGlossaryAvoidTerms(glossaryMarkdown)
-    .filter(({ term }) => {
-      const normalized = term.toLowerCase();
-      return (
-        !NON_LINTABLE_GLOSSARY_WORDS.has(normalized) &&
-        !PENDING_GLOSSARY_MIGRATION_TERMS.has(normalized)
-      );
-    })
+    .filter(({ term }) => !NON_LINTABLE_GLOSSARY_WORDS.has(term.toLowerCase()))
     .map(({ pattern, useInstead }) => ({ pattern, useInstead }));
 }
 

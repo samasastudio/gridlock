@@ -92,12 +92,12 @@ export function TimelineProvenanceSection(props: TimelineProvenanceSectionProps)
         </div>
       ) : null}
 
-      <details key={`prov-${plate.illustrationId}`} className="gridlock-plate-disclosure">
-        <summary className="gridlock-plate-disclosure-summary">
+      <details key={`prov-${plate.illustrationId}`} className="gridlock-timeline-disclosure">
+        <summary className="gridlock-timeline-disclosure-summary">
           <span>Inspect Stateful Painter provenance ({hops.length} {hops.length === 1 ? "turn" : "turns"})</span>
         </summary>
-        <div className="gridlock-plate-disclosure-body">
-          <div className="gridlock-plate-invariant-strip">
+        <div className="gridlock-timeline-disclosure-body">
+          <div className="gridlock-timeline-invariant-strip">
             <span>
               <strong>Stateful Painter Agent:</strong> <code>{plate.model}</code>
             </span>

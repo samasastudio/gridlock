@@ -79,19 +79,6 @@ export {
   type PainterErrorCode,
   type StatefulPainterResult,
   type TimelineSourceCitation,
-  // TODO(#82): Temporary aliases for packages/widgets until Slice 8 removes them.
-  BranchIllustrationRequestSchema as BranchPlateRequestSchema,
-  BranchIllustrationResponseSchema as BranchPlateResponseSchema,
-  FrameTimelineEdgeSchema as LineageEdgeSchema,
-  FrameTimelineNodeSchema as LineageNodeSchema,
-  FrameTimelineResponseSchema as PlateLineageResponseSchema,
-  TimelineSourceCitationSchema as LineageSourceCitationSchema,
-  type BranchIllustrationRequest as BranchPlateRequest,
-  type BranchIllustrationResponse as BranchPlateResponse,
-  type FrameTimelineEdge as LineageEdge,
-  type FrameTimelineNode as LineageNode,
-  type FrameTimelineResponse as PlateLineageResponse,
-  type TimelineSourceCitation as LineageSourceCitation,
 } from "./painter-models.ts";
 
 export type {
@@ -163,8 +150,6 @@ export {
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   DEFAULT_TDLR_SEARCH_FILTERS,
   DEFAULT_TIMELINE_ID,
-  // TODO(#82): Temporary alias for packages/widgets until Slice 8 removes it.
-  DEFAULT_TIMELINE_ID as DEFAULT_LINEAGE_ID,
   GRIDLOCK_USER_AGENT,
   MAX_CONCURRENCY,
   MAX_INVESTIGATE_BODY_BYTES,

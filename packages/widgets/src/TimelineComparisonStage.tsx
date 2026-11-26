@@ -47,14 +47,14 @@ function TimelineViewportFrame(props: {
 
   return (
     <figure
-      className="gridlock-plate-viewport"
-      data-plate-id={plate.illustrationId}
+      className="gridlock-timeline-viewport"
+      data-illustration-id={plate.illustrationId}
       data-branch={plate.isBranch ? "true" : "false"}
       data-comparison-slot={props.comparisonSlot}
     >
-      <figcaption className="gridlock-plate-meta-bar">
+      <figcaption className="gridlock-timeline-meta-bar">
         <DossierStatusBadge tone={plate.isBranch ? "alert" : "healthy"} label={plate.epistemicLabel} />
-        <span className="gridlock-plate-turn-stamp">
+        <span className="gridlock-timeline-turn-stamp">
           <span>Turn {plate.turnNumber}</span>
           <span aria-hidden="true"> · </span>
           <time dateTime={plate.createdAt}>{plate.createdAt.slice(0, 10)}</time>
@@ -65,7 +65,7 @@ function TimelineViewportFrame(props: {
       {showRaster ? (
         <motion.img
           key={`${plate.illustrationId}::${resolvedSrc}`}
-          className="gridlock-plate-img"
+          className="gridlock-timeline-img"
           src={resolvedSrc}
           alt={`${plate.epistemicLabel} — Turn ${plate.turnNumber} (${plate.illustrationId})`}
           loading="eager"
@@ -76,12 +76,12 @@ function TimelineViewportFrame(props: {
           transition={{ duration: 0.48, ease: EDITORIAL_EASE }}
         />
       ) : (
-        <div className="gridlock-plate-fallback" data-plate-fallback="true">
-          <div className="gridlock-plate-fallback-head">
+        <div className="gridlock-timeline-fallback" data-illustration-fallback="true">
+          <div className="gridlock-timeline-fallback-head">
             {RELIEF_RETICLE_ICON}
             <strong>Generated Illustration preview unavailable</strong>
           </div>
-          <p className="gridlock-plate-fallback-copy">
+          <p className="gridlock-timeline-fallback-copy">
             WebP asset for <code>{plate.illustrationId}</code> could not be loaded; verified Observations
             and cryptographic Raw Capture provenance remain inspectable.
           </p>
@@ -128,15 +128,15 @@ export function TimelineComparisonStage(props: TimelineComparisonStageProps) {
 
   return (
     <>
-      <div className="gridlock-plate-compare-bar">
-        <span className="gridlock-plate-compare-context">
+      <div className="gridlock-timeline-compare-bar">
+        <span className="gridlock-timeline-compare-context">
           <span>Baseline · Turn {baselineNode.plate.turnNumber}</span>
           <span aria-hidden="true"> · </span>
           <code>{baselineNode.plate.illustrationId}</code>
         </span>
         <button
           type="button"
-          className="gridlock-action-btn gridlock-plate-compare-toggle"
+          className="gridlock-action-btn gridlock-timeline-compare-toggle"
           aria-pressed={props.isComparing}
           onClick={() => props.onToggleCompare(!props.isComparing)}
         >
@@ -145,8 +145,8 @@ export function TimelineComparisonStage(props: TimelineComparisonStageProps) {
       </div>
       {props.isComparing ? (
         <div
-          className="gridlock-plate-comparison-grid"
-          data-plate-comparison="split"
+          className="gridlock-timeline-comparison-grid"
+          data-timeline-comparison="split"
           role="group"
           aria-label="Canonical Milestone versus Scenario Branch comparison"
         >

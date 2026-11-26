@@ -31,7 +31,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
       <GridlockTimelineWidget timeline={seeded.timeline} selectedIllustrationId={seeded.t2.illustrationId} apiBaseUrl="" />
     );
     assert.doesNotMatch(canonicalHtml, /Compare with Canonical/);
-    assert.doesNotMatch(canonicalHtml, /data-plate-comparison="split"/);
+    assert.doesNotMatch(canonicalHtml, /data-timeline-comparison="split"/);
     assert.doesNotMatch(canonicalHtml, /data-comparison-slot=/);
 
     const branchOnlyTimeline = buildBranchOnlyTimeline(
@@ -43,13 +43,13 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
     const branchOnlyWidgetHtml = renderToStaticMarkup(
       <GridlockTimelineWidget timeline={branchOnlyTimeline} selectedIllustrationId={seeded.b1.illustrationId} apiBaseUrl="" />
     );
-    assert.match(branchOnlyWidgetHtml, new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`));
+    assert.match(branchOnlyWidgetHtml, new RegExp(`data-illustration-id="${seeded.b1.illustrationId}"`));
     assert.doesNotMatch(branchOnlyWidgetHtml, /Compare with Canonical/);
 
     const branchOnlyStageHtml = renderToStaticMarkup(
       <TimelineFrameStage nodes={branchOnlyTimeline.nodes} activeIllustrationId={seeded.b1.illustrationId} onSelectIllustration={() => {}} apiBaseUrl="" />
     );
-    assert.match(branchOnlyStageHtml, new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`));
+    assert.match(branchOnlyStageHtml, new RegExp(`data-illustration-id="${seeded.b1.illustrationId}"`));
     assert.doesNotMatch(branchOnlyStageHtml, /Compare with Canonical/);
 
     const standaloneStageHtml = renderToStaticMarkup(
@@ -98,7 +98,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
 
       const getCompareToggle = () =>
         Array.from(container.querySelectorAll("button")).find((btn) =>
-          btn.classList.contains("gridlock-plate-compare-toggle")
+          btn.classList.contains("gridlock-timeline-compare-toggle")
         );
       const getTabButtons = () =>
         Array.from(container.querySelectorAll("button")).filter(
@@ -106,22 +106,22 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
         );
 
       assert.equal(getCompareToggle()?.getAttribute("aria-pressed"), "false");
-      assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
-      assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-comparison-slot"), null);
+      assert.equal(container.querySelector('[data-timeline-comparison="split"]'), null);
+      assert.equal(container.querySelector(".gridlock-timeline-viewport")?.getAttribute("data-comparison-slot"), null);
 
       await act(async () => {
         getCompareToggle()!.click();
       });
 
       assert.equal(getCompareToggle()?.getAttribute("aria-pressed"), "true");
-      assert.equal(container.querySelector('[data-plate-comparison="split"]')?.getAttribute("role"), "group");
+      assert.equal(container.querySelector('[data-timeline-comparison="split"]')?.getAttribute("role"), "group");
 
       const canonicalPane = container.querySelector('[data-comparison-slot="canonical"]')!;
       const branchPane = container.querySelector('[data-comparison-slot="branch"]')!;
-      assert.equal(canonicalPane.getAttribute("data-plate-id"), seeded.t2.illustrationId);
+      assert.equal(canonicalPane.getAttribute("data-illustration-id"), seeded.t2.illustrationId);
       assert.equal(canonicalPane.getAttribute("data-branch"), "false");
       assert.match(canonicalPane.textContent ?? "", new RegExp(CANONICAL_MILESTONE_LABEL));
-      assert.equal(branchPane.getAttribute("data-plate-id"), seeded.b1.illustrationId);
+      assert.equal(branchPane.getAttribute("data-illustration-id"), seeded.b1.illustrationId);
       assert.equal(branchPane.getAttribute("data-branch"), "true");
       assert.match(branchPane.textContent ?? "", new RegExp(SCENARIO_BRANCH_WATERMARK));
 
@@ -131,25 +131,25 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
 
       const multiHopCanonical = container.querySelector('[data-comparison-slot="canonical"]')!;
       const multiHopBranch = container.querySelector('[data-comparison-slot="branch"]')!;
-      assert.equal(multiHopCanonical.getAttribute("data-plate-id"), seeded.t2.illustrationId);
-      assert.equal(multiHopBranch.getAttribute("data-plate-id"), seeded.b2.illustrationId);
+      assert.equal(multiHopCanonical.getAttribute("data-illustration-id"), seeded.t2.illustrationId);
+      assert.equal(multiHopBranch.getAttribute("data-illustration-id"), seeded.b2.illustrationId);
 
       const canonicalImg = multiHopCanonical.querySelector("img")!;
       await act(async () => {
         canonicalImg.dispatchEvent(new win.Event("error"));
       });
 
-      assert.ok(multiHopCanonical.querySelector('[data-plate-fallback="true"]'));
-      assert.equal(multiHopBranch.querySelector('[data-plate-fallback="true"]'), null);
+      assert.ok(multiHopCanonical.querySelector('[data-illustration-fallback="true"]'));
+      assert.equal(multiHopBranch.querySelector('[data-illustration-fallback="true"]'), null);
       assert.equal(multiHopBranch.querySelector("img")?.getAttribute("src"), `/api/illustrations/assets/${seeded.b2.illustrationId}.webp`);
 
       await act(async () => {
         getTabButtons()[0]!.click();
       });
 
-      assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
+      assert.equal(container.querySelector('[data-timeline-comparison="split"]'), null);
       assert.equal(getCompareToggle(), undefined);
-      assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t1.illustrationId);
+      assert.equal(container.querySelector(".gridlock-timeline-viewport")?.getAttribute("data-illustration-id"), seeded.t1.illustrationId);
 
       await act(async () => {
         getTabButtons()[2]!.click();
@@ -161,7 +161,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
       });
 
       assert.equal(getCompareToggle()?.getAttribute("aria-pressed"), "false");
-      assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
+      assert.equal(container.querySelector('[data-timeline-comparison="split"]'), null);
 
       const turn1Fork = await seedTurn1ForkTimeline(seeded);
       assert.equal(turn1Fork.timeline.activeCanonicalIllustrationId, seeded.t2.illustrationId);
@@ -181,7 +181,7 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
         });
 
         assert.match(
-          container.querySelector(".gridlock-plate-compare-context")?.textContent ?? "",
+          container.querySelector(".gridlock-timeline-compare-context")?.textContent ?? "",
           new RegExp(`Baseline · Turn 1 · ${seeded.t1.illustrationId}`)
         );
 
@@ -190,11 +190,11 @@ describe("TimelineComparisonStage 2-Up Canonical-vs-Branch Controls (Ticket #35 
         });
 
         assert.equal(
-          container.querySelector('[data-comparison-slot="canonical"]')?.getAttribute("data-plate-id"),
+          container.querySelector('[data-comparison-slot="canonical"]')?.getAttribute("data-illustration-id"),
           seeded.t1.illustrationId
         );
         assert.equal(
-          container.querySelector('[data-comparison-slot="branch"]')?.getAttribute("data-plate-id"),
+          container.querySelector('[data-comparison-slot="branch"]')?.getAttribute("data-illustration-id"),
           branchIllustrationId
         );
       };

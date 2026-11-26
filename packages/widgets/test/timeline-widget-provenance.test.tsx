@@ -17,7 +17,7 @@ describe("<GridlockTimelineWidget /> Citations & Ancestor Provenance Walk (Ticke
 
       assert.equal(container.querySelector("section")?.getAttribute("data-gridlock-theme"), "inherit");
       assert.match(
-        container.querySelector(".gridlock-plate-lead")?.textContent ?? "",
+        container.querySelector(".gridlock-timeline-lead")?.textContent ?? "",
         /250,000 sq ft structural steel erection and chilled-water loop expansion/
       );
       const hydratedLink = container.querySelector(".gridlock-citation-link");
@@ -35,7 +35,7 @@ describe("<GridlockTimelineWidget /> Citations & Ancestor Provenance Walk (Ticke
       assert.equal(getLastCopiedText(), seeded.h2);
       assert.equal(citationChips[0]!.getAttribute("data-copied"), "true");
 
-      const t2Details = container.querySelector("details.gridlock-plate-disclosure") as HTMLDetailsElement | null;
+      const t2Details = container.querySelector("details.gridlock-timeline-disclosure") as HTMLDetailsElement | null;
       assert.ok(t2Details);
       assert.equal(t2Details.open, false);
       t2Details.open = true;
@@ -51,7 +51,7 @@ describe("<GridlockTimelineWidget /> Citations & Ancestor Provenance Walk (Ticke
       await pressArrowRight();
       assert.equal(container.querySelector("details")?.open, false);
       assert.match(
-        container.querySelector(".gridlock-plate-lead")?.textContent ?? "",
+        container.querySelector(".gridlock-timeline-lead")?.textContent ?? "",
         /Simulate \+400MW ERCOT substation interconnection delay/
       );
       await pressArrowRight();
@@ -59,7 +59,7 @@ describe("<GridlockTimelineWidget /> Citations & Ancestor Provenance Walk (Ticke
       const b2Details = container.querySelector("details")!;
       assert.equal(b2Details.open, false);
       assert.match(
-        container.querySelector(".gridlock-plate-lead")?.textContent ?? "",
+        container.querySelector(".gridlock-timeline-lead")?.textContent ?? "",
         /Model dual-feed 345kV transmission reroute around Ellis County/
       );
       const b2CitationChip = container.querySelector(".gridlock-citations-row button")!;
@@ -86,11 +86,11 @@ describe("<GridlockTimelineWidget /> Citations & Ancestor Provenance Walk (Ticke
         turn1HopBtn.click();
       });
       assert.equal(
-        container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
+        container.querySelector(".gridlock-timeline-viewport")?.getAttribute("data-illustration-id"),
         seeded.t1.illustrationId
       );
       assert.match(
-        container.querySelector(".gridlock-plate-lead")?.textContent ?? "",
+        container.querySelector(".gridlock-timeline-lead")?.textContent ?? "",
         /250,000 sq ft hyperscale data center hall and 345kV substation yard/
       );
 

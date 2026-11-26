@@ -13,7 +13,7 @@ export function TimelineWidgetLoadingPlaceholder() {
       role="status"
       aria-live="polite"
       aria-label="Loading Frame Timeline"
-      data-loading-placeholder="plate-lineage"
+      data-loading-placeholder="frame-timeline"
       className="gridlock-loading-placeholder"
     >
       <div className="gridlock-loading-stats" aria-hidden="true">
@@ -93,10 +93,10 @@ export function TimelineSummarySection(props: {
       : "Corridor baseline canvas initialized prior to incremental filing delta turns.";
 
   return (
-    <div className="gridlock-plate-specimen">
+    <div className="gridlock-timeline-specimen">
       <motion.p
         key={`lead-${plate.illustrationId}`}
-        className="gridlock-plate-lead"
+        className="gridlock-timeline-lead"
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={LEAD_TRANSITION}

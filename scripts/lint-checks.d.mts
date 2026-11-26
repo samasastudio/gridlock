@@ -1,5 +1,4 @@
 export const NON_LINTABLE_GLOSSARY_WORDS: Set<string>;
-export const PENDING_GLOSSARY_MIGRATION_TERMS: Set<string>;
 export function parseGlossaryAvoidTerms(glossaryMarkdown: string): Array<{
   term: string;
   pattern: RegExp;

@@ -69,28 +69,28 @@ export function TimelineScenarioBranchSection(props: TimelineScenarioBranchSecti
 
   return (
     <form
-      className="gridlock-plate-branch-section"
+      className="gridlock-timeline-branch-section"
       aria-labelledby={headingId}
       aria-busy={isSubmitting}
       onSubmit={handleSubmit}
     >
-      <div className="gridlock-plate-branch-head">
+      <div className="gridlock-timeline-branch-head">
         <h4 id={headingId} className="gridlock-section-heading">
           Scenario Branch
         </h4>
-        <span className="gridlock-plate-branch-target">
+        <span className="gridlock-timeline-branch-target">
           <span>{`Forking Turn ${activeNode.plate.turnNumber}`}</span>
           <span aria-hidden="true"> · </span>
           <code>{activeNode.plate.interactionId}</code>
         </span>
       </div>
-      <label htmlFor={promptId} className="gridlock-plate-branch-label">
+      <label htmlFor={promptId} className="gridlock-timeline-branch-label">
         What-if corridor scenario prompt
       </label>
       <textarea
         id={promptId}
         name="scenarioPrompt"
-        className="gridlock-plate-branch-input"
+        className="gridlock-timeline-branch-input"
         rows={3}
         value={scenarioPrompt}
         disabled={isSubmitting}
@@ -98,17 +98,17 @@ export function TimelineScenarioBranchSection(props: TimelineScenarioBranchSecti
         aria-describedby={error !== null ? `${counterId} ${alertId}` : counterId}
         onChange={handlePromptInput}
       />
-      <div className="gridlock-plate-branch-footer">
+      <div className="gridlock-timeline-branch-footer">
         <span
           id={counterId}
-          className="gridlock-plate-branch-counter"
+          className="gridlock-timeline-branch-counter"
           data-over-limit={isOverLimit ? "true" : "false"}
         >
           {`${trimmedLength.toLocaleString("en-US")} / ${MAX_SCENARIO_PROMPT_LENGTH.toLocaleString("en-US")} chars`}
         </span>
         <button
           type="submit"
-          className="gridlock-action-btn gridlock-plate-branch-submit"
+          className="gridlock-action-btn gridlock-timeline-branch-submit"
           disabled={isSubmitting || trimmedLength === 0}
         >
           {isSubmitting ? "Painting Scenario Branch…" : "Fork Scenario Branch"}
@@ -118,7 +118,7 @@ export function TimelineScenarioBranchSection(props: TimelineScenarioBranchSecti
         <div
           id={alertId}
           role="alert"
-          className="gridlock-banner gridlock-plate-branch-alert"
+          className="gridlock-banner gridlock-timeline-branch-alert"
           data-error-status={
             error.statusCode !== undefined ? String(error.statusCode) : "network"
           }

@@ -47,15 +47,15 @@ describe("<GridlockTimelineWidget /> Client Live Fetch & Retry DOM Lifecycle (Ti
           retryBtn.click();
         });
 
-        await waitForDom(() => container.querySelector(".gridlock-plate-viewport") !== null);
+        await waitForDom(() => container.querySelector(".gridlock-timeline-viewport") !== null);
         assert.equal(retryCount, 1);
         assert.equal(container.querySelector('[role="alert"]'), null);
         assert.equal(
-          container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
+          container.querySelector(".gridlock-timeline-viewport")?.getAttribute("data-illustration-id"),
           seeded.t2.illustrationId
         );
         assert.match(
-          container.querySelector(".gridlock-plate-lead")?.textContent ?? "",
+          container.querySelector(".gridlock-timeline-lead")?.textContent ?? "",
           /250,000 sq ft structural steel erection and chilled-water loop expansion/
         );
 
@@ -64,8 +64,8 @@ describe("<GridlockTimelineWidget /> Client Live Fetch & Retry DOM Lifecycle (Ti
             <GridlockTimelineWidget ref={sectionRef} apiBaseUrl={apiBaseUrl} timelineId="unknown-corridor" onRetry={onRetry} />
           );
         });
-        await waitForDom(() => container.querySelector('[data-empty-lineage="true"]') !== null);
-        assert.ok(container.querySelector('[data-empty-lineage="true"]'));
+        await waitForDom(() => container.querySelector('[data-empty-timeline="true"]') !== null);
+        assert.ok(container.querySelector('[data-empty-timeline="true"]'));
       });
     });
   });
@@ -84,9 +84,9 @@ describe("<GridlockTimelineWidget /> Client Live Fetch & Retry DOM Lifecycle (Ti
         await act(async () => {
           root.render(<GridlockTimelineWidget apiBaseUrl="" />);
         });
-        await waitForDom(() => container.querySelector(".gridlock-plate-viewport") !== null);
+        await waitForDom(() => container.querySelector(".gridlock-timeline-viewport") !== null);
         assert.deepEqual(requestedUrls, ["/api/illustrations/timeline"]);
-        assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t2.illustrationId);
+        assert.equal(container.querySelector(".gridlock-timeline-viewport")?.getAttribute("data-illustration-id"), seeded.t2.illustrationId);
         assert.equal(container.querySelector("img")?.getAttribute("src"), `/api/illustrations/assets/${seeded.t2.illustrationId}.webp`);
 
         await act(async () => {
@@ -97,21 +97,21 @@ describe("<GridlockTimelineWidget /> Client Live Fetch & Retry DOM Lifecycle (Ti
             </div>
           );
         });
-        assert.ok(container.querySelector(".gridlock-plate-tab-indicator") && container.querySelector(".gridlock-tab-indicator"));
-        assert.ok(container.querySelector(".gridlock-plate-specimen") && container.querySelector(".gridlock-specimen-panel"));
+        assert.ok(container.querySelector(".gridlock-timeline-tab-indicator") && container.querySelector(".gridlock-tab-indicator"));
+        assert.ok(container.querySelector(".gridlock-timeline-specimen") && container.querySelector(".gridlock-specimen-panel"));
 
         const styles = Array.from(win.document.querySelectorAll("style")).map((s) => s.textContent ?? "");
         const extractRules = (css: string) =>
           new Map(Array.from(css.matchAll(/(:where\([^{]+\))\s*\{([^}]*)\}/g), (m) => [m[1]!.trim(), m[2]!.trim()]));
-        const plateRules = extractRules(styles.find((css) => css.includes(".gridlock-plate-tab-indicator")) ?? "");
+        const timelineRules = extractRules(styles.find((css) => css.includes(".gridlock-timeline-tab-indicator")) ?? "");
         const repairRules = extractRules(styles.find((css) => css.includes(".gridlock-version-tab")) ?? "");
 
-        assert.match(plateRules.get(":where(.gridlock-plate-tab-indicator)") ?? "", /inset-block-end:\s*0;/);
+        assert.match(timelineRules.get(":where(.gridlock-timeline-tab-indicator)") ?? "", /inset-block-end:\s*0;/);
         assert.match(repairRules.get(":where(.gridlock-tab-indicator)") ?? "", /inset-block-end:\s*-0\.55rem;/);
-        assert.match(plateRules.get(":where(.gridlock-plate-specimen)") ?? "", /padding-block-start:\s*0\.25rem;/);
+        assert.match(timelineRules.get(":where(.gridlock-timeline-specimen)") ?? "", /padding-block-start:\s*0\.25rem;/);
         assert.match(repairRules.get(":where(.gridlock-specimen-panel)") ?? "", /padding-block-start:\s*1\.25rem;/);
-        for (const [selector, plateBody] of plateRules) {
-          if (repairRules.has(selector)) assert.equal(plateBody, repairRules.get(selector), `Conflicting rule on ${selector}`);
+        for (const [selector, timelineBody] of timelineRules) {
+          if (repairRules.has(selector)) assert.equal(timelineBody, repairRules.get(selector), `Conflicting rule on ${selector}`);
         }
       });
     } finally {

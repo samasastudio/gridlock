@@ -81,10 +81,10 @@ describe("<GridlockTimelineWidget /> CSF3 Stories & Browser Boundary (Ticket #34
     assert.match(singleHtml, /Inspect Stateful Painter provenance \(1 turn\)/);
 
     const emptyHtml = renderToStaticMarkup(<StoryComponent {...EmptyFrameTimeline.args} />);
-    assert.match(emptyHtml, /data-empty-lineage="true"/);
+    assert.match(emptyHtml, /data-empty-timeline="true"/);
 
     const fallbackHtml = renderToStaticMarkup(<StoryComponent {...BrokenAssetFallback.args} />);
-    assert.match(fallbackHtml, /data-plate-fallback="true"/);
+    assert.match(fallbackHtml, /data-illustration-fallback="true"/);
     assert.match(fallbackHtml, /Inspect Stateful Painter provenance \(2 turns\)/);
 
     const nocturnalHtml = renderToStaticMarkup(<StoryComponent {...NocturnalTheme.args} />);
