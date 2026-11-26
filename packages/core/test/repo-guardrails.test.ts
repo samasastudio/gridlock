@@ -7,7 +7,9 @@ import {
   TelemetryStageSchema,
 } from "../src/index.ts";
 import {
+  MAX_CORE_TS_LINES,
   MAX_PR_CHANGED_LINES,
+  MAX_TSX_LINES,
   evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   evaluateUnusedModuleExports,
@@ -226,6 +228,43 @@ describe("Repository Guardrails: TelemetryStageSchema & Unused Slice Exports (Is
     assert.equal(over.length, 1);
     assert.ok(over[0]?.includes("801 changed lines"));
     assert.ok(over[0]?.includes("<= 800-line budget"));
+  });
+
+  test("evaluateSourceFileLintRules enforces 400-line core and 280-line widget component budgets while keeping inward layer checks", () => {
+    assert.equal(MAX_CORE_TS_LINES, 400);
+    assert.equal(MAX_TSX_LINES, 280);
+
+    const coreAtCap = Array.from({ length: 400 }, () => "export const x = 1;").join("\n");
+    const coreOverCap = Array.from({ length: 401 }, () => "export const x = 1;").join("\n");
+    assert.deepEqual(
+      evaluateSourceFileLintRules("packages/core/src/use-cases/at-cap.ts", coreAtCap),
+      []
+    );
+    const coreOverViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/over-cap.ts",
+      coreOverCap
+    );
+    assert.equal(coreOverViolations.length, 1);
+    assert.ok(coreOverViolations[0]?.includes("exceeds 400-line core module budget"));
+
+    const tsxAtCap = Array.from({ length: 280 }, () => "export const y = 1;").join("\n");
+    const tsxOverCap = Array.from({ length: 281 }, () => "export const y = 1;").join("\n");
+    assert.deepEqual(
+      evaluateSourceFileLintRules("packages/widgets/src/AtCap.tsx", tsxAtCap),
+      []
+    );
+    const tsxOverViolations = evaluateSourceFileLintRules(
+      "packages/widgets/src/OverCap.tsx",
+      tsxOverCap
+    );
+    assert.equal(tsxOverViolations.length, 1);
+    assert.ok(tsxOverViolations[0]?.includes("exceeds 280-line component budget"));
+
+    const upwardViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/bad-layer.ts",
+      'import { defaultPageLoader } from "../adapters/http-loaders.ts";\nexport const x = defaultPageLoader;'
+    );
+    assert.ok(upwardViolations.some((v) => v.includes("use-cases/ must not import from outer adapters/")));
   });
 
   test("evaluateProgramTypeHygiene flags explicit and inherent any leaks and passes on the real workspace", () => {
