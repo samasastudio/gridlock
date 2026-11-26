@@ -151,26 +151,26 @@ describe("GridlockWorkspaceCards CSF3 Stories, Browser Boundary & Co-Mount Parit
       });
 
       assert.equal(container.querySelectorAll("[data-workspace-card]").length, 3);
-      assert.ok(container.querySelector(".gridlock-plate-viewport"));
+      assert.ok(container.querySelector(".gridlock-timeline-viewport"));
       assert.ok(container.querySelector(".gridlock-chart-frame"));
 
       const styleContents = Array.from(win.document.querySelectorAll("style")).map(
         (el) => el.textContent ?? ""
       );
       const workspaceIdx = styleContents.findIndex((css) => css.includes(".gridlock-workspace-card"));
-      const plateIdx = styleContents.findIndex((css) => css.includes(".gridlock-plate-tab-indicator"));
+      const timelineIdx = styleContents.findIndex((css) => css.includes(".gridlock-timeline-tab-indicator"));
       const repairIdx = styleContents.findIndex((css) => css.includes(".gridlock-version-tab"));
 
       assert.equal(styleContents.filter((css) => css.includes(".gridlock-workspace-card")).length, 1);
-      assert.ok(workspaceIdx >= 0 && workspaceIdx < plateIdx && workspaceIdx < repairIdx);
+      assert.ok(workspaceIdx >= 0 && workspaceIdx < timelineIdx && workspaceIdx < repairIdx);
 
       const workspaceRules = extractZeroSpecificityWhereRules(styleContents[workspaceIdx]!);
-      const plateRules = extractZeroSpecificityWhereRules(styleContents[plateIdx]!);
+      const timelineRules = extractZeroSpecificityWhereRules(styleContents[timelineIdx]!);
       const repairRules = extractZeroSpecificityWhereRules(styleContents[repairIdx]!);
       assert.ok(workspaceRules.size >= 25);
 
       for (const [selector, workspaceBody] of workspaceRules) {
-        assert.equal(plateRules.get(selector), workspaceBody, `Plate mismatch on ${selector}`);
+        assert.equal(timelineRules.get(selector), workspaceBody, `Timeline mismatch on ${selector}`);
         assert.equal(repairRules.get(selector), workspaceBody, `Repair mismatch on ${selector}`);
       }
 

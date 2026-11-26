@@ -14,7 +14,6 @@ import {
   MAX_PR_CHANGED_LINES,
   MAX_TSX_LINES,
   NON_LINTABLE_GLOSSARY_WORDS,
-  PENDING_GLOSSARY_MIGRATION_TERMS,
   evaluatePullRequestLineBudget,
   evaluateSourceFileLintRules,
   evaluateUnusedModuleExports,
@@ -319,9 +318,7 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
 
     for (const entry of parsedEntries) {
       const normalized = entry.term.toLowerCase();
-      const isExcluded =
-        NON_LINTABLE_GLOSSARY_WORDS.has(normalized) ||
-        PENDING_GLOSSARY_MIGRATION_TERMS.has(normalized);
+      const isExcluded = NON_LINTABLE_GLOSSARY_WORDS.has(normalized);
       const isActive = BANNED_GLOSSARY_TERMS.some(
         (banned) =>
           banned.pattern.test(entry.term) && banned.useInstead === entry.useInstead
@@ -339,6 +336,8 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
       ["UI", "AST"].join(" "),
       ["Investigation", "Planner"].join(" "),
       ["tele", "metry"].join(""),
+      ["Visual", "Plate"].join(" "),
+      ["lin", "eage"].join(""),
     ];
     for (const sample of retiredSamples) {
       const violations = evaluateSourceFileLintRules(

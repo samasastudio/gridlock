@@ -38,7 +38,7 @@ describe("<GridlockTimelineWidget /> Scenario Branch Mineral Error Alerts (Ticke
 
           const getForm = () => container.querySelector("form")!;
           const getTextarea = () => container.querySelector("textarea")!;
-          const getCounter = () => container.querySelector(".gridlock-plate-branch-counter")!;
+          const getCounter = () => container.querySelector(".gridlock-timeline-branch-counter")!;
           const getTabs = () =>
             Array.from(container.querySelectorAll("button")).filter(
               (btn) => btn.getAttribute("role") === "tab"
@@ -71,7 +71,7 @@ describe("<GridlockTimelineWidget /> Scenario Branch Mineral Error Alerts (Ticke
             assert.ok((alertEl.textContent ?? "").includes(expected.prefix));
             assert.match(alertEl.textContent ?? "", expected.detail);
             assert.equal(
-              container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
+              container.querySelector(".gridlock-timeline-viewport")?.getAttribute("data-illustration-id"),
               seeded.t2.illustrationId
             );
             assert.equal(textarea.value, expected.draft);

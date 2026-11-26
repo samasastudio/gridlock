@@ -4,9 +4,9 @@ import type { FrameTimelineEdge, FrameTimelineNode } from "@samasastudio/gridloc
 import { RELIEF_RETICLE_ICON } from "./DossierPrimitives.tsx";
 import { TimelineComparisonStage } from "./TimelineComparisonStage.tsx";
 import { buildTimelineTurnLabels, orderTimelineNodes, resolveStageActiveNode } from "./frame-timeline-model.ts";
-import { GRIDLOCK_PLATE_WIDGET_STYLESHEET } from "./plate-widget-styles.ts";
+import { GRIDLOCK_TIMELINE_WIDGET_STYLESHEET } from "./timeline-widget-styles.ts";
 
-const STAGE_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
+const STAGE_STYLESHEET_NODE = <style href="gridlock-timeline-widget" precedence="default">{GRIDLOCK_TIMELINE_WIDGET_STYLESHEET}</style>;
 const BRANCH_CUE_DOT = <span className="gridlock-branch-dot" aria-hidden="true" />;
 
 export interface TimelineFrameStageProps {
@@ -63,9 +63,9 @@ export function TimelineFrameStage(props: TimelineFrameStageProps) {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="gridlock-plate-stage">
+      <div className="gridlock-timeline-stage">
         {STAGE_STYLESHEET_NODE}
-        <div className="gridlock-plate-scrubber-bar">
+        <div className="gridlock-timeline-scrubber-bar">
           <h3 className="gridlock-section-heading">Frame Timeline Scrubber</h3>
           {activeNode ? (
             <div role="tablist" aria-label="Frame Timeline turns" className="gridlock-tab-list">
@@ -84,7 +84,7 @@ export function TimelineFrameStage(props: TimelineFrameStageProps) {
                     aria-selected={isSelected}
                     aria-controls={`${stageId}-panel-${node.plate.illustrationId}`}
                     tabIndex={isSelected ? 0 : -1}
-                    className="gridlock-plate-tab"
+                    className="gridlock-timeline-tab"
                     onClick={() => props.onSelectIllustration(node.plate.illustrationId)}
                     onKeyDown={(event) => handleTabKeyDown(event, index)}
                   >
@@ -93,8 +93,8 @@ export function TimelineFrameStage(props: TimelineFrameStageProps) {
                     {isSelected ? (
                       <motion.span
                         aria-hidden="true"
-                        layoutId={`${stageId}-active-plate-tab`}
-                        className="gridlock-plate-tab-indicator"
+                        layoutId={`${stageId}-active-timeline-tab`}
+                        className="gridlock-timeline-tab-indicator"
                         transition={{ type: "spring", visualDuration: 0.5, bounce: 0 }}
                       />
                     ) : null}
@@ -105,7 +105,7 @@ export function TimelineFrameStage(props: TimelineFrameStageProps) {
           ) : null}
         </div>
         {activeNode ? (
-          <div id={`${stageId}-panel-${activeNode.plate.illustrationId}`} role="tabpanel" aria-labelledby={`${stageId}-tab-${activeNode.plate.illustrationId}`} className="gridlock-plate-panel">
+          <div id={`${stageId}-panel-${activeNode.plate.illustrationId}`} role="tabpanel" aria-labelledby={`${stageId}-tab-${activeNode.plate.illustrationId}`} className="gridlock-timeline-panel">
             <TimelineComparisonStage
               nodes={orderedNodes}
               edges={props.edges}
@@ -119,7 +119,7 @@ export function TimelineFrameStage(props: TimelineFrameStageProps) {
             {props.children}
           </div>
         ) : (
-          <p className="gridlock-empty-row" data-empty-lineage="true">
+          <p className="gridlock-empty-row" data-empty-timeline="true">
             {RELIEF_RETICLE_ICON}
             <span><strong>0 Generated Illustrations recorded</strong> — awaiting initial $25M+ corridor filing milestone to bootstrap Turn 1.</span>
           </p>

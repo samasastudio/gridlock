@@ -41,13 +41,13 @@ describe("<GridlockTimelineWidget /> Scenario Branch Submission & Auto-Compare (
     const staticHtml = renderToStaticMarkup(
       <GridlockTimelineWidget timeline={seeded.timeline} />
     );
-    assert.doesNotMatch(staticHtml, /<form[^>]*class="gridlock-plate-branch-section"/);
+    assert.doesNotMatch(staticHtml, /<form[^>]*class="gridlock-timeline-branch-section"/);
     assert.doesNotMatch(staticHtml, /<textarea/);
 
     const emptyLiveHtml = renderToStaticMarkup(
       <GridlockTimelineWidget timeline={emptyTimeline} apiBaseUrl="" />
     );
-    assert.doesNotMatch(emptyLiveHtml, /<form[^>]*class="gridlock-plate-branch-section"/);
+    assert.doesNotMatch(emptyLiveHtml, /<form[^>]*class="gridlock-timeline-branch-section"/);
     assert.doesNotMatch(emptyLiveHtml, /<textarea/);
   });
 
@@ -100,11 +100,11 @@ describe("<GridlockTimelineWidget /> Scenario Branch Submission & Auto-Compare (
             readTimelineTabs(container)[0]!.click();
           });
           assert.equal(
-            container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"),
+            container.querySelector(".gridlock-timeline-viewport")?.getAttribute("data-illustration-id"),
             seeded.t1.illustrationId
           );
           assert.equal(
-            container.querySelector(".gridlock-plate-branch-target")?.textContent,
+            container.querySelector(".gridlock-timeline-branch-target")?.textContent,
             `Forking Turn 2 · ${seeded.t2.interactionId}`
           );
 
@@ -113,17 +113,17 @@ describe("<GridlockTimelineWidget /> Scenario Branch Submission & Auto-Compare (
           });
 
           await waitForDom(
-            () => container.querySelector('[data-plate-comparison="split"]') !== null
+            () => container.querySelector('[data-timeline-comparison="split"]') !== null
           );
           assert.deepEqual(readTimelineKpis(container), [2, 3, 2]);
           assert.equal(readTimelineTabs(container).length, 5);
           assert.equal(getTextarea().value, "");
           assert.equal(
-            container.querySelector(".gridlock-plate-compare-toggle")?.getAttribute("aria-pressed"),
+            container.querySelector(".gridlock-timeline-compare-toggle")?.getAttribute("aria-pressed"),
             "true"
           );
           assert.equal(
-            container.querySelector('[data-comparison-slot="canonical"]')?.getAttribute("data-plate-id"),
+            container.querySelector('[data-comparison-slot="canonical"]')?.getAttribute("data-illustration-id"),
             seeded.t2.illustrationId
           );
           assert.match(
@@ -139,7 +139,7 @@ describe("<GridlockTimelineWidget /> Scenario Branch Submission & Auto-Compare (
           });
           assert.equal(readTimelineTabs(container).length, 4);
           assert.deepEqual(readTimelineKpis(container), [2, 2, 2]);
-          assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
+          assert.equal(container.querySelector('[data-timeline-comparison="split"]'), null);
 
           await act(async () => {
             root.render(<GridlockTimelineWidget timeline={seeded.timeline} />);
@@ -184,7 +184,7 @@ describe("<GridlockTimelineWidget /> Scenario Branch Submission & Auto-Compare (
               });
 
               await waitForDom(
-                () => container.querySelector('[data-plate-comparison="split"]') !== null
+                () => container.querySelector('[data-timeline-comparison="split"]') !== null
               );
               assert.equal(readTimelineTabs(container).length, 5);
               assert.deepEqual(readTimelineKpis(container), [2, 3, 2]);
@@ -195,7 +195,7 @@ describe("<GridlockTimelineWidget /> Scenario Branch Submission & Auto-Compare (
 
               await waitForDom(() => readTimelineTabs(container).length === 4);
               assert.deepEqual(readTimelineKpis(container), [2, 2, 2]);
-              assert.equal(container.querySelector('[data-plate-comparison="split"]'), null);
+              assert.equal(container.querySelector('[data-timeline-comparison="split"]'), null);
             });
           }
         );

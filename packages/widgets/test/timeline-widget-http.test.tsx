@@ -22,7 +22,7 @@ describe("<GridlockTimelineWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (
   test("Loading placeholder, static prop validation, theme cascade, and rejected snapshotPromise error boundary", async () => {
     const loadingHtml = renderToStaticMarkup(<GridlockTimelineWidget apiBaseUrl="https://api.example.com" timelineId="texas-corridor-main" />);
     assert.match(loadingHtml, /data-gridlock-theme="inherit"/);
-    assert.match(loadingHtml, /data-loading-placeholder="plate-lineage"/);
+    assert.match(loadingHtml, /data-loading-placeholder="frame-timeline"/);
     assert.match(loadingHtml, /Corridor Frame Timeline/);
     assert.match(loadingHtml, /texas-corridor-main/);
     assert.doesNotMatch(loadingHtml, /<progress/);
@@ -62,7 +62,7 @@ describe("<GridlockTimelineWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (
       assert.doesNotMatch(html, new RegExp(SCENARIO_BRANCH_WATERMARK));
       assert.deepEqual(readKpiValues(html), [2, 2, 2]);
       for (const pattern of [
-        new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`), /data-branch="false"/, new RegExp(CANONICAL_MILESTONE_LABEL), /4 Generated Illustrations/,
+        new RegExp(`data-illustration-id="${seeded.t2.illustrationId}"`), /data-branch="false"/, new RegExp(CANONICAL_MILESTONE_LABEL), /4 Generated Illustrations/,
         /Canonical Milestones/, new RegExp(`head ${seeded.t2.illustrationId}`), /Scenario Branches/, /90-day ephemeral projections/, /Linked Filings/, /distinct TDLR project IDs/,
         /250,000 sq ft structural steel erection and chilled-water loop expansion/, /TABS2027003697/, /Construction Started/, /\$125,000,000/, /250,000 sq ft/, /2026-10-28/,
         /TABS2027004200/, /140,000 sq ft adjacent switchgear interconnect building/, /\$65,000,000/,
@@ -87,14 +87,14 @@ describe("<GridlockTimelineWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (
 
     const branchHtml = renderToStaticMarkup(<GridlockTimelineWidget timeline={seeded.timeline} selectedIllustrationId={seeded.b1.illustrationId} apiBaseUrl="" />);
     for (const pattern of [
-      new RegExp(`data-plate-id="${seeded.b1.illustrationId}"`), /data-branch="true"/, /data-tone="alert"/, new RegExp(SCENARIO_BRANCH_WATERMARK),
+      new RegExp(`data-illustration-id="${seeded.b1.illustrationId}"`), /data-branch="true"/, /data-tone="alert"/, new RegExp(SCENARIO_BRANCH_WATERMARK),
       /Simulate \+400MW ERCOT substation interconnection delay/, /Unverified projection/, new RegExp(`Forked from Turn 2 \\(${seeded.t2.illustrationId}\\)`), /Expires/,
     ]) {
       assert.match(branchHtml, pattern);
     }
 
     const staleSelectionHtml = renderToStaticMarkup(<GridlockTimelineWidget timeline={seeded.timeline} selectedIllustrationId="plate_missing" apiBaseUrl="" />);
-    assert.match(staleSelectionHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
+    assert.match(staleSelectionHtml, new RegExp(`data-illustration-id="${seeded.t2.illustrationId}"`));
 
     const t1Node = seeded.timeline.nodes.find((node) => node.plate.illustrationId === seeded.t1.illustrationId)!;
     const zeroObsTimeline = FrameTimelineResponseSchema.parse({
@@ -113,7 +113,7 @@ describe("<GridlockTimelineWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (
     assert.deepEqual(readKpiValues(emptyHtml), [0, 0, 0]);
     assert.match(emptyHtml, /awaiting Turn 1 bootstrap/);
     assert.match(emptyHtml, /0 Generated Illustrations/);
-    assert.match(emptyHtml, /data-empty-lineage="true"/);
+    assert.match(emptyHtml, /data-empty-timeline="true"/);
 
     let force500 = true;
     const flakyRepo: GridlockRepository = {
@@ -136,7 +136,7 @@ describe("<GridlockTimelineWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (
 
       force500 = false;
       const subsequentHtml = await streamHtml(<GridlockTimelineWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchFrameTimelineSnapshot({ apiBaseUrl })} />);
-      assert.match(subsequentHtml, new RegExp(`data-plate-id="${seeded.t2.illustrationId}"`));
+      assert.match(subsequentHtml, new RegExp(`data-illustration-id="${seeded.t2.illustrationId}"`));
     });
   });
 });
