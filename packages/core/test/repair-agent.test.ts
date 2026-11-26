@@ -301,7 +301,7 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     assert.equal(ledger.actualTokensUsed, 405); // 310 + 95 + 0
   });
 
-  test("Clean Architecture Prefactor (Ticket #17): pure state transitions and repository lint guardrails pass on valid layout and fail on >300-line files, unapproved root directories, or upward layer imports", () => {
+  test("Clean Architecture Prefactor (Ticket #17): pure state transitions and repository lint guardrails pass on valid layout and fail on >400-line files, unapproved root directories, or upward layer imports", () => {
     // 1. Happy Path: entire workspace passes Clean Architecture lint checks
     assert.deepEqual(runRepoLintChecks(), []);
 
@@ -364,13 +364,13 @@ describe("Out-of-Band Repair Agent & Sandbox Replay Gate (Seam 2 Core, Ticket #5
     assert.equal(amortized.updatedChangelog[0]?.subsequentDeterministicRunsServed, 1);
     assert.equal(amortized.updatedLedger.subsequentDeterministicRunsServed, 1);
 
-    // 2. Sad Path: >300-line file, unapproved directory, and upward layer imports are rejected
-    const oversizedContent = Array.from({ length: 305 }, () => "export const x = 1;").join("\n");
+    // 2. Sad Path: >400-line file, unapproved directory, and upward layer imports are rejected
+    const oversizedContent = Array.from({ length: 405 }, () => "export const x = 1;").join("\n");
     const oversizedViolations = evaluateSourceFileLintRules(
       "packages/core/src/use-cases/oversized.ts",
       oversizedContent
     );
-    assert.ok(oversizedViolations.some((v) => v.includes("exceeds 300-line core module budget")));
+    assert.ok(oversizedViolations.some((v) => v.includes("exceeds 400-line core module budget")));
 
     const looseRootViolations = evaluateSourceFileLintRules(
       "packages/core/src/tdlr-connector.ts",

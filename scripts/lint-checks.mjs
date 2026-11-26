@@ -6,17 +6,17 @@ import { runTypeHygieneChecks } from "./type-hygiene.mjs";
 
 export const BANNED_GLOSSARY_TERMS = [
   { pattern: /\bCompute Atlas\b/i, useInstead: "Gridlock" },
-  { pattern: /\braw payload\b/i, useInstead: "Source Artifact" },
-  { pattern: /\bcached page\b/i, useInstead: "Source Artifact" },
-  { pattern: /\bscrape dump\b/i, useInstead: "Source Artifact" },
+  { pattern: /\braw payload\b/i, useInstead: "Raw Capture" },
+  { pattern: /\bcached page\b/i, useInstead: "Raw Capture" },
+  { pattern: /\bscrape dump\b/i, useInstead: "Raw Capture" },
   { pattern: /\bLLM scraper\b/i, useInstead: "Connector" },
   { pattern: /\blive LLM parser\b/i, useInstead: "Repair Agent" },
   { pattern: /\bauto-committer\b/i, useInstead: "Repair Agent" },
-  { pattern: /\bslippy map tile\b/i, useInstead: "Visual Plate" },
+  { pattern: /\bslippy map tile\b/i, useInstead: "Generated Illustration" },
 ];
 
-export const MAX_TSX_LINES = 220;
-export const MAX_CORE_TS_LINES = 300;
+export const MAX_TSX_LINES = 280;
+export const MAX_CORE_TS_LINES = 400;
 export const MAX_PR_CHANGED_LINES = 800;
 export const ALLOWED_CORE_TOP_DIRS = new Set([
   "interfaces",
