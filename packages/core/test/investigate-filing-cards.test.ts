@@ -8,7 +8,7 @@ import {
   MetricComparisonTableNodeSchema,
   ObservationSchema,
   ObservationTimelineNodeSchema,
-  PlannerLayoutSpecSchema,
+  OrchestrationLayoutSpecSchema,
   WorkspaceLayoutSchema,
   type GridlockRepository,
   type RawCapture,
@@ -194,7 +194,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       true
     );
     assert.equal(
-      PlannerLayoutSpecSchema.safeParse({
+      OrchestrationLayoutSpecSchema.safeParse({
         nodes: [
           {
             nodeId: "empty-plan-timeline",

@@ -1,7 +1,7 @@
 import {
-  INVESTIGATION_PLANNER_MODEL,
   InvestigatePlanResponseSchema,
-  PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
+  ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA,
+  UI_ORCHESTRATION_AGENT_MODEL,
   type GeminiInteractionsClient,
   type GridlockRepository,
   type HydrateWorkspaceErrorCode,
@@ -10,96 +10,98 @@ import {
   type WorkspaceLayout,
 } from "../interfaces/index.ts";
 import {
-  buildInvestigationPlannerPrompt,
-  mapHydrationErrorToPlannerStatus,
-  validatePlannerInteractionOutput,
-  validatePlannerRequestInput,
-  type PlannerInteractionValidationResult,
-} from "./helpers/investigate-planner-prompt.ts";
+  buildUiOrchestrationPrompt,
+  mapHydrationErrorToOrchestrationStatus,
+  validateOrchestrationInteractionOutput,
+  validateOrchestrationRequestInput,
+  type OrchestrationInteractionValidationResult,
+} from "./helpers/investigate-orchestration-prompt.ts";
 import { hydrateInvestigationWorkspace } from "./hydrate-investigation-workspace.ts";
-import { loadPlannerGroundingCatalog } from "./load-investigation-catalog.ts";
+import { loadOrchestrationGroundingCatalog } from "./load-investigation-catalog.ts";
 import { recordAgenticStageRun } from "./record-run.ts";
 
-export type InvestigationPlannerErrorCode =
+export type UiOrchestrationAgentErrorCode =
   | "invalid_request_body"
-  | "planner_unavailable"
-  | "planner_upstream_error"
-  | "planner_unresolvable_plan"
+  | "orchestration_unavailable"
+  | "orchestration_upstream_error"
+  | "orchestration_unresolvable_layout"
   | "investigate_plan_error";
 
-export interface InvestigationPlannerInput {
+export interface UiOrchestrationAgentInput {
   query: string;
   currentLayout?: WorkspaceLayout;
   now?: Date;
 }
 
-export interface InvestigationPlannerDeps {
+export interface UiOrchestrationAgentDeps {
   repository: GridlockRepository;
   geminiClient?: GeminiInteractionsClient;
   spanSink?: RunSpanSink;
 }
 
-export type InvestigationPlannerResult =
+export type UiOrchestrationAgentResult =
   | { ok: true; status: 200; response: InvestigatePlanResponse }
   | {
       ok: false;
       status: 400 | 422 | 500 | 502 | 503;
-      error: InvestigationPlannerErrorCode;
+      error: UiOrchestrationAgentErrorCode;
       message: string;
     };
 
-const plannerErr = (
+const orchestrationErr = (
   status: 400 | 422 | 500 | 502 | 503,
-  error: InvestigationPlannerErrorCode,
+  error: UiOrchestrationAgentErrorCode,
   message: string
-): InvestigationPlannerResult => ({ ok: false, status, error, message });
+): UiOrchestrationAgentResult => ({ ok: false, status, error, message });
 
-async function executePlannerGeminiTurn(
+async function executeOrchestrationGeminiTurn(
   geminiClient: GeminiInteractionsClient,
   prompt: string
-): Promise<PlannerInteractionValidationResult> {
+): Promise<OrchestrationInteractionValidationResult> {
   try {
     const interaction = await geminiClient.interactions.create({
-      model: INVESTIGATION_PLANNER_MODEL,
+      model: UI_ORCHESTRATION_AGENT_MODEL,
       input: prompt,
       response_format: {
         type: "text",
         mime_type: "application/json",
-        schema: PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
+        schema: ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA,
       },
     });
-    return validatePlannerInteractionOutput(interaction);
+    return validateOrchestrationInteractionOutput(interaction);
   } catch (error) {
     return {
       ok: false,
       message:
-        error instanceof Error ? error.message : "Gemini planner interaction request failed",
+        error instanceof Error
+          ? error.message
+          : "Gemini UI orchestration interaction request failed",
       tokensUsed: 0,
     };
   }
 }
 
-export async function runInvestigationPlanner(
-  input: InvestigationPlannerInput,
-  deps: InvestigationPlannerDeps
-): Promise<InvestigationPlannerResult> {
-  const parsedRequest = validatePlannerRequestInput(input);
+export async function runUiOrchestrationAgent(
+  input: UiOrchestrationAgentInput,
+  deps: UiOrchestrationAgentDeps
+): Promise<UiOrchestrationAgentResult> {
+  const parsedRequest = validateOrchestrationRequestInput(input);
   if (!parsedRequest.ok) {
-    return plannerErr(400, "invalid_request_body", parsedRequest.message);
+    return orchestrationErr(400, "invalid_request_body", parsedRequest.message);
   }
 
   const startedWallMs = Date.now();
   const startedAt = parsedRequest.now ?? new Date();
-  const catalogResult = await loadPlannerGroundingCatalog(deps.repository, startedAt);
+  const catalogResult = await loadOrchestrationGroundingCatalog(deps.repository, startedAt);
   if (!catalogResult.ok) {
-    return plannerErr(500, "investigate_plan_error", catalogResult.message);
+    return orchestrationErr(500, "investigate_plan_error", catalogResult.message);
   }
 
   if (!deps.geminiClient) {
-    return plannerErr(
+    return orchestrationErr(
       503,
-      "planner_unavailable",
-      "Investigation Planner Gemini client is not configured"
+      "orchestration_unavailable",
+      "UI Orchestration Agent Gemini client is not configured"
     );
   }
 
@@ -112,7 +114,7 @@ export async function runInvestigationPlanner(
   }): Promise<void> => {
     await recordAgenticStageRun(
       {
-        stage: "investigation_planner",
+        stage: "ui_orchestration_agent",
         ...params,
         startedAt,
         endedAt: new Date(startedAt.getTime() + Math.max(0, Date.now() - startedWallMs)),
@@ -126,12 +128,12 @@ export async function runInvestigationPlanner(
 
   const failTurn = async (params: {
     status: 422 | 500 | 502;
-    error: InvestigationPlannerErrorCode;
+    error: UiOrchestrationAgentErrorCode;
     message: string;
     tokensUsed: number;
     interactionId?: string;
     hydrateError?: HydrateWorkspaceErrorCode;
-  }): Promise<InvestigationPlannerResult> => {
+  }): Promise<UiOrchestrationAgentResult> => {
     try {
       await recordRun({
         status: "agentic_failed",
@@ -144,23 +146,23 @@ export async function runInvestigationPlanner(
         },
       });
     } catch {
-      // Preserve planner error response if repository run-record persistence fails.
+      // Preserve orchestration error response if repository run-record persistence fails.
     }
-    return plannerErr(params.status, params.error, params.message);
+    return orchestrationErr(params.status, params.error, params.message);
   };
 
-  const prompt = buildInvestigationPlannerPrompt({
+  const prompt = buildUiOrchestrationPrompt({
     query: parsedRequest.request.query,
     catalog: catalogResult.catalog,
     ...(parsedRequest.request.currentLayout !== undefined
       ? { currentLayout: parsedRequest.request.currentLayout }
       : {}),
   });
-  const validated = await executePlannerGeminiTurn(deps.geminiClient, prompt);
+  const validated = await executeOrchestrationGeminiTurn(deps.geminiClient, prompt);
   if (!validated.ok) {
     return failTurn({
       status: 502,
-      error: "planner_upstream_error",
+      error: "orchestration_upstream_error",
       message: validated.message,
       tokensUsed: validated.tokensUsed,
       ...(validated.interactionId !== undefined ? { interactionId: validated.interactionId } : {}),
@@ -174,7 +176,7 @@ export async function runInvestigationPlanner(
   );
   if (!hydrated.ok) {
     return failTurn({
-      ...mapHydrationErrorToPlannerStatus(hydrated.error),
+      ...mapHydrationErrorToOrchestrationStatus(hydrated.error),
       message: hydrated.message,
       tokensUsed: validated.tokensUsed,
       interactionId: validated.interactionId,
@@ -210,10 +212,10 @@ export async function runInvestigationPlanner(
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    return plannerErr(
+    return orchestrationErr(
       500,
       "investigate_plan_error",
-      `Failed to persist investigation_planner run record: ${detail}`
+      `Failed to persist ui_orchestration_agent run record: ${detail}`
     );
   }
 

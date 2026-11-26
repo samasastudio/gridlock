@@ -1,5 +1,5 @@
 import {
-  MAX_PLANNER_CATALOG_PROJECTS,
+  MAX_ORCHESTRATION_CATALOG_PROJECTS,
   ProjectSchema,
   Sha256HashSchema,
   type Project,
@@ -14,11 +14,11 @@ import {
   type HydratorStepFailure,
 } from "./investigate-provenance.ts";
 import type {
-  PlannerCatalogConnectorEntry,
-  PlannerCatalogLineageEntry,
-} from "./investigate-planner-seam-catalog.ts";
+  OrchestrationCatalogConnectorEntry,
+  OrchestrationCatalogLineageEntry,
+} from "./investigate-orchestration-seam-catalog.ts";
 
-export interface PlannerCatalogProjectEntry {
+export interface OrchestrationCatalogProjectEntry {
   projectNumber: string;
   projectName: string;
   facilityName: string;
@@ -33,10 +33,10 @@ export interface PlannerCatalogProjectEntry {
   hasMilestone: boolean;
 }
 
-export interface PlannerGroundingCatalog {
-  projects: readonly PlannerCatalogProjectEntry[];
-  lineages: readonly PlannerCatalogLineageEntry[];
-  connectors: readonly PlannerCatalogConnectorEntry[];
+export interface OrchestrationGroundingCatalog {
+  projects: readonly OrchestrationCatalogProjectEntry[];
+  lineages: readonly OrchestrationCatalogLineageEntry[];
+  connectors: readonly OrchestrationCatalogConnectorEntry[];
 }
 
 function compareCatalogProjects(left: Project, right: Project): number {
@@ -105,7 +105,7 @@ export function selectCitableCatalogProjects(
         ).ok
     )
     .sort(compareCatalogProjects)
-    .slice(0, MAX_PLANNER_CATALOG_PROJECTS);
+    .slice(0, MAX_ORCHESTRATION_CATALOG_PROJECTS);
 
   return { ok: true, selected, artifactsByHash: artifactsResult.artifactsByHash };
 }
@@ -143,7 +143,7 @@ export function buildFilingCatalogEntries(
 ):
   | {
       ok: true;
-      projects: PlannerCatalogProjectEntry[];
+      projects: OrchestrationCatalogProjectEntry[];
       artifactsByHash: Map<string, RawCapture | null>;
     }
   | HydratorStepFailure {
@@ -173,7 +173,7 @@ export function buildFilingCatalogEntries(
     ...extraArtifactsResult.artifactsByHash,
   ]);
 
-  const projects = selected.map((project): PlannerCatalogProjectEntry => {
+  const projects = selected.map((project): OrchestrationCatalogProjectEntry => {
     const observations = observationsResult.observationsByProject.get(project.projectNumber) ?? [];
     const resolved = observations.map((obs) => ({
       obs,

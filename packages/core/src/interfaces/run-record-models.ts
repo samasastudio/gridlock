@@ -25,7 +25,7 @@ export const RunStageSchema = z.enum([
   "painter_milestone_gate",
   "painter_milestone_delta",
   "painter_branch_lineage",
-  "investigation_planner",
+  "ui_orchestration_agent",
 ]);
 
 export type RunStage = z.infer<typeof RunStageSchema>;

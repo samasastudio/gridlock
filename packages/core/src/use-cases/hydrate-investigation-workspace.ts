@@ -1,6 +1,6 @@
 import {
   CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
-  PlannerLayoutSpecSchema,
+  OrchestrationLayoutSpecSchema,
   WorkspaceLayoutSchema,
   type GridlockRepository,
   type HydrateWorkspaceErrorCode,
@@ -51,13 +51,13 @@ export async function hydrateInvestigationWorkspace(
   options: HydrateInvestigationWorkspaceOptions = {}
 ): Promise<HydrateWorkspaceResult> {
   const now = options.now ?? new Date();
-  const parsedSpec = PlannerLayoutSpecSchema.safeParse(layoutInput);
+  const parsedSpec = OrchestrationLayoutSpecSchema.safeParse(layoutInput);
   if (!parsedSpec.success) {
     const firstIssue = parsedSpec.error.issues[0];
     const detail = firstIssue ? `: ${firstIssue.message}` : "";
     return stepFailure(
       "invalid_layout_spec",
-      `PlannerLayoutSpec failed schema validation${detail}`
+      `OrchestrationLayoutSpec failed schema validation${detail}`
     );
   }
 

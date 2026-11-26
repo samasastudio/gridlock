@@ -14,23 +14,23 @@ import {
 import {
   assertInvestigateErrorResponse,
   createFiveCardLayoutSpec,
-  createPlannerClientStub,
-  createPlannerObservation,
+  createOrchestrationClientStub,
+  createOrchestrationObservation,
   createQueuedLayoutClientStub,
   HASH_ACTIVE_A,
   postInvestigatePlan,
-  seedFilingPlannerRepository,
-  seedFiveCardPlannerRepository,
+  seedFilingOrchestrationRepository,
+  seedFiveCardOrchestrationRepository,
   singleNodeLayout,
   streamOversizedJsonPost,
   withGridlockTestServer,
-} from "./helpers/planner-test-helpers.ts";
+} from "./helpers/orchestration-test-helpers.ts";
 
 const NOW = new Date("2026-10-28T16:00:00.000Z");
 
 describe("POST /api/investigate/plan HTTP Seam", () => {
   test("returns 200 for multi-card and empty workspaces, CORS headers, and 204 on OPTIONS", async () => {
-    const repository = await seedFilingPlannerRepository();
+    const repository = await seedFilingOrchestrationRepository();
     const { geminiClient } = createQueuedLayoutClientStub(
       [
         {
@@ -120,8 +120,8 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
   });
 
   test("enforces 405 method guard, 400 query/body validation, 503 missing client, and 500 corrupt storage at 0 tokens", async () => {
-    const repository = await seedFilingPlannerRepository();
-    const { geminiClient, recordedRequests } = createPlannerClientStub(
+    const repository = await seedFilingOrchestrationRepository();
+    const { geminiClient, recordedRequests } = createOrchestrationClientStub(
       async () => ({
         id: "ix_unused",
         status: "completed",
@@ -187,7 +187,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
             '{"query":"Ellis"}'
           ),
           503,
-          "planner_unavailable"
+          "orchestration_unavailable"
         );
       }
     );
@@ -215,7 +215,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
   });
 
   test("maps upstream/structural AI errors to 502 and unresolvable entities to 422 with agentic_failed run records", async () => {
-    const repository = await seedFilingPlannerRepository();
+    const repository = await seedFilingOrchestrationRepository();
     const oversizedNodes = Array.from(
       { length: MAX_WORKSPACE_NODES + 1 },
       (_, idx) => ({
@@ -312,7 +312,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
     ];
 
     let stepIndex = 0;
-    const { geminiClient } = createPlannerClientStub(async () => {
+    const { geminiClient } = createOrchestrationClientStub(async () => {
       const next = allHandlers[stepIndex]!;
       stepIndex += 1;
       return next();
@@ -328,7 +328,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
               '{"query":"Ellis"}'
             ),
             502,
-            "planner_upstream_error"
+            "orchestration_upstream_error"
           );
         }
         for (let i = 0; i < unresolvableNumbers.length; i += 1) {
@@ -338,7 +338,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
               '{"query":"Ellis"}'
             ),
             422,
-            "planner_unresolvable_plan"
+            "orchestration_unresolvable_layout"
           );
         }
       }
@@ -349,7 +349,7 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
     assert.equal(
       runs.every(
         (run) =>
-          run.stage === "investigation_planner" &&
+          run.stage === "ui_orchestration_agent" &&
           run.status === "agentic_failed"
       ),
       true
@@ -363,7 +363,8 @@ describe("POST /api/investigate/plan HTTP Seam", () => {
 
 describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
   test("returns 200 for mixed 5-card workspace and maps cross-seam 422 and 502 errors", async () => {
-    const { repository, branchPlateId } = await seedFiveCardPlannerRepository();
+    const { repository, branchPlateId } =
+      await seedFiveCardOrchestrationRepository();
     const { geminiClient } = createQueuedLayoutClientStub(
       [
         createFiveCardLayoutSpec(branchPlateId),
@@ -437,7 +438,7 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
               '{"query":"Ellis"}'
             ),
             422,
-            "planner_unresolvable_plan"
+            "orchestration_unresolvable_layout"
           );
         }
 
@@ -448,7 +449,7 @@ describe("POST /api/investigate/plan Cross-Seam Grounding", () => {
               '{"query":"Ellis"}'
             ),
             502,
-            "planner_upstream_error"
+            "orchestration_upstream_error"
           );
         }
       }
@@ -460,10 +461,10 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
   test("accepts 20-60 KiB currentLayout refinement payloads with hasCurrentLayout span attributes", async () => {
     assert.equal(MAX_INVESTIGATE_BODY_BYTES, 131_072);
     const { repository, canonicalArtifactHash, branchPlateId } =
-      await seedFiveCardPlannerRepository();
+      await seedFiveCardOrchestrationRepository();
     for (let idx = 0; idx < 40; idx += 1) {
       await repository.appendObservation(
-        createPlannerObservation(
+        createOrchestrationObservation(
           `obs_1001_bulk_${idx}`,
           "TABS2027001001",
           canonicalArtifactHash,
@@ -545,8 +546,8 @@ describe("POST /api/investigate/plan Refinement & 128 KiB Body Cap", () => {
   });
 
   test("enforces 131072-byte streaming cutoff on /api/investigate/plan and preserves 16384-byte cutoff on /api/plates/branch", async () => {
-    const repository = await seedFilingPlannerRepository();
-    const { geminiClient, recordedRequests } = createPlannerClientStub(
+    const repository = await seedFilingOrchestrationRepository();
+    const { geminiClient, recordedRequests } = createOrchestrationClientStub(
       async () => ({
         id: "ix_unreachable_stream",
         status: "completed",

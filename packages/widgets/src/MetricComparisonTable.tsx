@@ -162,7 +162,7 @@ function MetricComparisonContent(props: { baseId: string; rows: readonly CitedPr
           <div tabIndex={0} role="region" aria-labelledby={captionId} className="gridlock-comparison-scroll">
             <table className="gridlock-comparison-table">
               <caption id={captionId}>
-                {`Planner-ordered cohort benchmark (${benchmark.projectCount} ${benchmark.projectCount === 1 ? "project" : "projects"})`}
+                {`Orchestrated cohort benchmark (${benchmark.projectCount} ${benchmark.projectCount === 1 ? "project" : "projects"})`}
               </caption>
               {COMPARISON_TABLE_HEAD_NODE}
               <tbody>

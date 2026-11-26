@@ -129,13 +129,13 @@ export {
 export {
   InvestigatePlanRequestSchema,
   InvestigatePlanResponseSchema,
-  PlannerLayoutSpecSchema,
-  PlannerNodeSpecSchema,
+  OrchestrationLayoutSpecSchema,
+  OrchestrationNodeSpecSchema,
   type InvestigatePlanRequest,
   type InvestigatePlanResponse,
-  type PlannerLayoutSpec,
-  type PlannerNodeSpec,
-} from "./investigate-planner-models.ts";
+  type OrchestrationLayoutSpec,
+  type OrchestrationNodeSpec,
+} from "./ui-orchestration-models.ts";
 
 export {
   ARTIFACT_BUCKET_URI,
@@ -151,11 +151,10 @@ export {
   DEFAULT_TDLR_CONNECTOR_CONFIG,
   DEFAULT_TDLR_SEARCH_FILTERS,
   GRIDLOCK_USER_AGENT,
-  INVESTIGATION_PLANNER_MODEL,
   MAX_CONCURRENCY,
   MAX_INVESTIGATE_BODY_BYTES,
   MAX_INVESTIGATE_QUERY_LENGTH,
-  MAX_PLANNER_CATALOG_PROJECTS,
+  MAX_ORCHESTRATION_CATALOG_PROJECTS,
   MAX_PROJECTS_PER_CARD,
   MAX_RECORDS_PER_RUN,
   MAX_SCENARIO_PROMPT_LENGTH,
@@ -164,8 +163,9 @@ export {
   MIN_POLITE_DELAY_MS,
   NAIVE_COST_PER_TOKEN_USD,
   NINETY_DAYS_MS,
+  ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA,
   PAINTER_AGENT_MODEL,
-  PLANNER_LAYOUT_SPEC_JSON_SCHEMA,
   REPAIR_AGENT_MODEL,
   SCENARIO_BRANCH_WATERMARK,
+  UI_ORCHESTRATION_AGENT_MODEL,
 } from "./constants.ts";

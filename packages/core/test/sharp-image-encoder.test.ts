@@ -22,7 +22,7 @@ import {
   createTestRawCapture,
   GZIP_HTML_STUB,
 } from "./helpers/fixtures.ts";
-import { withGridlockTestServer } from "./helpers/planner-test-helpers.ts";
+import { withGridlockTestServer } from "./helpers/orchestration-test-helpers.ts";
 
 function createSolidRaster(width: number, height: number, channels: 3 | 4 = 3) {
   return sharp({

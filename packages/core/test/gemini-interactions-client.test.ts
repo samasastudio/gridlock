@@ -6,8 +6,8 @@ import {
   createCorridorBaseCanvasWebp,
   createGeminiInteractionsClient,
   createInMemoryGridlockRepository,
-  INVESTIGATION_PLANNER_MODEL,
   PAINTER_AGENT_MODEL,
+  UI_ORCHESTRATION_AGENT_MODEL,
   type GeminiInteractionCreateRequest,
 } from "../src/index.ts";
 import {
@@ -80,7 +80,7 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
     });
 
     const jsonReq: GeminiInteractionCreateRequest = {
-      model: INVESTIGATION_PLANNER_MODEL,
+      model: UI_ORCHESTRATION_AGENT_MODEL,
       input: "Plan workspace",
       previous_interaction_id: "inter_prev_0",
       store: false,
@@ -91,7 +91,7 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
       },
     };
     const jsonRes = await client.interactions.create(jsonReq);
-    assert.equal(seenPayloads[0]?.model, INVESTIGATION_PLANNER_MODEL);
+    assert.equal(seenPayloads[0]?.model, UI_ORCHESTRATION_AGENT_MODEL);
     assert.equal(seenPayloads[0]?.input, "Plan workspace");
     assert.equal(seenPayloads[0]?.previous_interaction_id, "inter_prev_0");
     assert.equal(seenPayloads[0]?.store, false);
@@ -154,13 +154,13 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
       { type: "user_input", content: [{ type: "text", text: "Already wrapped" }] },
     ];
     await client.interactions.create({
-      model: INVESTIGATION_PLANNER_MODEL,
+      model: UI_ORCHESTRATION_AGENT_MODEL,
       input: wrappedStep,
     });
     assert.deepEqual(seenPayloads[3]?.input, wrappedStep);
 
     await client.interactions.create({
-      model: INVESTIGATION_PLANNER_MODEL,
+      model: UI_ORCHESTRATION_AGENT_MODEL,
       input: [],
     });
     assert.deepEqual(seenPayloads[4]?.input, []);
@@ -170,7 +170,7 @@ describe("Gemini v1 Interactions Client Adapter (Ticket #11 Slice 1a)", () => {
       { type: "text", text: "Loose trailing block" },
     ];
     await client.interactions.create({
-      model: INVESTIGATION_PLANNER_MODEL,
+      model: UI_ORCHESTRATION_AGENT_MODEL,
       input: mixedSteps,
     });
     assert.deepEqual(seenPayloads[5]?.input, mixedSteps);

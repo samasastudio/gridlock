@@ -4,7 +4,7 @@ import {
   InvestigatePlanRequestSchema,
   MAX_INVESTIGATE_BODY_BYTES,
 } from "../interfaces/index.ts";
-import { runInvestigationPlanner } from "../use-cases/run-investigation-planner.ts";
+import { runUiOrchestrationAgent } from "../use-cases/run-ui-orchestration-agent.ts";
 import type { GridlockHttpDeps } from "./http-server.ts";
 import {
   parseSingleValueSearchParams,
@@ -66,7 +66,7 @@ export async function handlePostInvestigatePlan(
     return;
   }
 
-  const outcome = await runInvestigationPlanner(
+  const outcome = await runUiOrchestrationAgent(
     {
       ...parsedBody.data,
       ...(deps.now ? { now: deps.now() } : {}),

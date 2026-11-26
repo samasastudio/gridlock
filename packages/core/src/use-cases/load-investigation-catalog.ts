@@ -14,14 +14,14 @@ import {
   extractUnseenObservationHashes,
   selectCitableCatalogProjects,
   validateCatalogProjectList,
-  type PlannerGroundingCatalog,
-} from "./helpers/investigate-planner-catalog.ts";
+  type OrchestrationGroundingCatalog,
+} from "./helpers/investigate-orchestration-catalog.ts";
 import {
   buildConnectorCatalogEntries,
   buildLineageCatalogEntries,
   extractValidatedChangelogConnectorIds,
   extractValidatedLineageIds,
-} from "./helpers/investigate-planner-seam-catalog.ts";
+} from "./helpers/investigate-orchestration-seam-catalog.ts";
 
 function collectCandidateConnectorIds(
   changelogConnectorIds: readonly string[],
@@ -46,10 +46,10 @@ function collectCandidateConnectorIds(
   ).sort((left, right) => left.localeCompare(right));
 }
 
-export async function loadPlannerGroundingCatalog(
+export async function loadOrchestrationGroundingCatalog(
   repository: GridlockRepository,
   now: Date
-): Promise<{ ok: true; catalog: PlannerGroundingCatalog } | { ok: false; message: string }> {
+): Promise<{ ok: true; catalog: OrchestrationGroundingCatalog } | { ok: false; message: string }> {
   try {
     const [rawProjects, rawAllPlates, rawChangelogEntries, scorecardResult] = await Promise.all([
       repository.listProjects(),
@@ -177,7 +177,7 @@ export async function loadPlannerGroundingCatalog(
     const detail = error instanceof Error ? error.message : String(error);
     return {
       ok: false,
-      message: `Repository lookup failed during Investigation Planner grounding: ${detail}`,
+      message: `Repository lookup failed during UI Orchestration Agent grounding: ${detail}`,
     };
   }
 }

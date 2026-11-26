@@ -13,7 +13,7 @@ import {
   type HydratorStepFailure,
 } from "./investigate-provenance.ts";
 
-export interface PlannerCatalogPlateSummary {
+export interface OrchestrationCatalogPlateSummary {
   plateId: string;
   turnNumber: number;
   isBranch: boolean;
@@ -22,13 +22,13 @@ export interface PlannerCatalogPlateSummary {
   scenarioPrompt?: string;
 }
 
-export interface PlannerCatalogLineageEntry {
+export interface OrchestrationCatalogLineageEntry {
   lineageId: string;
   activeCanonicalPlateId: string | null;
-  plates: readonly PlannerCatalogPlateSummary[];
+  plates: readonly OrchestrationCatalogPlateSummary[];
 }
 
-export interface PlannerCatalogConnectorEntry {
+export interface OrchestrationCatalogConnectorEntry {
   connectorId: string;
   status: RepairChangelogResponse["connectorStatus"];
   activeVersion: number;
@@ -147,7 +147,7 @@ export function extractValidatedChangelogConnectorIds(
 
 export function buildLineageCatalogEntries(
   lineages: readonly PlateLineageResponse[]
-): { ok: true; lineages: PlannerCatalogLineageEntry[] } | HydratorStepFailure {
+): { ok: true; lineages: OrchestrationCatalogLineageEntry[] } | HydratorStepFailure {
   const hasBlankLineageObservationProse = lineages.some((lineage) =>
     lineage.nodes.some((node) =>
       node.triggeringObservations.some(
@@ -172,7 +172,7 @@ export function buildLineageCatalogEntries(
       .map((lineage) => ({
         lineageId: lineage.lineageId,
         activeCanonicalPlateId: lineage.activeCanonicalPlateId,
-        plates: lineage.nodes.map((node): PlannerCatalogPlateSummary => ({
+        plates: lineage.nodes.map((node): OrchestrationCatalogPlateSummary => ({
           plateId: node.plate.plateId,
           turnNumber: node.plate.turnNumber,
           isBranch: node.plate.isBranch,
@@ -188,7 +188,7 @@ export function buildLineageCatalogEntries(
 
 export function buildConnectorCatalogEntries(
   changelogs: readonly RepairChangelogResponse[]
-): PlannerCatalogConnectorEntry[] {
+): OrchestrationCatalogConnectorEntry[] {
   return changelogs
     .filter((changelog) => SafeLayoutIdSchema.safeParse(changelog.connectorId).success)
     .sort((left, right) => left.connectorId.localeCompare(right.connectorId))

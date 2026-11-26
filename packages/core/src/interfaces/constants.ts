@@ -22,7 +22,7 @@ export const NAIVE_COST_PER_TOKEN_USD = 0.0000025;
 export const DEFAULT_GCP_PROJECT_ID = "gridlock-civic-atlas";
 export const REPAIR_AGENT_MODEL = "gemini-3.8-flash" as const;
 export const PAINTER_AGENT_MODEL = "gemini-3-pro-image" as const;
-export const INVESTIGATION_PLANNER_MODEL = "gemini-3.8-flash" as const;
+export const UI_ORCHESTRATION_AGENT_MODEL = "gemini-3.8-flash" as const;
 export const DEFAULT_LINEAGE_ID = "texas-corridor-main" as const;
 export const SCENARIO_BRANCH_WATERMARK =
   "Scenario Branch / Unverified Projection" as const;
@@ -34,7 +34,7 @@ export const MAX_WORKSPACE_NODES = 6;
 export const MAX_PROJECTS_PER_CARD = 10;
 export const MAX_INVESTIGATE_QUERY_LENGTH = 1_000;
 export const MAX_INVESTIGATE_BODY_BYTES = 131_072;
-export const MAX_PLANNER_CATALOG_PROJECTS = 50;
+export const MAX_ORCHESTRATION_CATALOG_PROJECTS = 50;
 export const CONNECTOR_HEALTH_RECENT_RUNS_LIMIT = 10;
 
 export const DEFAULT_TDLR_SEARCH_FILTERS: readonly TdlrSearchFilter[] = [
@@ -120,14 +120,14 @@ export const CANDIDATE_SELECTOR_PATCH_JSON_SCHEMA: Record<string, unknown> = {
   required: ["rootCauseSummary"],
 };
 
-const PLANNED_PROJECT_NUMBERS_JSON_SCHEMA: Record<string, unknown> = {
+const ORCHESTRATION_PROJECT_NUMBERS_JSON_SCHEMA: Record<string, unknown> = {
   type: "array",
   minItems: 1,
   maxItems: MAX_PROJECTS_PER_CARD,
   items: { type: "string" },
 };
 
-function buildPlannerCardJsonSchema(
+function buildOrchestrationCardJsonSchema(
   component: WorkspaceCardType,
   extraProperties: Record<string, unknown>,
   requiredExtraKeys: readonly string[]
@@ -144,7 +144,7 @@ function buildPlannerCardJsonSchema(
   };
 }
 
-export const PLANNER_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
+export const ORCHESTRATION_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
   properties: {
@@ -153,12 +153,12 @@ export const PLANNER_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
       maxItems: MAX_WORKSPACE_NODES,
       items: {
         anyOf: [
-          buildPlannerCardJsonSchema(
+          buildOrchestrationCardJsonSchema(
             "ProjectDossierCard",
             { projectNumber: { type: "string" } },
             ["projectNumber"]
           ),
-          buildPlannerCardJsonSchema(
+          buildOrchestrationCardJsonSchema(
             "VisualPlateScrubber",
             {
               lineageId: { type: "string" },
@@ -166,17 +166,17 @@ export const PLANNER_LAYOUT_SPEC_JSON_SCHEMA: Record<string, unknown> = {
             },
             ["lineageId"]
           ),
-          buildPlannerCardJsonSchema(
+          buildOrchestrationCardJsonSchema(
             "ObservationTimeline",
-            { projectNumbers: PLANNED_PROJECT_NUMBERS_JSON_SCHEMA },
+            { projectNumbers: ORCHESTRATION_PROJECT_NUMBERS_JSON_SCHEMA },
             ["projectNumbers"]
           ),
-          buildPlannerCardJsonSchema(
+          buildOrchestrationCardJsonSchema(
             "MetricComparisonTable",
-            { projectNumbers: PLANNED_PROJECT_NUMBERS_JSON_SCHEMA },
+            { projectNumbers: ORCHESTRATION_PROJECT_NUMBERS_JSON_SCHEMA },
             ["projectNumbers"]
           ),
-          buildPlannerCardJsonSchema(
+          buildOrchestrationCardJsonSchema(
             "ConnectorHealthCard",
             { connectorId: { type: "string" } },
             ["connectorId"]

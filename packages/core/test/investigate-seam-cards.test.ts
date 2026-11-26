@@ -176,7 +176,7 @@ async function seedFullFiveCardRepository(): Promise<{
       lineageId: DEFAULT_LINEAGE_ID,
       parentInteractionId: bootstrapRes.plate.interactionId,
       scenarioPrompt:
-        "Add *300MW* switchyard\nfor planner_lead@example.com <marquee>",
+        "Add *300MW* switchyard\nfor corridor_lead@example.com <marquee>",
       now: new Date("2026-10-27T15:10:00.000Z"),
     },
     { repository, geminiClient }
@@ -296,7 +296,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     );
 
     const maxPromptPrefix =
-      "Add *300MW* <svg> switchyard for planner_lead@example.com ";
+      "Add *300MW* <svg> switchyard for corridor_lead@example.com ";
     const maxScenarioPrompt =
       maxPromptPrefix +
       "*".repeat(MAX_SCENARIO_PROMPT_LENGTH - maxPromptPrefix.length);
