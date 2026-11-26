@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { DEFAULT_EFFICIENCY_SCORECARD, type EfficiencyScorecard, type RepairChangelogEntry, type RunRecord } from "@samasastudio/gridlock-core/schemas";
-import { GridlockRepairLogWidget, type GridlockRepairLogWidgetProps } from "../src/index.ts";
+import { GridlockRepairChangelogWidget, type GridlockRepairChangelogWidgetProps } from "../src/index.ts";
 
 export interface StoryMeta<TProps> {
   title: string;
@@ -96,15 +96,15 @@ const PROMOTED_HEAL_ENTRY_V3: RepairChangelogEntry = {
 
 const PROMOTED_ENTRIES = [PROMOTED_HEAL_ENTRY, PROMOTED_HEAL_ENTRY_V3];
 
-const repairLogWidgetMeta: StoryMeta<GridlockRepairLogWidgetProps> = {
-  title: "Gridlock/Seam 2/GridlockRepairLogWidget",
-  component: GridlockRepairLogWidget,
+const repairChangelogWidgetMeta: StoryMeta<GridlockRepairChangelogWidgetProps> = {
+  title: "Gridlock/Seam 2/GridlockRepairChangelogWidget",
+  component: GridlockRepairChangelogWidget,
   tags: ["autodocs"],
 };
 
-export default repairLogWidgetMeta;
+export default repairChangelogWidgetMeta;
 
-export const HealthyZeroAnomalies: StoryObj<GridlockRepairLogWidgetProps> = {
+export const HealthyZeroAnomalies: StoryObj<GridlockRepairChangelogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "healthy", activeVersion: 1, entries: [] },
     efficiencyScorecard: {
@@ -115,7 +115,7 @@ export const HealthyZeroAnomalies: StoryObj<GridlockRepairLogWidgetProps> = {
   },
 };
 
-export const HealedWithAmortization: StoryObj<GridlockRepairLogWidgetProps> = {
+export const HealedWithAmortization: StoryObj<GridlockRepairChangelogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "healthy", activeVersion: 3, entries: PROMOTED_ENTRIES },
     efficiencyScorecard: HEALED_SCORECARD,
@@ -123,7 +123,7 @@ export const HealedWithAmortization: StoryObj<GridlockRepairLogWidgetProps> = {
   },
 };
 
-export const SelectorAnomalyDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
+export const SelectorAnomalyDegraded: StoryObj<GridlockRepairChangelogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "selector_anomaly", activeVersion: 3, entries: PROMOTED_ENTRIES },
     efficiencyScorecard: {
@@ -135,7 +135,7 @@ export const SelectorAnomalyDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
   },
 };
 
-export const BlockedByWafDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
+export const BlockedByWafDegraded: StoryObj<GridlockRepairChangelogWidgetProps> = {
   args: {
     changelog: { connectorId: "tdlr-tabs", connectorStatus: "blocked_by_waf", activeVersion: 3, entries: PROMOTED_ENTRIES },
     efficiencyScorecard: {
@@ -147,6 +147,6 @@ export const BlockedByWafDegraded: StoryObj<GridlockRepairLogWidgetProps> = {
   },
 };
 
-export const NocturnalTheme: StoryObj<GridlockRepairLogWidgetProps> = {
+export const NocturnalTheme: StoryObj<GridlockRepairChangelogWidgetProps> = {
   args: { ...HealedWithAmortization.args, theme: "nocturnal" },
 };

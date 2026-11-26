@@ -3,10 +3,10 @@ import { execFileSync } from "node:child_process";
 import { describe, test } from "node:test";
 import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { GridlockPlateWidget, GridlockRepairLogWidget } from "../src/index.ts";
+import { GridlockPlateWidget, GridlockRepairChangelogWidget } from "../src/index.ts";
 import astCardsMeta, * as astCardsStories from "../stories/GridlockAstCards.stories.tsx";
 import { CanonicalAndBranchLineage } from "../stories/GridlockPlateWidget.stories.tsx";
-import { HealedWithAmortization } from "../stories/GridlockRepairLogWidget.stories.tsx";
+import { HealedWithAmortization } from "../stories/GridlockRepairChangelogWidget.stories.tsx";
 import { withWidgetDom } from "./helpers/dom-harness.ts";
 
 const {
@@ -145,7 +145,7 @@ describe("GridlockAstCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Tic
           <div>
             <StoryComponent {...InvestigativeBriefDiurnal.args} />
             <GridlockPlateWidget {...CanonicalAndBranchLineage.args} />
-            <GridlockRepairLogWidget {...HealedWithAmortization.args} />
+            <GridlockRepairChangelogWidget {...HealedWithAmortization.args} />
           </div>
         );
       });

@@ -1,53 +1,53 @@
 import { Suspense, use, useEffect, useId, useRef, useState, type Ref } from "react";
 import { MotionConfig } from "motion/react";
 import { EfficiencyScorecardSchema, RepairChangelogResponseSchema, type EfficiencyScorecard, type RepairChangelogResponse } from "@samasastudio/gridlock-core/schemas";
-import { buildRepairChangelogUrl, fetchRepairLogSnapshot, type RepairLogQuery, type RepairLogSnapshotResult } from "./repair-log-client.ts";
+import { buildRepairChangelogUrl, fetchRepairChangelogSnapshot, type RepairChangelogQuery, type RepairChangelogSnapshotResult } from "./repair-changelog-client.ts";
 import { ConnectorStatusBadge, EXPORT_ARROW_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { EfficiencyLineChart } from "./EfficiencyLineChart.tsx";
-import { GRIDLOCK_REPAIR_LOG_STYLESHEET } from "./repair-log-styles.ts";
+import { GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET } from "./repair-changelog-styles.ts";
 import {
   ConnectorHealthBanner,
   DossierErrorShell,
   DossierTitle,
   EfficiencyScorecardPanel,
-  RepairLogLoadingPlaceholder,
-} from "./RepairLogSections.tsx";
-import { RepairLogTimelineSection } from "./RepairLogTimeline.tsx";
+  RepairChangelogLoadingPlaceholder,
+} from "./RepairChangelogSections.tsx";
+import { RepairChangelogTimelineSection } from "./RepairChangelogTimeline.tsx";
 
 export type { GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 
-const WIDGET_STYLESHEET_NODE = <style href="gridlock-repair-log-widget" precedence="default">{GRIDLOCK_REPAIR_LOG_STYLESHEET}</style>;
-const LOADING_PLACEHOLDER_NODE = <RepairLogLoadingPlaceholder />;
-const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<RepairLogSnapshotResult>, Promise<RepairLogSnapshotResult>>();
+const WIDGET_STYLESHEET_NODE = <style href="gridlock-repair-changelog-widget" precedence="default">{GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET}</style>;
+const LOADING_PLACEHOLDER_NODE = <RepairChangelogLoadingPlaceholder />;
+const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<RepairChangelogSnapshotResult>, Promise<RepairChangelogSnapshotResult>>();
 
-interface RepairLogWidgetBaseProps {
+interface RepairChangelogWidgetBaseProps {
   theme?: GridlockWidgetTheme;
   ref?: Ref<HTMLElement>;
 }
 
-export type GridlockRepairLogWidgetProps =
-  | (RepairLogWidgetBaseProps & Partial<RepairLogQuery> & {
+export type GridlockRepairChangelogWidgetProps =
+  | (RepairChangelogWidgetBaseProps & Partial<RepairChangelogQuery> & {
       changelog: RepairChangelogResponse;
       efficiencyScorecard: EfficiencyScorecard;
       snapshotPromise?: undefined;
       onRetry?: undefined;
     })
-  | (RepairLogWidgetBaseProps & RepairLogQuery & {
+  | (RepairChangelogWidgetBaseProps & RepairChangelogQuery & {
       changelog?: undefined;
       efficiencyScorecard?: undefined;
-      snapshotPromise?: Promise<RepairLogSnapshotResult>;
+      snapshotPromise?: Promise<RepairChangelogSnapshotResult>;
       onRetry?: () => void;
     });
 
-function matchesQuery(a: RepairLogQuery, b: RepairLogQuery): boolean {
+function matchesQuery(a: RepairChangelogQuery, b: RepairChangelogQuery): boolean {
   return a.apiBaseUrl === b.apiBaseUrl && a.connectorId === b.connectorId && a.limit === b.limit && a.runsLimit === b.runsLimit;
 }
 
-function toSafeSnapshotPromise(promise: Promise<RepairLogSnapshotResult>): Promise<RepairLogSnapshotResult> {
+function toSafeSnapshotPromise(promise: Promise<RepairChangelogSnapshotResult>): Promise<RepairChangelogSnapshotResult> {
   const cached = SAFE_SNAPSHOT_PROMISES.get(promise);
   if (cached) return cached;
   const safe = promise.catch(
-    (error: unknown): RepairLogSnapshotResult => ({
+    (error: unknown): RepairChangelogSnapshotResult => ({
       ok: false,
       message: error instanceof Error ? error.message : "Network error loading Repair Changelog",
     })
@@ -60,7 +60,7 @@ function LoadedDossierContent(props: {
   baseId: string;
   changelog: RepairChangelogResponse;
   efficiencyScorecard: EfficiencyScorecard;
-  query?: Partial<RepairLogQuery>;
+  query?: Partial<RepairChangelogQuery>;
 }) {
   const { baseId, changelog, efficiencyScorecard, query } = props;
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
@@ -108,7 +108,7 @@ function LoadedDossierContent(props: {
           onSelectInteraction={handleSelectInteraction}
         />
       </EfficiencyScorecardPanel>
-      <RepairLogTimelineSection
+      <RepairChangelogTimelineSection
         baseId={baseId}
         changelog={changelog}
         activeEntry={activeEntry}
@@ -119,9 +119,9 @@ function LoadedDossierContent(props: {
 }
 
 function PromiseDossierBoundary(props: {
-  snapshotPromise: Promise<RepairLogSnapshotResult>;
+  snapshotPromise: Promise<RepairChangelogSnapshotResult>;
   baseId: string;
-  query?: Partial<RepairLogQuery>;
+  query?: Partial<RepairChangelogQuery>;
   onRetry: () => void;
 }) {
   const result = use(props.snapshotPromise);
@@ -129,19 +129,19 @@ function PromiseDossierBoundary(props: {
   return <LoadedDossierContent baseId={props.baseId} changelog={result.changelog} efficiencyScorecard={result.efficiencyScorecard} query={props.query} />;
 }
 
-export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
+export function GridlockRepairChangelogWidget(props: GridlockRepairChangelogWidgetProps) {
   const { changelog, efficiencyScorecard, apiBaseUrl, connectorId, limit, runsLimit, snapshotPromise, onRetry, theme = "inherit", ref } = props;
   const baseId = useId();
   const retryAbortRef = useRef<AbortController | null>(null);
-  const [effectEntry, setEffectEntry] = useState<{ query: RepairLogQuery; promise: Promise<RepairLogSnapshotResult> } | null>(null);
-  const [retryEntry, setRetryEntry] = useState<{ query: RepairLogQuery; sourcePromise?: Promise<RepairLogSnapshotResult>; promise: Promise<RepairLogSnapshotResult> } | null>(null);
+  const [effectEntry, setEffectEntry] = useState<{ query: RepairChangelogQuery; promise: Promise<RepairChangelogSnapshotResult> } | null>(null);
+  const [retryEntry, setRetryEntry] = useState<{ query: RepairChangelogQuery; sourcePromise?: Promise<RepairChangelogSnapshotResult>; promise: Promise<RepairChangelogSnapshotResult> } | null>(null);
   const isStaticMode = changelog !== undefined;
 
   useEffect(() => {
     const effectController = !isStaticMode && apiBaseUrl !== undefined && !snapshotPromise ? new AbortController() : null;
     if (effectController && apiBaseUrl !== undefined) {
-      const query: RepairLogQuery = { apiBaseUrl, connectorId, limit, runsLimit };
-      setEffectEntry({ query, promise: fetchRepairLogSnapshot({ ...query, signal: effectController.signal }) });
+      const query: RepairChangelogQuery = { apiBaseUrl, connectorId, limit, runsLimit };
+      setEffectEntry({ query, promise: fetchRepairChangelogSnapshot({ ...query, signal: effectController.signal }) });
     }
     return () => {
       effectController?.abort();
@@ -157,8 +157,8 @@ export function GridlockRepairLogWidget(props: GridlockRepairLogWidgetProps) {
     retryAbortRef.current?.abort();
     const controller = new AbortController();
     retryAbortRef.current = controller;
-    const query: RepairLogQuery = { apiBaseUrl, connectorId, limit, runsLimit };
-    setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchRepairLogSnapshot({ ...query, signal: controller.signal }) });
+    const query: RepairChangelogQuery = { apiBaseUrl, connectorId, limit, runsLimit };
+    setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchRepairChangelogSnapshot({ ...query, signal: controller.signal }) });
   };
 
   const currentQuery = apiBaseUrl !== undefined ? { apiBaseUrl, connectorId, limit, runsLimit } : null;

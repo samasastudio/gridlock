@@ -18,7 +18,7 @@ import {
   ProjectSchema,
   RawCaptureSchema,
 } from "../packages/core/src/index.ts";
-import { HealedWithAmortization } from "../packages/widgets/stories/GridlockRepairLogWidget.stories.tsx";
+import { HealedWithAmortization } from "../packages/widgets/stories/GridlockRepairChangelogWidget.stories.tsx";
 
 const GRIDLOCK_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PROFILE_SITE_ROOT = resolve(GRIDLOCK_ROOT, "../profile-site");

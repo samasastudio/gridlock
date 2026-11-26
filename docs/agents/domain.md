@@ -32,7 +32,7 @@ Consult this map before exploring so research and reviews open only the files fo
   - Core: `use-cases/ingest-tdlr-filing.ts`, `run-tdlr-discovery.ts`, `preflight-site-access.ts`, `record-run.ts`, `get-efficiency-scorecard.ts`; `helpers/tdlr-parser.ts`, `tdlr-discovery-filter.ts`, `site-access.ts`, `pii-sanitizer.ts`, `scorecard-math.ts`; `controllers/efficiency-controller.ts`
 - **Seam 2 (Out-of-Band Repair Agent & Repair Changelog Widget)**:
   - Core: `use-cases/run-repair-agent.ts`, `get-repair-changelog.ts`; `helpers/sandbox-replay.ts`, `repair-changelog-markdown.ts`; `controllers/repairs-controller.ts`
-  - Widgets: `GridlockRepairLogWidget.tsx`, `RepairLogSections.tsx`, `RepairLogTimeline.tsx`, `EfficiencyLineChart.tsx`, `efficiency-chart-series.ts`, `repair-log-client.ts`, `repair-log-styles.ts`
+  - Widgets: `GridlockRepairChangelogWidget.tsx`, `RepairChangelogSections.tsx`, `RepairChangelogTimeline.tsx`, `EfficiencyLineChart.tsx`, `efficiency-chart-series.ts`, `repair-changelog-client.ts`, `repair-changelog-styles.ts`
 - **Seam 3 (Stateful Painter Agent, Frame Timelines & Scenario Branching)**:
   - Core: `use-cases/run-painter-agent.ts`, `painter-turn-runner.ts`, `get-plate-lineage.ts`, `branch-plate.ts`, `lineage-branch-slots.ts`; `helpers/painter-helpers.ts`, `webp-codec.ts`; `controllers/plates-controller.ts`
   - Widgets: `GridlockPlateWidget.tsx`, `PlateFrameStage.tsx`, `PlateComparisonStage.tsx`, `PlateSummarySection.tsx`, `PlateProvenanceSection.tsx`, `PlateScenarioBranchSection.tsx`, `usePlateBranching.ts`, `plate-lineage-client.ts`, `plate-lineage-model.ts`, `plate-widget-styles.ts`

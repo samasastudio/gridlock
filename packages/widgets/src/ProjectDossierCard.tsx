@@ -11,7 +11,7 @@ import {
   EXPORT_ARROW_ICON,
   type GridlockWidgetTheme,
 } from "./DossierPrimitives.tsx";
-import { DossierErrorShell, DossierTitle } from "./RepairLogSections.tsx";
+import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 
 const AST_CARD_STYLESHEET_NODE = <style href="gridlock-ast-cards" precedence="default">{GRIDLOCK_AST_CARD_STYLESHEET}</style>;
 const META_DOT_NODE = <span aria-hidden="true">·</span>;

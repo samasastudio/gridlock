@@ -11,13 +11,13 @@ import {
   CopyCitationButton,
   DossierStatusBadge,
   EDITORIAL_EASE,
-  fetchRepairLogSnapshot,
-  GridlockRepairLogWidget,
+  fetchRepairChangelogSnapshot,
+  GridlockRepairChangelogWidget,
   useIsReducedMotion,
 } from "../src/index.ts";
-import repairLogWidgetMeta, * as repairLogStories from "../stories/GridlockRepairLogWidget.stories.tsx";
+import repairChangelogWidgetMeta, * as repairChangelogStories from "../stories/GridlockRepairChangelogWidget.stories.tsx";
 
-const { BlockedByWafDegraded, HealedWithAmortization, HealthyZeroAnomalies, NocturnalTheme, SelectorAnomalyDegraded } = repairLogStories;
+const { BlockedByWafDegraded, HealedWithAmortization, HealthyZeroAnomalies, NocturnalTheme, SelectorAnomalyDegraded } = repairChangelogStories;
 
 async function streamHtml(node: React.JSX.Element): Promise<string> {
   const stream = await renderToReadableStream(node);
@@ -25,7 +25,7 @@ async function streamHtml(node: React.JSX.Element): Promise<string> {
   return new Response(stream).text();
 }
 
-describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
+describe("<GridlockRepairChangelogWidget /> Seam 2 UI (Ticket #6)", () => {
   test("Browser-safe runtime boundary: widget barrel and CSF3 stories load zero node:* built-in modules at runtime", () => {
     const checkScript = `
       import { registerHooks } from "node:module";
@@ -36,7 +36,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
         },
       });
       await import("./packages/widgets/src/index.ts");
-      await import("./packages/widgets/stories/GridlockRepairLogWidget.stories.tsx");
+      await import("./packages/widgets/stories/GridlockRepairChangelogWidget.stories.tsx");
     `;
     assert.doesNotThrow(() => {
       execFileSync(process.execPath, ["--import", "./scripts/tsx-loader.mjs", "--input-type=module", "-e", checkScript], {
@@ -49,7 +49,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
 
   test("Happy Path & Zero-Anomaly State: renders 100% deterministic uptime when empty, derives static export connectorId, and renders Repair Changelog + Efficiency Scorecard across diurnal/nocturnal/inherit tokens", () => {
     const emptyHtml = renderToStaticMarkup(
-      <GridlockRepairLogWidget
+      <GridlockRepairChangelogWidget
         changelog={{ connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }}
         efficiencyScorecard={HealedWithAmortization.args.efficiencyScorecard!}
         apiBaseUrl="https://api.example.com"
@@ -60,7 +60,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     assert.match(emptyHtml, /href="https:\/\/api\.example\.com\/api\/repairs\/changelog\?connector_id=ercot-gis&amp;format=md"/);
 
     const sectionRef = createRef<HTMLElement>();
-    const diurnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget ref={sectionRef} {...HealedWithAmortization.args} />);
+    const diurnalHtml = renderToStaticMarkup(<GridlockRepairChangelogWidget ref={sectionRef} {...HealedWithAmortization.args} />);
     const styleBlock = diurnalHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
     const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
     assert.ok(remFontSizes.length > 0 && remFontSizes.every((s) => s >= 0.75), "Expected all rem font-size rules >= 0.75rem");
@@ -82,7 +82,7 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       assert.match(diurnalHtml, pattern);
     }
 
-    const nocturnalHtml = renderToStaticMarkup(<GridlockRepairLogWidget {...NocturnalTheme.args} />);
+    const nocturnalHtml = renderToStaticMarkup(<GridlockRepairChangelogWidget {...NocturnalTheme.args} />);
     assert.match(nocturnalHtml, /data-gridlock-theme="nocturnal"/);
     assert.match(nocturnalHtml, /color-scheme:\s*only dark/);
     assert.match(nocturnalHtml, /--paper:\s*var\(--terrain-estuary,\s*oklch\(0\.215 0\.026 244\)\)/);
@@ -97,30 +97,30 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       buildRepairChangelogUrl({ apiBaseUrl: "https://api.example.com/", connectorId: "tdlr-tabs", limit: 5, format: "md" }),
       "https://api.example.com/api/repairs/changelog?connector_id=tdlr-tabs&limit=5&format=md"
     );
-    const loadingHtml = renderToStaticMarkup(<GridlockRepairLogWidget apiBaseUrl="https://api.example.com" />);
-    assert.match(loadingHtml, /data-loading-placeholder="repair-log"/);
+    const loadingHtml = renderToStaticMarkup(<GridlockRepairChangelogWidget apiBaseUrl="https://api.example.com" />);
+    assert.match(loadingHtml, /data-loading-placeholder="repair-changelog"/);
     assert.doesNotMatch(loadingHtml, /<progress/);
 
     const malformedStaticHtml = renderToStaticMarkup(
-      <GridlockRepairLogWidget changelog={{ broken: true } as never} efficiencyScorecard={DEFAULT_EFFICIENCY_SCORECARD} />
+      <GridlockRepairChangelogWidget changelog={{ broken: true } as never} efficiencyScorecard={DEFAULT_EFFICIENCY_SCORECARD} />
     );
     assert.match(malformedStaticHtml, /role="alert"/);
     assert.doesNotMatch(malformedStaticHtml, /<button[^>]*>Retry<\/button>/);
 
     const sameOriginSnapshotHtml = await streamHtml(
-      <GridlockRepairLogWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, changelog: { connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }, efficiencyScorecard: DEFAULT_EFFICIENCY_SCORECARD })} />
+      <GridlockRepairChangelogWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, changelog: { connectorId: "ercot-gis", connectorStatus: "healthy", activeVersion: 1, entries: [] }, efficiencyScorecard: DEFAULT_EFFICIENCY_SCORECARD })} />
     );
     assert.match(sameOriginSnapshotHtml, /href="\/api\/repairs\/changelog\?connector_id=ercot-gis&amp;format=md"/);
 
     const rejectedPromiseHtml = await streamHtml(
-      <GridlockRepairLogWidget apiBaseUrl="" snapshotPromise={Promise.reject(new Error("Gateway socket hang up"))} />
+      <GridlockRepairChangelogWidget apiBaseUrl="" snapshotPromise={Promise.reject(new Error("Gateway socket hang up"))} />
     );
     assert.match(rejectedPromiseHtml, /Gateway socket hang up/);
     assert.match(rejectedPromiseHtml, /<button[^>]*type="button"[^>]*>Retry<\/button>/);
 
     for (const status of ["selector_anomaly", "blocked_by_waf"] as const) {
       const degradedHtml = renderToStaticMarkup(
-        <GridlockRepairLogWidget changelog={{ connectorId: "tdlr-tabs", connectorStatus: status, activeVersion: 1, entries: [] }} efficiencyScorecard={DEFAULT_EFFICIENCY_SCORECARD} />
+        <GridlockRepairChangelogWidget changelog={{ connectorId: "tdlr-tabs", connectorStatus: status, activeVersion: 1, entries: [] }} efficiencyScorecard={DEFAULT_EFFICIENCY_SCORECARD} />
       );
       assert.match(degradedHtml, /role="alert"/);
       assert.match(degradedHtml, new RegExp(status));
@@ -151,15 +151,15 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
     const apiBaseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
     try {
-      const error500Html = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchRepairLogSnapshot({ apiBaseUrl })} />);
+      const error500Html = await streamHtml(<GridlockRepairChangelogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchRepairChangelogSnapshot({ apiBaseUrl })} />);
       assert.match(error500Html, /role="alert"/);
       assert.match(error500Html, /<button[^>]*type="button"[^>]*>Retry<\/button>/);
 
       force500 = false;
-      const limitedSnap = await fetchRepairLogSnapshot({ apiBaseUrl, limit: 1 });
+      const limitedSnap = await fetchRepairChangelogSnapshot({ apiBaseUrl, limit: 1 });
       assert.equal(limitedSnap.ok && limitedSnap.changelog.entries.length, 1);
       assert.equal(limitedSnap.ok && limitedSnap.efficiencyScorecard.recentRuns.length, 9);
-      const recoveredHtml = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={Promise.resolve(limitedSnap)} />);
+      const recoveredHtml = await streamHtml(<GridlockRepairChangelogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={Promise.resolve(limitedSnap)} />);
       assert.equal(Array.from(recoveredHtml.matchAll(/<rect[^>]*role="button"/g)).length, 1, "Unlisted v2 repair marker must not expose dead role=button");
       assert.match(recoveredHtml, /650,000/);
       assert.match(recoveredHtml, /href="[^"]*\/api\/repairs\/changelog\?connector_id=tdlr-tabs&amp;format=md"/);
@@ -167,15 +167,15 @@ describe("<GridlockRepairLogWidget /> Seam 2 UI (Ticket #6)", () => {
       await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
     }
 
-    const networkFailHtml = await streamHtml(<GridlockRepairLogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchRepairLogSnapshot({ apiBaseUrl })} />);
+    const networkFailHtml = await streamHtml(<GridlockRepairChangelogWidget apiBaseUrl={apiBaseUrl} snapshotPromise={fetchRepairChangelogSnapshot({ apiBaseUrl })} />);
     assert.match(networkFailHtml, /role="alert"/);
     assert.match(networkFailHtml, /Retry/);
   });
 
   test("CSF3 Storybook Stories: exports only valid story objects by name and renders all 5 variants cleanly", () => {
-    const StoryComponent = repairLogWidgetMeta.component;
-    assert.equal(StoryComponent, GridlockRepairLogWidget);
-    const namedStoryKeys = Object.keys(repairLogStories).filter((key) => key !== "default").sort();
+    const StoryComponent = repairChangelogWidgetMeta.component;
+    assert.equal(StoryComponent, GridlockRepairChangelogWidget);
+    const namedStoryKeys = Object.keys(repairChangelogStories).filter((key) => key !== "default").sort();
     assert.deepEqual(namedStoryKeys, ["BlockedByWafDegraded", "HealedWithAmortization", "HealthyZeroAnomalies", "NocturnalTheme", "SelectorAnomalyDegraded"]);
     assert.equal(HealthyZeroAnomalies.args.efficiencyScorecard!.recentRuns.reduce((s, r) => s + r.naiveTokensAvoided, 0), HealthyZeroAnomalies.args.efficiencyScorecard!.naiveTokensAvoided);
     assert.equal(SelectorAnomalyDegraded.args.efficiencyScorecard!.failedOrBlockedRunsCount, 1);

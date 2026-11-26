@@ -35,18 +35,18 @@ export function DossierErrorShell(props: { baseId: string; message: string; titl
       <header className="gridlock-repair-header">
         <DossierTitle baseId={props.baseId} title={props.title} connectorId={props.connectorId} />
       </header>
-      <RepairLogErrorBanner message={props.message} errorPrefix={props.errorPrefix} onRetry={props.onRetry} />
+      <RepairChangelogErrorBanner message={props.message} errorPrefix={props.errorPrefix} onRetry={props.onRetry} />
     </>
   );
 }
 
-export function RepairLogLoadingPlaceholder() {
+export function RepairChangelogLoadingPlaceholder() {
   return (
     <div
       role="status"
       aria-live="polite"
       aria-label="Loading Repair Changelog"
-      data-loading-placeholder="repair-log"
+      data-loading-placeholder="repair-changelog"
       className="gridlock-loading-placeholder"
     >
       <div className="gridlock-loading-stats" aria-hidden="true">
@@ -76,7 +76,7 @@ export function ConnectorHealthBanner(props: { connectorStatus: ConnectorStatus;
   );
 }
 
-function RepairLogErrorBanner(props: { message: string; errorPrefix?: string; onRetry?: () => void }) {
+function RepairChangelogErrorBanner(props: { message: string; errorPrefix?: string; onRetry?: () => void }) {
   const prefix = props.errorPrefix ?? "Unable to load Repair Changelog:";
   return (
     <div role="alert" className="gridlock-banner">

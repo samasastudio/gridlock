@@ -5,7 +5,7 @@ export const GRIDLOCK_WIDGET_MANIFEST = {
   widgets: [
     "GridlockPlateWidget",
     "GridlockConsoleWidget",
-    "GridlockRepairLogWidget",
+    "GridlockRepairChangelogWidget",
   ] as const,
 };
 
@@ -24,10 +24,15 @@ export {
   type GridlockWidgetTheme,
 } from "./DossierPrimitives.tsx";
 export {
-  GridlockRepairLogWidget,
-  type GridlockRepairLogWidgetProps,
-} from "./GridlockRepairLogWidget.tsx";
-export { buildRepairChangelogUrl, fetchRepairLogSnapshot, type RepairLogQuery, type RepairLogSnapshotResult } from "./repair-log-client.ts";
+  GridlockRepairChangelogWidget,
+  type GridlockRepairChangelogWidgetProps,
+} from "./GridlockRepairChangelogWidget.tsx";
+export {
+  buildRepairChangelogUrl,
+  fetchRepairChangelogSnapshot,
+  type RepairChangelogQuery,
+  type RepairChangelogSnapshotResult,
+} from "./repair-changelog-client.ts";
 export {
   buildPlateAssetUrl,
   buildPlateBranchUrl,

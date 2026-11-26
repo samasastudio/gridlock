@@ -8,7 +8,7 @@ import { PlateFrameStage } from "./PlateFrameStage.tsx";
 import { PlateProvenanceSection } from "./PlateProvenanceSection.tsx";
 import { PlateScenarioBranchSection } from "./PlateScenarioBranchSection.tsx";
 import { PlateHeadlineKpiStrip, PlateSummarySection, PlateWidgetLoadingPlaceholder } from "./PlateSummarySection.tsx";
-import { DossierErrorShell, DossierTitle } from "./RepairLogSections.tsx";
+import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 import { usePlateBranching } from "./usePlateBranching.ts";
 
 const WIDGET_STYLESHEET_NODE = <style href="gridlock-plate-widget" precedence="default">{GRIDLOCK_PLATE_WIDGET_STYLESHEET}</style>;
