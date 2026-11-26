@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
   InvestigatePlanResponseSchema,
   MAX_INVESTIGATE_QUERY_LENGTH,
   MAX_ORCHESTRATION_CATALOG_PROJECTS,
@@ -450,7 +450,7 @@ describe("runUiOrchestrationAgent (Core workspace orchestration & preconditions)
 });
 
 describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
-  test("grounds healthy lineages and connectors, omits quarantined/expired lineages, and hydrates all 5 card types", async () => {
+  test("grounds healthy timelines and connectors, omits quarantined/expired timelines, and hydrates all 5 card types", async () => {
     const { repository, branchPlateId } = await seedFiveCardOrchestrationRepository();
     const { geminiClient, recordedRequests } = createOrchestrationClientStub(async () => ({
       id: "ix_orchestration_five_card",
@@ -461,7 +461,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
 
     const outcome = await runUiOrchestrationAgent(
       {
-        query: "Assemble full Ellis corridor dossier, plates, and connector health",
+        query: "Assemble full Ellis corridor dossier, illustrations, and connector health",
         now: ORCHESTRATION_TEST_NOW,
       },
       { repository, geminiClient }
@@ -476,16 +476,16 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
         "ProjectDossierCard",
         "ObservationTimeline",
         "MetricComparisonTable",
-        "VisualPlateScrubber",
+        "FrameTimelineScrubber",
         "ConnectorHealthCard",
       ]
     );
     const scrubberNode = outcome.response.workspace.nodes.find(
-      (node) => node.component === "VisualPlateScrubber"
+      (node) => node.component === "FrameTimelineScrubber"
     );
-    assert.equal(scrubberNode?.component, "VisualPlateScrubber");
-    if (scrubberNode?.component === "VisualPlateScrubber") {
-      const frameIds = scrubberNode.lineage.nodes.map((n) => n.plate.plateId);
+    assert.equal(scrubberNode?.component, "FrameTimelineScrubber");
+    if (scrubberNode?.component === "FrameTimelineScrubber") {
+      const frameIds = scrubberNode.timeline.nodes.map((n) => n.plate.plateId);
       assert.equal(frameIds.length, 2);
       assert.equal(frameIds.includes(branchPlateId), true);
       assert.equal(frameIds.includes("plate_expired_branch"), false);
@@ -495,7 +495,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
     const parsedPrompt = JSON.parse(promptText) as {
       catalog: {
         projects: Array<{ projectNumber: string }>;
-        lineages: Array<{ lineageId: string; plates: Array<{ plateId: string }> }>;
+        timelines: Array<{ lineageId: string; plates: Array<{ plateId: string }> }>;
         connectors: Array<{ connectorId: string; activeVersion: number; repairCount: number }>;
       };
     };
@@ -504,10 +504,10 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
       ["TABS2027001001", "TABS2027001002"]
     );
     assert.deepEqual(
-      parsedPrompt.catalog.lineages.map((l) => l.lineageId),
-      [DEFAULT_LINEAGE_ID]
+      parsedPrompt.catalog.timelines.map((t) => t.lineageId),
+      [DEFAULT_TIMELINE_ID]
     );
-    assert.equal(parsedPrompt.catalog.lineages[0]?.plates.length, 2);
+    assert.equal(parsedPrompt.catalog.timelines[0]?.plates.length, 2);
     assert.deepEqual(parsedPrompt.catalog.connectors, [
       { connectorId: "tdlr-tabs", status: "healthy", activeVersion: 2, repairCount: 1 },
     ]);
@@ -515,7 +515,7 @@ describe("runUiOrchestrationAgent (Cross-seam grounding)", () => {
     assert.equal(promptText.includes("[REDACTED_EMAIL]"), true);
   });
 
-  test("aborts with 500 at 0 Gemini calls and 0 RunRecord writes on corrupt VisualPlate, RepairChangelogEntry, or ConnectorConfig", async () => {
+  test("aborts with 500 at 0 Gemini calls and 0 RunRecord writes on corrupt GeneratedIllustration, RepairChangelogEntry, or ConnectorConfig", async () => {
     const repository = await seedFilingOrchestrationRepository();
     const { geminiClient, recordedRequests } = createOrchestrationClientStub(async () => ({
       id: "ix_unreachable",
@@ -614,8 +614,8 @@ describe("runUiOrchestrationAgent (In-place workspace refinement)", () => {
           nodes: [
             {
               nodeId: "scrubber-corridor",
-              component: "VisualPlateScrubber",
-              lineageId: DEFAULT_LINEAGE_ID,
+              component: "FrameTimelineScrubber",
+              lineageId: DEFAULT_TIMELINE_ID,
               initialPlateId: branchPlateId,
             },
             {
@@ -662,7 +662,7 @@ describe("runUiOrchestrationAgent (In-place workspace refinement)", () => {
     const refineOutcome = await runUiOrchestrationAgent(
       {
         query:
-          "Move visual plate first, add TABS2027001002 dossier, remove connector health, and filter timeline and metrics to TABS2027001001",
+          "Move frame timeline first, add TABS2027001002 dossier, remove connector health, and filter timeline and metrics to TABS2027001001",
         currentLayout: initialWorkspace,
         now: ORCHESTRATION_TEST_NOW,
       },

@@ -29,7 +29,7 @@ import {
 } from "../src/index.ts";
 import { createFixtureWebpBuffer, createPainterTestObservations, createSamplePngBuffer, isWebpBuffer } from "./helpers/fixtures.ts";
 
-describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", () => {
+describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", () => {
   test("Part 1 (Generated Illustration Spine, Schema Invariants, Chronological Active Lookup & Milestone Gate): enforces canonical vs ephemeral branch invariants, resolves highest turnNumber, skips non-milestones at 0 tokens, and computes painter cache efficiency", async () => {
     const repository = createInMemoryGridlockRepository();
     const { routineObs, milestoneObs: milestoneObs1 } = createPainterTestObservations();
@@ -324,7 +324,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
       },
     };
 
-    // 1. Sad Path: empty lineage, branch-only lineage, and cross-lineage isolation all fail closed with parent_not_found at 0 calls
+    // 1. Sad Path: empty timeline, branch-only timeline, and cross-timeline isolation all fail closed with parent_not_found at 0 calls
     const orphanDelta = await paintMilestoneDelta({ lineageId: "texas-corridor-main", observations: [m1] }, { repository, geminiClient });
     assert.equal(orphanDelta.status, "painter_failed");
     assert.equal(orphanDelta.errorCode, "parent_not_found");
@@ -698,7 +698,7 @@ describe("Stateful Painter Agent & Lineage Chaining (Seam 3 Core, Ticket #7)", (
     assert.equal(unknownParent.errorCode, "parent_not_found");
 
     const crossLineage = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", lineageId: "other-corridor", scenarioPrompt: "Cross lineage fork", now: branchNow },
+      { parentInteractionId: "inter_branch_parent_root", lineageId: "other-corridor", scenarioPrompt: "Cross timeline fork", now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(crossLineage.status, "painter_failed");

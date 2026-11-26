@@ -9,7 +9,8 @@ import {
   CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
   ConnectorHealthCardNodeSchema,
   createInMemoryGridlockRepository,
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
+  FrameTimelineScrubberNodeSchema,
   getFrameTimeline,
   hydrateInvestigationWorkspace,
   ingestTdlrFiling,
@@ -18,7 +19,6 @@ import {
   NINETY_DAYS_MS,
   recordStageRun,
   runOutOfBandRepairAgent,
-  VisualPlateScrubberNodeSchema,
   WorkspaceLayoutSchema,
   type GeminiInteractionsClient,
   type GridlockRepository,
@@ -161,7 +161,7 @@ async function seedFullFiveCardRepository(): Promise<{
 
   const bootstrapRes = await bootstrapCanvas(
     {
-      lineageId: DEFAULT_LINEAGE_ID,
+      lineageId: DEFAULT_TIMELINE_ID,
       observations: dfwObservations,
       prompt:
         "Bootstrap <svg>\ncanvas for [corridor](https://example.test) contact grid_ops@example.com",
@@ -173,7 +173,7 @@ async function seedFullFiveCardRepository(): Promise<{
 
   const branchRes = await branchTimeline(
     {
-      lineageId: DEFAULT_LINEAGE_ID,
+      lineageId: DEFAULT_TIMELINE_ID,
       parentInteractionId: bootstrapRes.illustration.interactionId,
       scenarioPrompt:
         "Add *300MW* switchyard\nfor corridor_lead@example.com <marquee>",
@@ -224,8 +224,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           },
           {
             nodeId: "corridor-scrubber",
-            component: "VisualPlateScrubber",
-            lineageId: DEFAULT_LINEAGE_ID,
+            component: "FrameTimelineScrubber",
+            lineageId: DEFAULT_TIMELINE_ID,
             initialPlateId: branchPlateId,
           },
           {
@@ -271,19 +271,19 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     );
 
     const scrubberNode = result.workspace.nodes[1];
-    assert.ok(scrubberNode && scrubberNode.component === "VisualPlateScrubber");
+    assert.ok(scrubberNode && scrubberNode.component === "FrameTimelineScrubber");
     assert.deepEqual(
-      VisualPlateScrubberNodeSchema.parse(scrubberNode),
+      FrameTimelineScrubberNodeSchema.parse(scrubberNode),
       scrubberNode
     );
     assert.equal(scrubberNode.initialPlateId, branchPlateId);
     assert.equal(
-      scrubberNode.lineage.activeCanonicalPlateId,
+      scrubberNode.timeline.activeCanonicalPlateId,
       canonicalPlateId
     );
-    assert.equal(scrubberNode.lineage.nodes.length, 2);
+    assert.equal(scrubberNode.timeline.nodes.length, 2);
 
-    const [canonicalNode, branchedNode] = scrubberNode.lineage.nodes;
+    const [canonicalNode, branchedNode] = scrubberNode.timeline.nodes;
     assert.ok(canonicalNode && branchedNode);
     assert.equal(
       canonicalNode.plate.prompt,
@@ -304,7 +304,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
 
     const maxBranchRes = await branchTimeline(
       {
-        lineageId: DEFAULT_LINEAGE_ID,
+        lineageId: DEFAULT_TIMELINE_ID,
         parentInteractionId: canonicalNode.plate.interactionId,
         scenarioPrompt: maxScenarioPrompt,
         now: new Date("2026-10-27T15:12:00.000Z"),
@@ -335,8 +335,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         nodes: [
           {
             nodeId: "max-prompt-scrubber",
-            component: "VisualPlateScrubber",
-            lineageId: DEFAULT_LINEAGE_ID,
+            component: "FrameTimelineScrubber",
+            lineageId: DEFAULT_TIMELINE_ID,
             initialPlateId: maxBranchRes.illustration.plateId,
           },
         ],
@@ -347,9 +347,9 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     assert.equal(maxScrubberRes.ok, true);
     const maxScrubberNode = maxScrubberRes.workspace.nodes[0];
     assert.ok(
-      maxScrubberNode && maxScrubberNode.component === "VisualPlateScrubber"
+      maxScrubberNode && maxScrubberNode.component === "FrameTimelineScrubber"
     );
-    const hydratedMaxBranch = maxScrubberNode.lineage.nodes.find(
+    const hydratedMaxBranch = maxScrubberNode.timeline.nodes.find(
       (n) => n.plate.plateId === maxBranchRes.illustration.plateId
     );
     assert.ok(hydratedMaxBranch?.plate.scenarioPrompt);
@@ -399,35 +399,35 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
     );
   });
 
-  test("fails closed on empty or expired Visual Plate lineages, invalid initialPlateId, and unresolvable canonical plate provenance", async () => {
+  test("fails closed on empty or expired Frame Timelines, invalid initialPlateId, and unresolvable canonical illustration provenance", async () => {
     const { repository, canonicalPlateId, branchPlateId } =
       await seedFullFiveCardRepository();
 
-    const unknownLineageCheck = await getFrameTimeline(
-      { lineageId: "unknown-corridor-lineage", now: NOW },
+    const unknownTimelineCheck = await getFrameTimeline(
+      { lineageId: "unknown-corridor-timeline", now: NOW },
       { repository }
     );
-    assert.equal(unknownLineageCheck.ok, true);
-    assert.deepEqual(unknownLineageCheck.timeline.nodes, []);
+    assert.equal(unknownTimelineCheck.ok, true);
+    assert.deepEqual(unknownTimelineCheck.timeline.nodes, []);
 
-    const unknownLineageRes = await hydrateInvestigationWorkspace(
+    const unknownTimelineRes = await hydrateInvestigationWorkspace(
       {
         nodes: [
           {
-            nodeId: "missing-lineage",
-            component: "VisualPlateScrubber",
-            lineageId: "unknown-corridor-lineage",
+            nodeId: "missing-timeline",
+            component: "FrameTimelineScrubber",
+            lineageId: "unknown-corridor-timeline",
           },
         ],
       },
       { repository },
       { now: NOW }
     );
-    assert.equal(unknownLineageRes.ok, false);
-    assert.equal(unknownLineageRes.error, "entity_not_found");
+    assert.equal(unknownTimelineRes.ok, false);
+    assert.equal(unknownTimelineRes.error, "entity_not_found");
 
     const allPlates = await repository.listGeneratedIllustrationsByTimeline(
-      DEFAULT_LINEAGE_ID
+      DEFAULT_TIMELINE_ID
     );
     const branchOnlyPlates = allPlates.filter((plate) => plate.isBranch);
     const futureAfterBranchTtl = new Date(
@@ -438,9 +438,9 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
       {
         nodes: [
           {
-            nodeId: "expired-lineage",
-            component: "VisualPlateScrubber",
-            lineageId: DEFAULT_LINEAGE_ID,
+            nodeId: "expired-timeline",
+            component: "FrameTimelineScrubber",
+            lineageId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -464,8 +464,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           nodes: [
             {
               nodeId: "bad-initial-plate",
-              component: "VisualPlateScrubber",
-              lineageId: DEFAULT_LINEAGE_ID,
+              component: "FrameTimelineScrubber",
+              lineageId: DEFAULT_TIMELINE_ID,
               initialPlateId: badInitialId,
             },
           ],
@@ -499,8 +499,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           nodes: [
             {
               nodeId: "scrubber-bad-prov",
-              component: "VisualPlateScrubber",
-              lineageId: DEFAULT_LINEAGE_ID,
+              component: "FrameTimelineScrubber",
+              lineageId: DEFAULT_TIMELINE_ID,
             },
           ],
         },
@@ -523,8 +523,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
           nodes: [
             {
               nodeId: "branch-scrubber-bad-prov",
-              component: "VisualPlateScrubber",
-              lineageId: DEFAULT_LINEAGE_ID,
+              component: "FrameTimelineScrubber",
+              lineageId: DEFAULT_TIMELINE_ID,
             },
           ],
         },
@@ -549,8 +549,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         nodes: [
           {
             nodeId: "scrubber-missing-obs",
-            component: "VisualPlateScrubber",
-            lineageId: DEFAULT_LINEAGE_ID,
+            component: "FrameTimelineScrubber",
+            lineageId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -570,8 +570,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         nodes: [
           {
             nodeId: "scrubber-zero-citations",
-            component: "VisualPlateScrubber",
-            lineageId: DEFAULT_LINEAGE_ID,
+            component: "FrameTimelineScrubber",
+            lineageId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -641,8 +641,8 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         nodes: [
           {
             nodeId: "corrupt-scrubber",
-            component: "VisualPlateScrubber",
-            lineageId: DEFAULT_LINEAGE_ID,
+            component: "FrameTimelineScrubber",
+            lineageId: DEFAULT_TIMELINE_ID,
           },
         ],
       },
@@ -650,7 +650,7 @@ describe("Workspace Layout Contracts & Deterministic Workspace Hydrator — Phas
         repository: {
           ...repository,
           listGeneratedIllustrationsByTimeline: async () =>
-            [{ plateId: "corrupt", lineageId: DEFAULT_LINEAGE_ID }] as never,
+            [{ plateId: "corrupt", lineageId: DEFAULT_TIMELINE_ID }] as never,
         },
       },
       { now: NOW }

@@ -2,8 +2,8 @@ import {
   GeneratedIllustrationSchema,
   RepairChangelogEntrySchema,
   type EpistemicIllustrationLabel,
-  type LineageNode,
-  type PlateLineageResponse,
+  type FrameTimelineNode,
+  type FrameTimelineResponse,
   type RepairChangelogResponse,
 } from "../../interfaces/index.ts";
 import { SafeLayoutIdSchema } from "../../interfaces/workspace-layout-models.ts";
@@ -13,7 +13,7 @@ import {
   type HydratorStepFailure,
 } from "./investigate-provenance.ts";
 
-export interface OrchestrationCatalogPlateSummary {
+export interface OrchestrationCatalogIllustrationSummary {
   plateId: string;
   turnNumber: number;
   isBranch: boolean;
@@ -22,10 +22,10 @@ export interface OrchestrationCatalogPlateSummary {
   scenarioPrompt?: string;
 }
 
-export interface OrchestrationCatalogLineageEntry {
+export interface OrchestrationCatalogTimelineEntry {
   lineageId: string;
   activeCanonicalPlateId: string | null;
-  plates: readonly OrchestrationCatalogPlateSummary[];
+  plates: readonly OrchestrationCatalogIllustrationSummary[];
 }
 
 export interface OrchestrationCatalogConnectorEntry {
@@ -35,7 +35,7 @@ export interface OrchestrationCatalogConnectorEntry {
   repairCount: number;
 }
 
-function isLineageNodeHydratable(node: LineageNode): boolean {
+function isTimelineNodeHydratable(node: FrameTimelineNode): boolean {
   const expectedCitationCount = new Set(node.plate.rawCaptureHashes).size;
   const expectedObservationCount = new Set(node.plate.triggeringObservationIds).size;
   const allHttpUrls = node.rawCaptures.every((artifact) =>
@@ -50,21 +50,21 @@ function isLineageNodeHydratable(node: LineageNode): boolean {
   );
 }
 
-function isPlateLineageHydratable(lineage: PlateLineageResponse): boolean {
+function isFrameTimelineHydratable(timeline: FrameTimelineResponse): boolean {
   return (
-    SafeLayoutIdSchema.safeParse(lineage.lineageId).success &&
-    lineage.nodes.length > 0 &&
-    lineage.nodes.every(isLineageNodeHydratable)
+    SafeLayoutIdSchema.safeParse(timeline.lineageId).success &&
+    timeline.nodes.length > 0 &&
+    timeline.nodes.every(isTimelineNodeHydratable)
   );
 }
 
-export function extractValidatedLineageIds(
+export function extractValidatedTimelineIds(
   rawAllPlates: unknown
 ): { ok: true; lineageIds: string[] } | HydratorStepFailure {
   if (!Array.isArray(rawAllPlates)) {
     return stepFailure(
       "repository_integrity_error",
-      "Stored VisualPlate list failed runtime schema validation"
+      "Stored GeneratedIllustration list failed runtime schema validation"
     );
   }
 
@@ -72,7 +72,7 @@ export function extractValidatedLineageIds(
   if (parsedItems.some((parsed) => !parsed.success)) {
     return stepFailure(
       "repository_integrity_error",
-      "Stored VisualPlate failed runtime schema validation"
+      "Stored GeneratedIllustration failed runtime schema validation"
     );
   }
 
@@ -81,7 +81,7 @@ export function extractValidatedLineageIds(
   if (uniquePlateIds.size !== parsedPlates.length) {
     return stepFailure(
       "repository_integrity_error",
-      "Duplicate plateId found in stored VisualPlate list"
+      "Duplicate plateId found in stored GeneratedIllustration list"
     );
   }
 
@@ -94,7 +94,7 @@ export function extractValidatedLineageIds(
   if (hasBlankPlateProse) {
     return stepFailure(
       "repository_integrity_error",
-      "Sanitized VisualPlate prompt failed runtime schema validation"
+      "Sanitized GeneratedIllustration prompt failed runtime schema validation"
     );
   }
 
@@ -145,11 +145,11 @@ export function extractValidatedChangelogConnectorIds(
   return { ok: true, connectorIds };
 }
 
-export function buildLineageCatalogEntries(
-  lineages: readonly PlateLineageResponse[]
-): { ok: true; lineages: OrchestrationCatalogLineageEntry[] } | HydratorStepFailure {
-  const hasBlankLineageObservationProse = lineages.some((lineage) =>
-    lineage.nodes.some((node) =>
+export function buildTimelineCatalogEntries(
+  timelines: readonly FrameTimelineResponse[]
+): { ok: true; timelines: OrchestrationCatalogTimelineEntry[] } | HydratorStepFailure {
+  const hasBlankTimelineObservationProse = timelines.some((timeline) =>
+    timeline.nodes.some((node) =>
       node.triggeringObservations.some(
         (obs) =>
           sanitizeWorkspaceProse(obs.status).length === 0 ||
@@ -157,22 +157,22 @@ export function buildLineageCatalogEntries(
       )
     )
   );
-  if (hasBlankLineageObservationProse) {
+  if (hasBlankTimelineObservationProse) {
     return stepFailure(
       "repository_integrity_error",
-      "Sanitized lineage Observation prose failed runtime schema validation"
+      "Sanitized timeline Observation prose failed runtime schema validation"
     );
   }
 
   return {
     ok: true,
-    lineages: lineages
-      .filter(isPlateLineageHydratable)
+    timelines: timelines
+      .filter(isFrameTimelineHydratable)
       .sort((left, right) => left.lineageId.localeCompare(right.lineageId))
-      .map((lineage) => ({
-        lineageId: lineage.lineageId,
-        activeCanonicalPlateId: lineage.activeCanonicalPlateId,
-        plates: lineage.nodes.map((node): OrchestrationCatalogPlateSummary => ({
+      .map((timeline) => ({
+        lineageId: timeline.lineageId,
+        activeCanonicalPlateId: timeline.activeCanonicalPlateId,
+        plates: timeline.nodes.map((node): OrchestrationCatalogIllustrationSummary => ({
           plateId: node.plate.plateId,
           turnNumber: node.plate.turnNumber,
           isBranch: node.plate.isBranch,

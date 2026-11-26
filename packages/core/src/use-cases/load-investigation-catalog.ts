@@ -1,8 +1,8 @@
 import {
   CONNECTOR_HEALTH_RECENT_RUNS_LIMIT,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
+  type FrameTimelineResponse,
   type GridlockRepository,
-  type PlateLineageResponse,
   type RawCapture,
   type RunRecord,
 } from "../interfaces/index.ts";
@@ -18,16 +18,16 @@ import {
 } from "./helpers/investigate-orchestration-catalog.ts";
 import {
   buildConnectorCatalogEntries,
-  buildLineageCatalogEntries,
+  buildTimelineCatalogEntries,
   extractValidatedChangelogConnectorIds,
-  extractValidatedLineageIds,
+  extractValidatedTimelineIds,
 } from "./helpers/investigate-orchestration-seam-catalog.ts";
 
 function collectCandidateConnectorIds(
   changelogConnectorIds: readonly string[],
   artifactsByHash: ReadonlyMap<string, RawCapture | null>,
   recentRuns: readonly RunRecord[],
-  validLineages: readonly PlateLineageResponse[]
+  validTimelines: readonly FrameTimelineResponse[]
 ): string[] {
   return Array.from(
     new Set([
@@ -37,8 +37,8 @@ function collectCandidateConnectorIds(
         artifact ? [artifact.connectorId] : []
       ),
       ...recentRuns.flatMap((run) => (run.connectorId ? [run.connectorId] : [])),
-      ...validLineages.flatMap((lineage) =>
-        lineage.nodes.flatMap((node) =>
+      ...validTimelines.flatMap((timeline) =>
+        timeline.nodes.flatMap((node) =>
           node.rawCaptures.map((artifact) => artifact.connectorId)
         )
       ),
@@ -63,9 +63,9 @@ export async function loadOrchestrationGroundingCatalog(
       return { ok: false, message: validatedProjects.message };
     }
 
-    const validatedLineages = extractValidatedLineageIds(rawAllPlates);
-    if (!validatedLineages.ok) {
-      return { ok: false, message: validatedLineages.message };
+    const validatedTimelines = extractValidatedTimelineIds(rawAllPlates);
+    if (!validatedTimelines.ok) {
+      return { ok: false, message: validatedTimelines.message };
     }
 
     const validatedChangelogs = extractValidatedChangelogConnectorIds(rawChangelogEntries);
@@ -126,16 +126,16 @@ export async function loadOrchestrationGroundingCatalog(
       return { ok: false, message: filingEntries.message };
     }
 
-    const lineageResults = await Promise.all(
-      validatedLineages.lineageIds.map((lineageId) =>
+    const timelineResults = await Promise.all(
+      validatedTimelines.lineageIds.map((lineageId) =>
         getFrameTimeline({ lineageId, now }, { repository })
       )
     );
-    const failedLineage = lineageResults.find((result) => !result.ok);
-    if (failedLineage && !failedLineage.ok) {
-      return { ok: false, message: failedLineage.message };
+    const failedTimeline = timelineResults.find((result) => !result.ok);
+    if (failedTimeline && !failedTimeline.ok) {
+      return { ok: false, message: failedTimeline.message };
     }
-    const validLineages = lineageResults.flatMap((result) =>
+    const validTimelines = timelineResults.flatMap((result) =>
       result.ok ? [result.timeline] : []
     );
 
@@ -143,7 +143,7 @@ export async function loadOrchestrationGroundingCatalog(
       validatedChangelogs.connectorIds,
       filingEntries.artifactsByHash,
       scorecardResult.scorecard.recentRuns,
-      validLineages
+      validTimelines
     );
     const changelogResults = await Promise.all(
       candidateConnectorIds.map((connectorId) =>
@@ -160,16 +160,16 @@ export async function loadOrchestrationGroundingCatalog(
       result.ok ? [result.changelog] : []
     );
 
-    const lineageCatalogResult = buildLineageCatalogEntries(validLineages);
-    if (!lineageCatalogResult.ok) {
-      return { ok: false, message: lineageCatalogResult.message };
+    const timelineCatalogResult = buildTimelineCatalogEntries(validTimelines);
+    if (!timelineCatalogResult.ok) {
+      return { ok: false, message: timelineCatalogResult.message };
     }
 
     return {
       ok: true,
       catalog: {
         projects: filingEntries.projects,
-        lineages: lineageCatalogResult.lineages,
+        timelines: timelineCatalogResult.timelines,
         connectors: buildConnectorCatalogEntries(validChangelogs),
       },
     };
