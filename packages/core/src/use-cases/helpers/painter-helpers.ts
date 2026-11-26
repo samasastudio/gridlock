@@ -143,7 +143,7 @@ export function formatObservationsSummary(observations: readonly Observation[]):
 }
 
 export function synthesizeBootstrapPrompt(lineageId: string, observations: readonly Observation[]): string {
-  return `Bootstrap Atlas Dossier technical topographical illustration for corridor lineage "${lineageId}" incorporating initial milestone observations: ${formatObservationsSummary(observations)}`;
+  return `Bootstrap Atlas Dossier technical topographical illustration for corridor timeline "${lineageId}" incorporating initial milestone observations: ${formatObservationsSummary(observations)}`;
 }
 
 export function synthesizeMilestoneDeltaPrompt(
@@ -151,7 +151,7 @@ export function synthesizeMilestoneDeltaPrompt(
   parentPlate: GeneratedIllustration,
   observations: readonly Observation[]
 ): string {
-  return `Paint incremental milestone delta onto corridor lineage "${lineageId}" from parent illustration ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
+  return `Paint incremental milestone delta onto corridor timeline "${lineageId}" from parent illustration ${parentPlate.plateId} (turn ${parentPlate.turnNumber}) while strictly preserving exact camera angle, topography, Atlas Dossier typography, and all existing corridor infrastructure: ${formatObservationsSummary(observations)}`;
 }
 
 export function isGeneratedIllustrationActiveAt(plate: GeneratedIllustration, now: Date): boolean {

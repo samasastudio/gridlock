@@ -39,7 +39,7 @@ function createSolidRaster(width: number, height: number, channels: 3 | 4 = 3) {
 }
 
 describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)", () => {
-  test("Happy Path: sharpImageEncoder transcodes JPEG/PNG/WebP payloads, clamps non-finite quality, drives bootstrapCanvas and POST /api/plates/branch on JPEG outputs, and stamps crimson/ivory banner + XMP rights", async () => {
+  test("Happy Path: sharpImageEncoder transcodes JPEG/PNG/WebP payloads, clamps non-finite quality, drives bootstrapCanvas and POST /api/illustrations/branch on JPEG outputs, and stamps crimson/ivory banner + XMP rights", async () => {
     const [jpegBuf, pngBuf, webpBuf] = await Promise.all([
       createSolidRaster(360, 200, 3).jpeg({ quality: 92 }).toBuffer(),
       createSolidRaster(240, 140, 4).png().toBuffer(),
@@ -127,7 +127,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
     await withGridlockTestServer(
       { repository, geminiClient, imageEncoder: sharpImageEncoder },
       async (baseUrl) => {
-        const res = await fetch(`${baseUrl}/api/plates/branch`, {
+        const res = await fetch(`${baseUrl}/api/illustrations/branch`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -145,7 +145,7 @@ describe("Sharp WebP Image Encoder Adapter & Smoke Step 2 (Ticket #11 Slice 1b)"
         });
 
         const assetRes = await fetch(
-          `${baseUrl}/api/plates/assets/${encodeURIComponent(body.plate.plateId)}.webp`
+          `${baseUrl}/api/illustrations/assets/${encodeURIComponent(body.plate.plateId)}.webp`
         );
         assert.equal(assetRes.status, 200);
         const branchWebp = Buffer.from(await assetRes.arrayBuffer());

@@ -208,9 +208,9 @@ function corridorCanvasPixelRgba(x: number, y: number, width: number, height: nu
   return [245, 242, 235, 255];
 }
 
-export function createCorridorBaseCanvasWebp(lineageSeed = "texas-corridor-main"): Buffer {
+export function createCorridorBaseCanvasWebp(timelineSeed = "texas-corridor-main"): Buffer {
   const [width, height] = [64, 36];
-  const digest = createHash("sha256").update(lineageSeed).digest();
+  const digest = createHash("sha256").update(timelineSeed).digest();
   const [spineX, hubY] = [24 + ((digest[0] ?? 0) % 16), 10 + ((digest[1] ?? 0) % 16)];
   const rgba = Buffer.from(
     Array.from({ length: width * height }, (_, i) => corridorCanvasPixelRgba(i % width, Math.floor(i / width), width, height, spineX, hubY)).flat()

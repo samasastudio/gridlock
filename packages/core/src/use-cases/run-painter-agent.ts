@@ -1,7 +1,7 @@
 import type { Buffer } from "node:buffer";
 import {
-  DEFAULT_LINEAGE_ID,
-  DEFAULT_MAX_BRANCHES_PER_LINEAGE,
+  DEFAULT_MAX_BRANCHES_PER_TIMELINE,
+  DEFAULT_TIMELINE_ID,
   MAX_SCENARIO_PROMPT_LENGTH,
   NINETY_DAYS_MS,
   PAINTER_AGENT_MODEL,
@@ -24,9 +24,9 @@ import {
 import { createCorridorBaseCanvasWebp, isWebpBuffer } from "./helpers/webp-codec.ts";
 import {
   countOccupiedBranchSlots,
-  withLineageBranchAdmission,
+  withTimelineBranchAdmission,
   wrapRepositoryWithBranchSlot,
-} from "./lineage-branch-slots.ts";
+} from "./timeline-branch-slots.ts";
 import {
   evaluatePainterMilestoneGate,
   failClosedInteraction,
@@ -60,7 +60,7 @@ export interface PaintMilestoneDeltaInput {
   now?: Date;
 }
 
-export interface BranchLineageInput {
+export interface BranchTimelineInput {
   parentInteractionId: string;
   scenarioPrompt: string;
   lineageId?: string;
@@ -100,8 +100,8 @@ export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: Painter
   if (ctx.activeIllustration !== null) {
     return failClosedPainter(ctx, {
       stage: "painter_bootstrap",
-      reason: `Lineage "${ctx.lineageId}" is already bootstrapped (${ctx.activeIllustration.plateId})`,
-      errorCode: "lineage_already_bootstrapped",
+      reason: `Timeline "${ctx.lineageId}" is already bootstrapped (${ctx.activeIllustration.plateId})`,
+      errorCode: "timeline_already_bootstrapped",
       tokensUsed: 0,
       observations: milestoneObservations,
     });
@@ -149,7 +149,7 @@ export async function paintMilestoneDelta(
   if (!parentPlate) {
     return failClosedPainter(ctx, {
       stage: "painter_milestone_delta",
-      reason: `Canonical parent GeneratedIllustration not found for lineage "${ctx.lineageId}"`,
+      reason: `Canonical parent GeneratedIllustration not found for timeline "${ctx.lineageId}"`,
       errorCode: "parent_not_found",
       tokensUsed: 0,
       observations: milestoneObservations,
@@ -176,13 +176,13 @@ export async function paintMilestoneDelta(
   });
 }
 
-export async function branchLineage(input: BranchLineageInput, deps: PainterDeps): Promise<StatefulPainterResult> {
+export async function branchTimeline(input: BranchTimelineInput, deps: PainterDeps): Promise<StatefulPainterResult> {
   const trimmedScenario = input.scenarioPrompt.trim();
   const parentPlate = await deps.repository.getGeneratedIllustrationByInteractionId(input.parentInteractionId);
-  const lineageId = input.lineageId ?? parentPlate?.lineageId ?? DEFAULT_LINEAGE_ID;
-  const maxBranches = input.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_LINEAGE;
+  const lineageId = input.lineageId ?? parentPlate?.lineageId ?? DEFAULT_TIMELINE_ID;
+  const maxBranches = input.maxBranchesPerLineage ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
 
-  const admission = await withLineageBranchAdmission(deps.repository, lineageId, async (reserve) => {
+  const admission = await withTimelineBranchAdmission(deps.repository, lineageId, async (reserve) => {
     const { ctx, existingPlates } = await preparePainterTurn(
       { lineageId, ...(input.now !== undefined ? { now: input.now } : {}) },
       deps
@@ -203,7 +203,7 @@ export async function branchLineage(input: BranchLineageInput, deps: PainterDeps
         result: rejectBranchPrecondition(
           ctx,
           "parent_not_found",
-          `Unknown or expired parent interactionId "${input.parentInteractionId}" for lineage "${lineageId}"`
+          `Unknown or expired parent interactionId "${input.parentInteractionId}" for timeline "${lineageId}"`
         ),
       };
     }
@@ -213,7 +213,7 @@ export async function branchLineage(input: BranchLineageInput, deps: PainterDeps
         result: rejectBranchPrecondition(
           ctx,
           "branch_quota_exceeded",
-          `Branch quota exceeded for lineage "${lineageId}" (max ${maxBranches})`
+          `Branch quota exceeded for timeline "${lineageId}" (max ${maxBranches})`
         ),
       };
     }
@@ -238,7 +238,7 @@ export async function branchLineage(input: BranchLineageInput, deps: PainterDeps
     return await finalizePaintedIllustrationTurn(
       { ...admission.ctx, repository: wrapRepositoryWithBranchSlot(deps.repository, admission.slot) },
       {
-        operation: "branchLineage",
+        operation: "branchTimeline",
         stage: "painter_branch_timeline",
         turn: outcome.turn,
         parentPlate: admission.validParent,

@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
-  branchLineage,
+  branchTimeline,
   CANONICAL_MILESTONE_LABEL,
   CandidateSelectorPatchSchema,
   createGridlockHttpServer,
@@ -326,7 +326,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
     throw new Error("Expected illustration_painted for bootstrapCanvas");
   }
 
-  const branchRes = await branchLineage(
+  const branchRes = await branchTimeline(
     {
       lineageId: DEFAULT_LINEAGE_ID,
       parentInteractionId: bootstrapRes.illustration.interactionId,
@@ -337,7 +337,7 @@ export async function seedFiveCardOrchestrationRepository(): Promise<{
   );
   assert.equal(branchRes.status, "illustration_painted");
   if (branchRes.status !== "illustration_painted") {
-    throw new Error("Expected illustration_painted for branchLineage");
+    throw new Error("Expected illustration_painted for branchTimeline");
   }
 
   await saveTestVisualPlate(repository, {

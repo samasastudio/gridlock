@@ -45,7 +45,7 @@ function makePlateNode(
 ): LineageNode {
   return {
     plate: { ...plate, lineageId: DEFAULT_LINEAGE_ID, model: PAINTER_AGENT_MODEL, mimeType: "image/webp", byteLength: 129_782 },
-    assetPath: `/api/plates/assets/${plate.plateId}.webp`,
+    assetPath: `/api/illustrations/assets/${plate.plateId}.webp`,
     triggeringObservations,
     rawCaptures,
   };

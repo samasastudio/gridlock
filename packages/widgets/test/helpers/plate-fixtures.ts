@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import type { AddressInfo } from "node:net";
 import {
-  ARTIFACT_BUCKET_URI, bootstrapCanvas, branchLineage, createCorridorBaseCanvasWebp, createGridlockHttpServer,
-  createInMemoryGridlockRepository, getPlateLineage, ObservationSchema, paintMilestoneDelta,
+  ARTIFACT_BUCKET_URI, bootstrapCanvas, branchTimeline, createCorridorBaseCanvasWebp, createGridlockHttpServer,
+  createInMemoryGridlockRepository, getFrameTimeline, ObservationSchema, paintMilestoneDelta,
   PlateLineageResponseSchema, RawCaptureSchema,
   type GeminiInteractionsClient, type GridlockHttpDeps, type PlateLineageResponse,
 } from "@samasastudio/gridlock-core";
@@ -87,24 +87,24 @@ export async function seedTestPlateLineage() {
   assert.equal(t1.status, "illustration_painted");
   assert.equal(t2.status, "illustration_painted");
 
-  const b1 = await branchLineage(
+  const b1 = await branchTimeline(
     { parentInteractionId: t2.illustration.interactionId, scenarioPrompt: "Simulate +400MW ERCOT substation interconnection delay", now: new Date("2026-10-29T11:00:00.000Z") },
     { repository, geminiClient }
   );
   assert.equal(b1.status, "illustration_painted");
   b1InteractionId = b1.illustration.interactionId;
 
-  const b2 = await branchLineage(
+  const b2 = await branchTimeline(
     { parentInteractionId: b1.illustration.interactionId, scenarioPrompt: "Model dual-feed 345kV transmission reroute around Ellis County", now: new Date("2026-10-30T15:00:00.000Z") },
     { repository, geminiClient }
   );
   assert.equal(b2.status, "illustration_painted");
   assert.equal(b2.illustration.rebootstrappedFromParentWebp, true);
 
-  const hydrated = await getPlateLineage({ now: PLATE_FIXTURE_NOW }, { repository });
+  const hydrated = await getFrameTimeline({ now: PLATE_FIXTURE_NOW }, { repository });
   if (!hydrated.ok) throw new Error(hydrated.message);
 
-  return { repository, geminiClient, lineage: hydrated.lineage, t1: t1.illustration, t2: t2.illustration, b1: b1.illustration, b2: b2.illustration, h1, h2, hAged };
+  return { repository, geminiClient, lineage: hydrated.timeline, t1: t1.illustration, t2: t2.illustration, b1: b1.illustration, b2: b2.illustration, h1, h2, hAged };
 }
 
 export function buildBranchOnlyLineage(
@@ -128,7 +128,7 @@ export function buildBranchOnlyLineage(
 export async function seedTurn1ForkLineage(
   seeded: Awaited<ReturnType<typeof seedTestPlateLineage>>
 ) {
-  const bFromT1 = await branchLineage(
+  const bFromT1 = await branchTimeline(
     {
       parentInteractionId: seeded.t1.interactionId,
       scenarioPrompt: "Model direct Turn 1 substation fork",
@@ -136,7 +136,7 @@ export async function seedTurn1ForkLineage(
     },
     { repository: seeded.repository, geminiClient: seeded.geminiClient }
   );
-  const refreshed = await getPlateLineage(
+  const refreshed = await getFrameTimeline(
     { now: PLATE_FIXTURE_NOW },
     { repository: seeded.repository }
   );
@@ -146,7 +146,7 @@ export async function seedTurn1ForkLineage(
   }
 
   return {
-    lineage: refreshed.lineage,
+    lineage: refreshed.timeline,
     branchPlate: bFromT1.illustration,
   };
 }

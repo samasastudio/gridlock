@@ -71,7 +71,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
       }
 
       const imgSrc = html.match(/<img[^>]*src="([^"]+)"/)?.[1];
-      assert.equal(imgSrc, `${apiBaseUrl}/api/plates/assets/${seeded.t2.plateId}.webp`);
+      assert.equal(imgSrc, `${apiBaseUrl}/api/illustrations/assets/${seeded.t2.plateId}.webp`);
       const imgRes = await fetch(imgSrc!);
       assert.equal(imgRes.status, 200);
       assert.equal(imgRes.headers.get("content-type"), "image/webp");
@@ -83,7 +83,7 @@ describe("<GridlockPlateWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (Tic
     const seeded = await seedTestPlateLineage();
 
     const sameOriginHtml = await streamHtml(<GridlockPlateWidget apiBaseUrl="" snapshotPromise={Promise.resolve({ ok: true, lineage: seeded.lineage })} />);
-    assert.match(sameOriginHtml, new RegExp(`src="/api/plates/assets/${seeded.t2.plateId}\\.webp"`));
+    assert.match(sameOriginHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.plateId}\\.webp"`));
 
     const branchHtml = renderToStaticMarkup(<GridlockPlateWidget lineage={seeded.lineage} selectedPlateId={seeded.b1.plateId} apiBaseUrl="" />);
     for (const pattern of [

@@ -82,7 +82,7 @@ export const GeneratedIllustrationSchema = z
 export type GeneratedIllustration = z.infer<typeof GeneratedIllustrationSchema>;
 
 export type PainterErrorCode =
-  | "lineage_already_bootstrapped"
+  | "timeline_already_bootstrapped"
   | "invalid_base_canvas"
   | "parent_not_found"
   | "invalid_scenario_prompt"
@@ -100,7 +100,7 @@ export type StatefulPainterResult =
     }
   | {
       status: "illustration_painted";
-      operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchLineage";
+      operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchTimeline";
       lineageId: string;
       illustration: GeneratedIllustration;
       webpBuffer: Buffer;
@@ -116,7 +116,7 @@ export type StatefulPainterResult =
       activeIllustration: GeneratedIllustration | null;
     };
 
-export const LineageSourceCitationSchema = z.object({
+export const TimelineSourceCitationSchema = z.object({
   sha256: Sha256HashSchema,
   sourceUrl: z.string().url(),
   connectorId: z.string().min(1),
@@ -124,17 +124,17 @@ export const LineageSourceCitationSchema = z.object({
   referencedByMilestone: z.boolean(),
 });
 
-export type LineageSourceCitation = z.infer<typeof LineageSourceCitationSchema>;
+export type TimelineSourceCitation = z.infer<typeof TimelineSourceCitationSchema>;
 
-export const LineageNodeSchema = z
+export const FrameTimelineNodeSchema = z
   .object({
     plate: GeneratedIllustrationSchema,
-    assetPath: z.string().startsWith("/api/plates/assets/").endsWith(".webp"),
+    assetPath: z.string().startsWith("/api/illustrations/assets/").endsWith(".webp"),
     triggeringObservations: z.array(ObservationSchema),
-    rawCaptures: z.array(LineageSourceCitationSchema),
+    rawCaptures: z.array(TimelineSourceCitationSchema),
   })
   .superRefine((node, ctx) => {
-    const expectedPath = `/api/plates/assets/${encodeURIComponent(node.plate.plateId)}.webp`;
+    const expectedPath = `/api/illustrations/assets/${encodeURIComponent(node.plate.plateId)}.webp`;
     if (node.assetPath !== expectedPath) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -150,7 +150,7 @@ export const LineageNodeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["triggeringObservations"],
-        message: "Observation ID not referenced by plate",
+        message: "Observation ID not referenced by illustration",
       });
     }
     if (
@@ -161,14 +161,14 @@ export const LineageNodeSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["rawCaptures"],
-        message: "RawCapture sha256 not referenced by plate",
+        message: "RawCapture sha256 not referenced by illustration",
       });
     }
   });
 
-export type LineageNode = z.infer<typeof LineageNodeSchema>;
+export type FrameTimelineNode = z.infer<typeof FrameTimelineNodeSchema>;
 
-export const LineageEdgeSchema = z.object({
+export const FrameTimelineEdgeSchema = z.object({
   parentInteractionId: z.string().min(1),
   childInteractionId: z.string().min(1),
   parentPlateId: z.string().min(1),
@@ -176,21 +176,21 @@ export const LineageEdgeSchema = z.object({
   isBranch: z.boolean(),
 });
 
-export type LineageEdge = z.infer<typeof LineageEdgeSchema>;
+export type FrameTimelineEdge = z.infer<typeof FrameTimelineEdgeSchema>;
 
-export const PlateLineageResponseSchema = z
+export const FrameTimelineResponseSchema = z
   .object({
     lineageId: SafeSegmentIdSchema,
     activeCanonicalPlateId: z.string().min(1).nullable(),
-    nodes: z.array(LineageNodeSchema),
-    edges: z.array(LineageEdgeSchema),
+    nodes: z.array(FrameTimelineNodeSchema),
+    edges: z.array(FrameTimelineEdgeSchema),
   })
   .superRefine((data, ctx) => {
     const fail = (path: Array<string | number>, message: string) =>
       ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
 
     if (data.nodes.some((node) => node.plate.lineageId !== data.lineageId)) {
-      fail(["nodes"], "All LineageNodes must match lineageId");
+      fail(["nodes"], "All FrameTimelineNodes must match lineageId");
     }
 
     const uniquePlateIds = new Set(data.nodes.map((node) => node.plate.plateId));
@@ -201,7 +201,7 @@ export const PlateLineageResponseSchema = z
       uniquePlateIds.size !== data.nodes.length ||
       uniqueInteractionIds.size !== data.nodes.length
     ) {
-      fail(["nodes"], "Duplicate plateId or interactionId in LineageNodes");
+      fail(["nodes"], "Duplicate plateId or interactionId in FrameTimelineNodes");
     }
 
     const canonicalIds = new Set(
@@ -240,14 +240,14 @@ export const PlateLineageResponseSchema = z
     if (invalidEdgeIdx !== -1) {
       fail(
         ["edges", invalidEdgeIdx],
-        "LineageEdge endpoints must match active parent-child nodes"
+        "FrameTimelineEdge endpoints must match active parent-child nodes"
       );
     }
   });
 
-export type PlateLineageResponse = z.infer<typeof PlateLineageResponseSchema>;
+export type FrameTimelineResponse = z.infer<typeof FrameTimelineResponseSchema>;
 
-export const BranchPlateRequestSchema = z
+export const BranchIllustrationRequestSchema = z
   .object({
     interactionId: z.string().trim().min(1),
     scenarioPrompt: z.string().trim().min(1).max(MAX_SCENARIO_PROMPT_LENGTH),
@@ -255,12 +255,12 @@ export const BranchPlateRequestSchema = z
   })
   .strict();
 
-export type BranchPlateRequest = z.infer<typeof BranchPlateRequestSchema>;
+export type BranchIllustrationRequest = z.infer<typeof BranchIllustrationRequestSchema>;
 
-export const BranchPlateResponseSchema = z
+export const BranchIllustrationResponseSchema = z
   .object({
     plate: GeneratedIllustrationSchema,
-    node: LineageNodeSchema,
+    node: FrameTimelineNodeSchema,
     lineageId: SafeSegmentIdSchema,
     tokensUsed: z.number().int().nonnegative(),
     rebootstrappedFromParentWebp: z.boolean(),
@@ -274,7 +274,7 @@ export const BranchPlateResponseSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["plate"],
-        message: `BranchPlateResponse requires branched plate with "${SCENARIO_BRANCH_WATERMARK}"`,
+        message: `BranchIllustrationResponse requires branched illustration with "${SCENARIO_BRANCH_WATERMARK}"`,
       });
     }
     if (
@@ -286,9 +286,9 @@ export const BranchPlateResponseSchema = z
         code: z.ZodIssueCode.custom,
         path: ["node"],
         message:
-          "BranchPlateResponse node, lineageId, and rebootstrappedFromParentWebp must match plate",
+          "BranchIllustrationResponse node, lineageId, and rebootstrappedFromParentWebp must match illustration",
       });
     }
   });
 
-export type BranchPlateResponse = z.infer<typeof BranchPlateResponseSchema>;
+export type BranchIllustrationResponse = z.infer<typeof BranchIllustrationResponseSchema>;

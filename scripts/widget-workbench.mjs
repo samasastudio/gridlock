@@ -7,7 +7,7 @@ import * as esbuild from "esbuild";
 import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
-  branchLineage,
+  branchTimeline,
   createCorridorBaseCanvasWebp,
   createInMemoryGridlockRepository,
   DEFAULT_TDLR_CONNECTOR_CONFIG,
@@ -200,7 +200,7 @@ async function seedWorkbenchPlateLineage(repo) {
     gzBytes
   );
 
-  const b1Result = await branchLineage(
+  const b1Result = await branchTimeline(
     {
       parentInteractionId: t2Result.illustration.interactionId,
       scenarioPrompt: "Simulate +400MW ERCOT 345kV substation queue delay across Red Oak campus",
@@ -483,9 +483,9 @@ async function verifyWebpAssetRoute(baseUrl, assetPath) {
 }
 
 async function verifyWorkbenchPlateSeam(baseUrl) {
-  const lineageRes = await fetch(`${baseUrl}/api/plates/lineage`);
+  const lineageRes = await fetch(`${baseUrl}/api/illustrations/timeline`);
   if (!lineageRes.ok) {
-    throw new Error(`/api/plates/lineage returned HTTP ${lineageRes.status}`);
+    throw new Error(`/api/illustrations/timeline returned HTTP ${lineageRes.status}`);
   }
 
   const lineage = await lineageRes.json();
@@ -495,7 +495,7 @@ async function verifyWorkbenchPlateSeam(baseUrl) {
     !lineage.activeCanonicalPlateId
   ) {
     throw new Error(
-      "Expected >= 3 seeded VisualPlate nodes and activeCanonicalPlateId in /api/plates/lineage"
+      "Expected >= 3 seeded GeneratedIllustration nodes and activeCanonicalPlateId in /api/illustrations/timeline"
     );
   }
 
@@ -503,12 +503,12 @@ async function verifyWorkbenchPlateSeam(baseUrl) {
     (node) => node.plate.plateId === lineage.activeCanonicalPlateId
   );
   if (!activeNode) {
-    throw new Error("Active canonical node missing from /api/plates/lineage nodes");
+    throw new Error("Active canonical node missing from /api/illustrations/timeline nodes");
   }
 
   await verifyWebpAssetRoute(baseUrl, activeNode.assetPath);
 
-  const branchRes = await fetch(`${baseUrl}/api/plates/branch`, {
+  const branchRes = await fetch(`${baseUrl}/api/illustrations/branch`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -517,12 +517,12 @@ async function verifyWorkbenchPlateSeam(baseUrl) {
     }),
   });
   if (branchRes.status !== 201) {
-    throw new Error(`/api/plates/branch expected HTTP 201, got ${branchRes.status}`);
+    throw new Error(`/api/illustrations/branch expected HTTP 201, got ${branchRes.status}`);
   }
 
   const branched = await branchRes.json();
   if (branched?.plate?.isBranch !== true || !branched?.node?.assetPath) {
-    throw new Error("Expected branched VisualPlate payload from POST /api/plates/branch");
+    throw new Error("Expected branched GeneratedIllustration payload from POST /api/illustrations/branch");
   }
 
   await verifyWebpAssetRoute(baseUrl, branched.node.assetPath);
@@ -541,7 +541,7 @@ server.listen(PORT, HOST, async () => {
       );
       await verifyWorkbenchPlateSeam(baseUrl);
       console.log(
-        "Widget workbench smoke check OK (/, /bundle.js, /atlas-tokens.css, /api/repairs/changelog, /api/efficiency/scorecard, /api/plates/*)"
+        "Widget workbench smoke check OK (/, /bundle.js, /atlas-tokens.css, /api/repairs/changelog, /api/efficiency/scorecard, /api/illustrations/*)"
       );
       server.close(() => process.exit(0));
     } catch (err) {

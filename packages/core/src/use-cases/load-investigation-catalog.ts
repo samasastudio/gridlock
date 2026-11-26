@@ -7,7 +7,7 @@ import {
   type RunRecord,
 } from "../interfaces/index.ts";
 import { getEfficiencyScorecard } from "./get-efficiency-scorecard.ts";
-import { getPlateLineage } from "./get-plate-lineage.ts";
+import { getFrameTimeline } from "./get-frame-timeline.ts";
 import { getRepairChangelog } from "./get-repair-changelog.ts";
 import {
   buildFilingCatalogEntries,
@@ -128,7 +128,7 @@ export async function loadOrchestrationGroundingCatalog(
 
     const lineageResults = await Promise.all(
       validatedLineages.lineageIds.map((lineageId) =>
-        getPlateLineage({ lineageId, now }, { repository })
+        getFrameTimeline({ lineageId, now }, { repository })
       )
     );
     const failedLineage = lineageResults.find((result) => !result.ok);
@@ -136,7 +136,7 @@ export async function loadOrchestrationGroundingCatalog(
       return { ok: false, message: failedLineage.message };
     }
     const validLineages = lineageResults.flatMap((result) =>
-      result.ok ? [result.lineage] : []
+      result.ok ? [result.timeline] : []
     );
 
     const candidateConnectorIds = collectCandidateConnectorIds(

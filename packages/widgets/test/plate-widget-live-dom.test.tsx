@@ -85,9 +85,9 @@ describe("<GridlockPlateWidget /> Client Live Fetch & Retry DOM Lifecycle (Ticke
           root.render(<GridlockPlateWidget apiBaseUrl="" />);
         });
         await waitForDom(() => container.querySelector(".gridlock-plate-viewport") !== null);
-        assert.deepEqual(requestedUrls, ["/api/plates/lineage"]);
+        assert.deepEqual(requestedUrls, ["/api/illustrations/timeline"]);
         assert.equal(container.querySelector(".gridlock-plate-viewport")?.getAttribute("data-plate-id"), seeded.t2.plateId);
-        assert.equal(container.querySelector("img")?.getAttribute("src"), `/api/plates/assets/${seeded.t2.plateId}.webp`);
+        assert.equal(container.querySelector("img")?.getAttribute("src"), `/api/illustrations/assets/${seeded.t2.plateId}.webp`);
 
         await act(async () => {
           root.render(

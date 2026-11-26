@@ -7,19 +7,19 @@ import { describe, test } from "node:test";
 import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
-  branchLineage,
-  BranchPlateRequestSchema,
-  BranchPlateResponseSchema,
+  branchTimeline,
+  BranchIllustrationRequestSchema,
+  BranchIllustrationResponseSchema,
   createGridlockHttpServer,
   createInMemoryGridlockRepository,
-  DEFAULT_LINEAGE_ID,
+  DEFAULT_TIMELINE_ID,
   isWebpBuffer,
-  LineageNodeSchema,
+  FrameTimelineNodeSchema,
   MAX_SCENARIO_PROMPT_LENGTH,
   NINETY_DAYS_MS,
   ObservationSchema,
   paintMilestoneDelta,
-  PlateLineageResponseSchema,
+  FrameTimelineResponseSchema,
   SCENARIO_BRANCH_WATERMARK,
   RawCaptureSchema,
   GeneratedIllustrationSchema,
@@ -161,7 +161,7 @@ async function seedLineageGraph() {
     ),
     gzBuffer
   );
-  const b1 = await branchLineage(
+  const b1 = await branchTimeline(
     {
       parentInteractionId: t2.status === "illustration_painted" ? t2.illustration.interactionId : "",
       scenarioPrompt: "Simulate +400MW interconnection delay",
@@ -169,7 +169,7 @@ async function seedLineageGraph() {
     },
     { repository, geminiClient }
   );
-  const b2 = await branchLineage(
+  const b2 = await branchTimeline(
     {
       parentInteractionId: b1.status === "illustration_painted" ? b1.illustration.interactionId : "",
       scenarioPrompt: "Add ERCOT transmission constraint",
@@ -197,19 +197,19 @@ async function seedLineageGraph() {
   };
 }
 
-describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", () => {
-  test("Empty lineage returns 200 across default and explicit unknown lineage_id, and schema rejects broken cross-record invariants", async () => {
+describe("GET /api/illustrations/timeline HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", () => {
+  test("Empty lineage returns 200 across default and explicit unknown timeline_id, and schema rejects broken cross-record invariants", async () => {
     await withPlatesServer(
       { repository: createInMemoryGridlockRepository() },
       async (baseUrl) => {
         for (const [suffix, expectedId] of [
-          ["", DEFAULT_LINEAGE_ID],
-          ["?lineage_id=unknown-corridor", "unknown-corridor"],
+          ["", DEFAULT_TIMELINE_ID],
+          ["?timeline_id=unknown-corridor", "unknown-corridor"],
         ] as const) {
-          const res = await fetch(`${baseUrl}/api/plates/lineage${suffix}`);
+          const res = await fetch(`${baseUrl}/api/illustrations/timeline${suffix}`);
           assert.equal(res.status, 200);
           assert.equal(res.headers.get("cache-control"), "no-store");
-          assert.deepEqual(PlateLineageResponseSchema.parse(await res.json()), {
+          assert.deepEqual(FrameTimelineResponseSchema.parse(await res.json()), {
             lineageId: expectedId,
             activeCanonicalPlateId: null,
             nodes: [],
@@ -220,8 +220,8 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
     );
 
     assert.throws(() =>
-      PlateLineageResponseSchema.parse({
-        lineageId: DEFAULT_LINEAGE_ID,
+      FrameTimelineResponseSchema.parse({
+        lineageId: DEFAULT_TIMELINE_ID,
         activeCanonicalPlateId: "ghost",
         nodes: [],
         edges: [],
@@ -234,27 +234,27 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
     assert.equal(GeneratedIllustrationSchema.safeParse({ ...t1, lineageId: "austin north" }).success, false);
     const t1NodeBase = {
       plate: t1,
-      assetPath: `/api/plates/assets/${t1.plateId}.webp`,
+      assetPath: `/api/illustrations/assets/${t1.plateId}.webp`,
       triggeringObservations: [obs1],
       rawCaptures: [],
     };
     assert.equal(
-      LineageNodeSchema.safeParse({
+      FrameTimelineNodeSchema.safeParse({
         ...t1NodeBase,
-        assetPath: "/api/plates/assets/other_plate.webp",
+        assetPath: "/api/illustrations/assets/other_plate.webp",
       }).success,
       false
     );
     assert.equal(
-      LineageNodeSchema.safeParse({
+      FrameTimelineNodeSchema.safeParse({
         ...t1NodeBase,
         triggeringObservations: [{ ...obs1, id: "obs_unreferenced" }],
       }).success,
       false
     );
     assert.equal(
-      PlateLineageResponseSchema.safeParse({
-        lineageId: DEFAULT_LINEAGE_ID,
+      FrameTimelineResponseSchema.safeParse({
+        lineageId: DEFAULT_TIMELINE_ID,
         activeCanonicalPlateId: t1.plateId,
         nodes: [t1NodeBase],
         edges: [
@@ -279,8 +279,8 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
     await withPlatesServer(
       { repository, now: () => clock },
       async (baseUrl) => {
-        const initialRes = await fetch(`${baseUrl}/api/plates/lineage`);
-        const initial = PlateLineageResponseSchema.parse(await initialRes.json());
+        const initialRes = await fetch(`${baseUrl}/api/illustrations/timeline`);
+        const initial = FrameTimelineResponseSchema.parse(await initialRes.json());
 
         assert.equal(initial.activeCanonicalPlateId, t2.plateId);
         assert.deepEqual(
@@ -309,8 +309,8 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
         assert.equal(initial.edges.length, 3);
 
         clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
-        const afterTtlRes = await fetch(`${baseUrl}/api/plates/lineage`);
-        const afterTtl = PlateLineageResponseSchema.parse(await afterTtlRes.json());
+        const afterTtlRes = await fetch(`${baseUrl}/api/illustrations/timeline`);
+        const afterTtl = FrameTimelineResponseSchema.parse(await afterTtlRes.json());
 
         assert.deepEqual(
           afterTtl.nodes.map((node) => node.plate.plateId),
@@ -363,22 +363,22 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
       { repository: proxyRepo, now: () => new Date("2026-11-01T00:00:00.000Z") },
       async (baseUrl) => {
         for (const bad of [
-          "?lineage_id=a&lineage_id=b",
-          "?lineage_id=%20",
-          "?lineage_id=austin%2Fnorth",
-          "?lineage_id=..",
-          "?lineage_id=.",
+          "?timeline_id=a&timeline_id=b",
+          "?timeline_id=%20",
+          "?timeline_id=austin%2Fnorth",
+          "?timeline_id=..",
+          "?timeline_id=.",
           "?foo=1",
         ]) {
           await assertErr(
-            fetch(`${baseUrl}/api/plates/lineage${bad}`),
+            fetch(`${baseUrl}/api/illustrations/timeline${bad}`),
             400,
             "invalid_query_parameters"
           );
         }
 
         const methodErr = await assertErr(
-          fetch(`${baseUrl}/api/plates/lineage`, { method: "POST" }),
+          fetch(`${baseUrl}/api/illustrations/timeline`, { method: "POST" }),
           405,
           "method_not_allowed"
         );
@@ -387,23 +387,23 @@ describe("GET /api/plates/lineage HTTP Seam (Seam 3 API, Ticket #33 Phase 1)", (
         for (const mode of ["plate", "obs", "art", "throw"] as const) {
           fault = mode;
           await assertErr(
-            fetch(`${baseUrl}/api/plates/lineage`),
+            fetch(`${baseUrl}/api/illustrations/timeline`),
             500,
-            "plate_lineage_error"
+            "frame_timeline_error"
           );
         }
 
         fault = "none";
-        const okRes = await fetch(`${baseUrl}/api/plates/lineage`);
+        const okRes = await fetch(`${baseUrl}/api/illustrations/timeline`);
         assert.equal(okRes.status, 200);
-        const okLineage = PlateLineageResponseSchema.parse(await okRes.json());
+        const okLineage = FrameTimelineResponseSchema.parse(await okRes.json());
         assert.equal(okLineage.nodes.length, 4);
       }
     );
   });
 });
 
-describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33 Phase 2)", () => {
+describe("GET /api/illustrations/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33 Phase 2)", () => {
   test("Round-trips 200 canonical (immutable) and active branch (no-store) WebP bytes and enforces 404 on missing, expired, blobless, or malformed paths", async () => {
     const { repository, t1, b1, b2 } = await seedLineageGraph();
     let clock = new Date("2026-11-01T00:00:00.000Z");
@@ -421,8 +421,8 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
     await withPlatesServer(
       { repository: proxyRepo, now: () => clock },
       async (baseUrl) => {
-        const lineage = PlateLineageResponseSchema.parse(
-          await (await fetch(`${baseUrl}/api/plates/lineage`)).json()
+        const lineage = FrameTimelineResponseSchema.parse(
+          await (await fetch(`${baseUrl}/api/illustrations/timeline`)).json()
         );
         assert.equal(lineage.nodes.length, 4);
 
@@ -463,7 +463,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           "..webp",
         ]) {
           assert.equal(
-            (await fetch(`${baseUrl}/api/plates/assets/${bad}`)).status,
+            (await fetch(`${baseUrl}/api/illustrations/assets/${bad}`)).status,
             404
           );
         }
@@ -471,27 +471,27 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
 
         dropBlob = true;
         await assertErr(
-          fetch(`${baseUrl}/api/plates/assets/${t1.plateId}.webp`),
+          fetch(`${baseUrl}/api/illustrations/assets/${t1.plateId}.webp`),
           404,
-          "plate_not_found"
+          "illustration_not_found"
         );
         dropBlob = false;
 
         clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
         readWebpCalls = 0;
         assert.equal(
-          (await fetch(`${baseUrl}/api/plates/assets/${b1.plateId}.webp`))
+          (await fetch(`${baseUrl}/api/illustrations/assets/${b1.plateId}.webp`))
             .status,
           404
         );
         assert.equal(readWebpCalls, 0);
         assert.equal(
-          (await fetch(`${baseUrl}/api/plates/assets/${t1.plateId}.webp`))
+          (await fetch(`${baseUrl}/api/illustrations/assets/${t1.plateId}.webp`))
             .status,
           200
         );
         assert.equal(
-          (await fetch(`${baseUrl}/api/plates/assets/${b2.plateId}.webp`))
+          (await fetch(`${baseUrl}/api/illustrations/assets/${b2.plateId}.webp`))
             .status,
           200
         );
@@ -553,7 +553,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
     await withPlatesServer(
       { repository: proxyRepo, now: () => new Date("2026-11-01T00:00:00.000Z") },
       async (baseUrl) => {
-        const assetUrl = `${baseUrl}/api/plates/assets/${encodeURIComponent(t1.plateId)}.webp`;
+        const assetUrl = `${baseUrl}/api/illustrations/assets/${encodeURIComponent(t1.plateId)}.webp`;
 
         await assertErr(
           fetch(`${assetUrl}?unexpected=1`),
@@ -580,7 +580,7 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
           const corruptRes = await assertErr(
             fetch(assetUrl),
             500,
-            "plate_asset_error"
+            "illustration_asset_error"
           );
           assert.equal(corruptRes.headers.get("cache-control"), "no-store");
           if (mode === "id_mismatch" || mode === "bad_schema") {
@@ -595,8 +595,8 @@ describe("GET /api/plates/assets/:plateId.webp HTTP Seam (Seam 3 API, Ticket #33
   });
 });
 
-describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", () => {
-  test("Returns 201 Created with watermarked WebP + XMP dc:rights and updates GET /api/plates/lineage without advancing activeCanonicalPlateId", async () => {
+describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", () => {
+  test("Returns 201 Created with watermarked WebP + XMP dc:rights and updates GET /api/illustrations/timeline without advancing activeCanonicalPlateId", async () => {
     const { repository, t2, h2, hAged } = await seedLineageGraph();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const clock = new Date("2026-11-02T12:00:00.000Z");
@@ -622,7 +622,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
       { repository, geminiClient, now: () => clock },
       async (baseUrl) => {
         const res = await postJson(
-          `${baseUrl}/api/plates/branch`,
+          `${baseUrl}/api/illustrations/branch`,
           JSON.stringify({
             interactionId: t2.interactionId,
             scenarioPrompt: "  Simulate +300MW Austin North substation  ",
@@ -631,7 +631,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         assert.equal(res.status, 201);
         assert.equal(res.headers.get("cache-control"), "no-store");
 
-        const created = BranchPlateResponseSchema.parse(await res.json());
+        const created = BranchIllustrationResponseSchema.parse(await res.json());
         assert.equal(created.plate.isBranch, true);
         assert.equal(created.plate.epistemicLabel, SCENARIO_BRANCH_WATERMARK);
         assert.equal(created.plate.watermarkText, SCENARIO_BRANCH_WATERMARK);
@@ -651,10 +651,10 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         );
 
         assert.throws(() =>
-          BranchPlateResponseSchema.parse({ ...created, plate: t2 })
+          BranchIllustrationResponseSchema.parse({ ...created, plate: t2 })
         );
         assert.throws(() =>
-          BranchPlateRequestSchema.parse({
+          BranchIllustrationRequestSchema.parse({
             interactionId: t2.interactionId,
             scenarioPrompt: "ok",
             extra: 1,
@@ -677,8 +677,8 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
             .includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`)
         );
 
-        const lineage = PlateLineageResponseSchema.parse(
-          await (await fetch(`${baseUrl}/api/plates/lineage`)).json()
+        const lineage = FrameTimelineResponseSchema.parse(
+          await (await fetch(`${baseUrl}/api/illustrations/timeline`)).json()
         );
         assert.equal(lineage.activeCanonicalPlateId, t2.plateId);
         assert.ok(
@@ -734,14 +734,14 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
       },
       async (baseUrl) => {
         const methodErr = await assertErr(
-          fetch(`${baseUrl}/api/plates/branch`),
+          fetch(`${baseUrl}/api/illustrations/branch`),
           405,
           "method_not_allowed"
         );
         assert.equal(methodErr.headers.get("allow"), "POST");
 
         await assertErr(
-          postJson(`${baseUrl}/api/plates/branch?extra=1`, "{}"),
+          postJson(`${baseUrl}/api/illustrations/branch?extra=1`, "{}"),
           400,
           "invalid_query_parameters"
         );
@@ -803,7 +803,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         ];
         for (const [rawBody, expectedError] of badBodies) {
           await assertErr(
-            postJson(`${baseUrl}/api/plates/branch`, rawBody),
+            postJson(`${baseUrl}/api/illustrations/branch`, rawBody),
             400,
             expectedError
           );
@@ -818,15 +818,15 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           },
         ]) {
           await assertErr(
-            postJson(`${baseUrl}/api/plates/branch`, JSON.stringify(payload)),
+            postJson(`${baseUrl}/api/illustrations/branch`, JSON.stringify(payload)),
             404,
-            "parent_plate_not_found"
+            "parent_illustration_not_found"
           );
         }
 
         await assertErr(
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({
               interactionId: t2.interactionId,
               scenarioPrompt: "ok",
@@ -839,14 +839,14 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
         await assertErr(
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({
               interactionId: b1.interactionId,
               scenarioPrompt: "ok",
             })
           ),
           404,
-          "parent_plate_not_found"
+          "parent_illustration_not_found"
         );
 
         assert.equal(recordedRequests.length, 0);
@@ -857,7 +857,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         );
 
         const recovered = await postJson(
-          `${baseUrl}/api/plates/branch`,
+          `${baseUrl}/api/illustrations/branch`,
           JSON.stringify({
             interactionId: t2.interactionId,
             scenarioPrompt: "Post-TTL branch",
@@ -906,34 +906,34 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           fault = mode;
           await assertErr(
             postJson(
-              `${baseUrl}/api/plates/branch`,
+              `${baseUrl}/api/illustrations/branch`,
               JSON.stringify({
                 interactionId: t2.interactionId,
                 scenarioPrompt: "ok",
               })
             ),
             500,
-            "plate_branch_error"
+            "illustration_branch_error"
           );
         }
 
         fault = "none";
         await assertErr(
-          postJson(`${baseUrl}/api/plates/branch`, "{bad"),
+          postJson(`${baseUrl}/api/illustrations/branch`, "{bad"),
           400,
           "invalid_request_body"
         );
         await assertErr(
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({ interactionId: "ghost", scenarioPrompt: "ok" })
           ),
           404,
-          "parent_plate_not_found"
+          "parent_illustration_not_found"
         );
         await assertErr(
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({
               interactionId: t2.interactionId,
               scenarioPrompt: "ok",
@@ -948,21 +948,21 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
           fault = mode;
           await assertErr(
             postJson(
-              `${baseUrl}/api/plates/branch`,
+              `${baseUrl}/api/illustrations/branch`,
               JSON.stringify({
                 interactionId: t2.interactionId,
                 scenarioPrompt: "ok",
               })
             ),
             500,
-            "plate_branch_error"
+            "illustration_branch_error"
           );
         }
 
         fault = "none";
         await assertErr(
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({
               interactionId: t2.interactionId,
               scenarioPrompt: "ok",
@@ -1010,7 +1010,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         for (let attempt = 0; attempt < 3; attempt++) {
           await assertErr(
             postJson(
-              `${baseUrl}/api/plates/branch`,
+              `${baseUrl}/api/illustrations/branch`,
               JSON.stringify({
                 interactionId: t2.interactionId,
                 scenarioPrompt: "ok",
@@ -1022,7 +1022,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         }
 
         const recovered = await postJson(
-          `${baseUrl}/api/plates/branch`,
+          `${baseUrl}/api/illustrations/branch`,
           JSON.stringify({
             interactionId: t2.interactionId,
             scenarioPrompt: "ok",
@@ -1033,7 +1033,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
     );
   });
 
-  test("Serializes concurrent POST /api/plates/branch and branchLineage quota checks without calling Gemini twice", async () => {
+  test("Serializes concurrent POST /api/illustrations/branch and branchTimeline quota checks without calling Gemini twice", async () => {
     const { repository, t2, b1 } = await seedLineageGraph();
     const clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
@@ -1066,14 +1066,14 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
       async (baseUrl) => {
         const raceResponses = await Promise.all([
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({
               interactionId: t2.interactionId,
               scenarioPrompt: "Concurrent POST A",
             })
           ),
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({
               interactionId: t2.interactionId,
               scenarioPrompt: "Concurrent POST B",
@@ -1101,13 +1101,13 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
       async (baseUrl) => {
         const [httpOutcome, directOutcome] = await Promise.all([
           postJson(
-            `${baseUrl}/api/plates/branch`,
+            `${baseUrl}/api/illustrations/branch`,
             JSON.stringify({
               interactionId: t2.interactionId,
               scenarioPrompt: "Mixed HTTP branch",
             })
           ),
-          branchLineage(
+          branchTimeline(
             {
               parentInteractionId: t2.interactionId,
               scenarioPrompt: "Mixed direct branch",
@@ -1177,7 +1177,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
       },
       async (baseUrl) => {
         const post1Promise = postJson(
-          `${baseUrl}/api/plates/branch`,
+          `${baseUrl}/api/illustrations/branch`,
           JSON.stringify({
             interactionId: teleT2.interactionId,
             scenarioPrompt: "Scorecard overlap HTTP A",
@@ -1186,7 +1186,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         await savedPromise;
 
         const post2Res = await postJson(
-          `${baseUrl}/api/plates/branch`,
+          `${baseUrl}/api/illustrations/branch`,
           JSON.stringify({
             interactionId: teleT2.interactionId,
             scenarioPrompt: "Scorecard overlap HTTP B",
@@ -1216,7 +1216,7 @@ describe("POST /api/plates/branch HTTP Seam (Seam 3 API, Ticket #33 Phase 3)", (
         ).unref();
 
         const req = httpRequest(
-          new URL("/api/plates/branch", baseUrl),
+          new URL("/api/illustrations/branch", baseUrl),
           {
             method: "POST",
             headers: { "content-type": "application/json" },
