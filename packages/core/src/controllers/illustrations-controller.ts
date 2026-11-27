@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { z } from "zod";
 import { BranchIllustrationRequestSchema } from "../interfaces/index.ts";
-import { branchIllustration } from "../use-cases/branch-illustration.ts";
+import { branchIllustration, type BranchIllustrationError } from "../use-cases/run-painter-agent.ts";
 import {
   getFrameTimeline,
   getGeneratedIllustrationAsset,
@@ -16,6 +16,15 @@ import {
 } from "./http-utils.ts";
 
 const ASSET_PREFIX = "/api/illustrations/assets/";
+
+const BRANCH_ERROR_HTTP_STATUS: Record<BranchIllustrationError, number> = {
+  invalid_request_body: 400,
+  parent_illustration_not_found: 404,
+  branch_quota_exceeded: 429,
+  painter_unavailable: 503,
+  painter_upstream_error: 502,
+  illustration_branch_error: 500,
+};
 
 const EmptyQueryParamsSchema = z.object({}).strict();
 
@@ -155,7 +164,7 @@ export async function handlePostIllustrationBranch(
   const outcome = await branchIllustration(parsedBody.data, deps);
   sendJson(
     res,
-    outcome.status,
+    outcome.ok ? 201 : BRANCH_ERROR_HTTP_STATUS[outcome.error],
     outcome.ok
       ? outcome.response
       : { error: outcome.error, message: outcome.message }
