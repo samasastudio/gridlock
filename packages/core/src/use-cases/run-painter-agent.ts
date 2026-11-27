@@ -38,10 +38,10 @@ import {
   type PainterTurnContext,
 } from "./painter-turn-runner.ts";
 
-export interface PainterDeps {
+export interface PainterUseCaseDeps {
   repository: GridlockRepository;
   geminiClient: GeminiInteractionsClient;
-  imageEncoder?: PainterImageEncoder;
+  imageEncoder: PainterImageEncoder;
   spanSink?: RunSpanSink;
 }
 
@@ -92,7 +92,7 @@ function rejectBranchPrecondition(
   };
 }
 
-export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: PainterDeps): Promise<StatefulPainterResult> {
+export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: PainterUseCaseDeps): Promise<StatefulPainterResult> {
   const gate = await evaluatePainterMilestoneGate(input, deps);
   if (!gate.shouldPaint) return gate.result;
 
@@ -139,7 +139,7 @@ export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: Painter
 
 export async function paintMilestoneDelta(
   input: PaintMilestoneDeltaInput,
-  deps: PainterDeps
+  deps: PainterUseCaseDeps
 ): Promise<StatefulPainterResult> {
   const gate = await evaluatePainterMilestoneGate(input, deps);
   if (!gate.shouldPaint) return gate.result;
@@ -176,7 +176,7 @@ export async function paintMilestoneDelta(
   });
 }
 
-export async function branchTimeline(input: BranchTimelineInput, deps: PainterDeps): Promise<StatefulPainterResult> {
+export async function branchTimeline(input: BranchTimelineInput, deps: PainterUseCaseDeps): Promise<StatefulPainterResult> {
   const trimmedScenario = input.scenarioPrompt.trim();
   const parentPlate = await deps.repository.getGeneratedIllustrationByInteractionId(input.parentInteractionId);
   const timelineId = input.timelineId ?? parentPlate?.timelineId ?? DEFAULT_TIMELINE_ID;

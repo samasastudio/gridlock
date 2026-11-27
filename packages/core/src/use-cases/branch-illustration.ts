@@ -20,7 +20,7 @@ import { branchTimeline } from "./run-painter-agent.ts";
 export interface BranchIllustrationDeps {
   repository: GridlockRepository;
   geminiClient?: GeminiInteractionsClient;
-  imageEncoder?: PainterImageEncoder;
+  imageEncoder: PainterImageEncoder;
   spanSink?: RunSpanSink;
   maxBranchesPerTimeline?: number;
   now?: () => Date;
@@ -186,9 +186,7 @@ export async function branchIllustration(
       {
         repository: deps.repository,
         geminiClient: deps.geminiClient,
-        ...(deps.imageEncoder !== undefined
-          ? { imageEncoder: deps.imageEncoder }
-          : {}),
+        imageEncoder: deps.imageEncoder,
         ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
       }
     );

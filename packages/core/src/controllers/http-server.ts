@@ -24,7 +24,7 @@ import { handleGetEfficiencyScorecard } from "./efficiency-controller.ts";
 export type GridlockHttpDeps = {
   repository: GridlockRepository;
   geminiClient?: GeminiInteractionsClient;
-  imageEncoder?: PainterImageEncoder;
+  imageEncoder: PainterImageEncoder;
   spanSink?: RunSpanSink;
   maxBranchesPerTimeline?: number;
   now?: () => Date;

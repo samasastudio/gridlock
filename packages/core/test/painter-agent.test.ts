@@ -1,7 +1,9 @@
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import sharp from "sharp";
 import {
   ARTIFACT_BUCKET_URI,
   bootstrapCanvas,
@@ -454,61 +456,28 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(recordedRequests.length, callsBeforeMissingCache + 1);
   });
 
-  test("Part 4 (branchTimeline Ephemeral Scenario Forking, Pixel+XMP Watermark, Chunk Preservation, Sibling Isolation & +90d TTL): stamps legible watermark glyphs, preserves extended WebP chunks, isolates sibling plateIds, and enforces TTL/quota without unbounded rejection run records", async () => {
+  test("Part 4 (branchTimeline Ephemeral Scenario Forking, Sharp Pixel+XMP Watermark, Sibling Isolation & +90d TTL): encodes JPEG/PNG/WebP via sharp with crimson/ivory banner and XMP rights, isolates sibling plateIds, fails closed on corrupt/missing-XMP outputs, and enforces TTL/quota", async () => {
     const repository = createInMemoryGridlockRepository();
     const recordedRequests: GeminiInteractionCreateRequest[] = [];
     const { milestoneObs: rootObs } = createPainterTestObservations();
     await repository.appendObservation(rootObs);
 
-    const riffChunk = (fourCc: string, payload: Buffer): Buffer => {
-      const hdr = Buffer.alloc(8);
-      hdr.write(fourCc.padEnd(4, " ").slice(0, 4), 0, "ascii");
-      hdr.writeUInt32LE(payload.byteLength, 4);
-      return Buffer.concat([hdr, payload, payload.byteLength % 2 === 1 ? Buffer.from([0]) : Buffer.alloc(0)]);
-    };
-    const wrapWebp = (chunks: readonly Buffer[]): Buffer => {
-      const body = Buffer.concat([Buffer.from("WEBP", "ascii"), ...chunks]);
-      const hdr = Buffer.alloc(8);
-      hdr.write("RIFF", 0, "ascii");
-      hdr.writeUInt32LE(body.byteLength, 4);
-      return Buffer.concat([hdr, body]);
-    };
-    const parseWebpChunks = (buf: Buffer, off = 12, acc: Array<{ fourCc: string; data: Buffer }> = []): Array<{ fourCc: string; data: Buffer }> => {
-      if (off >= buf.byteLength) return acc;
-      const [fourCc, size] = [buf.subarray(off, off + 4).toString("ascii"), buf.readUInt32LE(off + 4)];
-      return parseWebpChunks(buf, off + 8 + size + (size & 1), [...acc, { fourCc, data: buf.subarray(off + 8, off + 8 + size) }]);
-    };
-    const bitRev8 = (b: number): number => {
-      const x1 = ((b & 0xf0) >>> 4) | ((b & 0x0f) << 4);
-      const x2 = ((x1 & 0xcc) >>> 2) | ((x1 & 0x33) << 2);
-      return ((x2 & 0xaa) >>> 1) | ((x2 & 0x55) << 1);
-    };
-    const glyphToChar = new Map<number, string>([
-      [0o25755, "A"], [0o65656, "B"], [0o34443, "C"], [0o65556, "D"], [0o74647, "E"], [0o74644, "F"],
-      [0o55755, "H"], [0o72227, "I"], [0o11152, "J"], [0o65555, "N"], [0o25552, "O"], [0o65644, "P"],
-      [0o65665, "R"], [0o34216, "S"], [0o72222, "T"], [0o55557, "U"], [0o55552, "V"], [0o11244, "/"], [0, " "],
-    ]);
-    const decodeRenderedBannerText = (webp: Buffer, width: number, lineCount: number): string => {
-      const vp8l = parseWebpChunks(webp).find((c) => c.fourCc === "VP8L")!.data;
-      const pxStart = 5 + 156;
-      const readRgba = (x: number, y: number): [number, number, number, number] => {
-        const off = pxStart + (y * width + x) * 4;
-        return [bitRev8(vp8l[off + 1]!), bitRev8(vp8l[off]!), bitRev8(vp8l[off + 2]!), bitRev8(vp8l[off + 3]!)];
-      };
-      assert.deepEqual(readRgba(0, 0), [158, 42, 43, 255]);
-      const maxChars = Math.floor((width - 3) / 4);
-      return Array.from({ length: lineCount }, (_, lineIdx) =>
-        Array.from({ length: maxChars }, (__, charIdx) => {
-          const mask = Array.from({ length: 15 }, (___, bitPos) => {
-            const [gy, gx] = [Math.floor(bitPos / 3), bitPos % 3];
-            const [r, g, b] = readRgba(2 + charIdx * 4 + gx, 1 + lineIdx * 6 + gy);
-            return r === 245 && g === 242 && b === 235 ? 1 << (14 - bitPos) : 0;
-          }).reduce((a, b) => a | b, 0);
-          return glyphToChar.get(mask) ?? "?";
-        })
-          .join("")
-          .trimEnd()
-      ).join(" ");
+    const assertBranchBannerAndXmp = async (webp: Buffer, expectedWidth: number, expectedHeight: number): Promise<void> => {
+      assert.equal(isWebpBuffer(webp), true);
+      assert.equal(webp.subarray(12, 16).toString("ascii"), "VP8X");
+      assert.ok(webp.toString("utf-8").includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`));
+      const { data, info } = await sharp(webp).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      assert.equal(info.width, expectedWidth);
+      assert.equal(info.height, expectedHeight);
+      // Top-left (0, 0) is crimson banner background (#9E2A2B)
+      assert.ok((data[0] ?? 0) > 120 && (data[1] ?? 255) < 75 && (data[2] ?? 255) < 75);
+      // Banner region contains both crimson background and ivory glyph ink (#F5F2EB)
+      const bannerPixels = expectedWidth * Math.min(expectedHeight, 12);
+      const hasIvoryInk = Array.from({ length: bannerPixels }, (_, idx) => {
+        const off = idx * 4;
+        return (data[off] ?? 0) > 200 && (data[off + 1] ?? 0) > 200 && (data[off + 2] ?? 0) > 195;
+      }).some(Boolean);
+      assert.equal(hasIvoryInk, true);
     };
 
     const rawPlateWebp = createFixtureWebpBuffer("branch-base");
@@ -542,7 +511,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     );
     assert.equal(rootResult.status, "illustration_painted");
 
-    // 1. Happy Path: flat-tree VP8L branch stamps legible "SCENARIO BRANCH / UNVERIFIED PROJECTION" pixels + VP8X/XMP + sibling isolation
+    // 1. Happy Path: sharp-encoded WebP branch stamps crimson/ivory banner + VP8X/XMP + sibling isolation
     const branchNow = new Date("2026-10-28T10:00:00.000Z");
     const expectedExpiresAt = new Date(branchNow.getTime() + NINETY_DAYS_MS).toISOString();
     responseQueue.push({
@@ -571,9 +540,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(branchPlate.watermarkText, SCENARIO_BRANCH_WATERMARK);
     assert.equal(branchPlate.expiresAt, expectedExpiresAt);
     assert.ok(branchPlate.storageUri.startsWith("gs://gridlock-artifacts/branches/ephemeral/texas-corridor-main/"));
-    assert.equal(branchResult.webpBuffer.subarray(12, 16).toString("ascii"), "VP8X");
-    assert.ok(branchResult.webpBuffer.toString("utf-8").includes(`<dc:rights>${SCENARIO_BRANCH_WATERMARK}</dc:rights>`));
-    assert.equal(decodeRenderedBannerText(branchResult.webpBuffer, 64, 3), SCENARIO_BRANCH_WATERMARK.toUpperCase());
+    await assertBranchBannerAndXmp(branchResult.webpBuffer, 64, 36);
 
     // Sibling branch with identical output_image bytes must get a distinct illustrationId & storageUri without overwriting branch 1
     responseQueue.push({
@@ -592,7 +559,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.notEqual(siblingBranch.illustration.storageUri, branchPlate.storageUri);
     assert.equal((await repository.listGeneratedIllustrationsByTimeline("texas-corridor-main")).length, 3);
 
-    // 2. PNG response -> transcoded & single-line pixel watermark; opaque compressed VP8L & extended VP8X+ICCP+ALPH+VP8+EXIF preserved
+    // 2. Real PNG and JPEG responses transcode single-pass through sharp with crimson/ivory banner & XMP rights
     const widePng = createSamplePngBuffer(200, 24);
     responseQueue.push({
       id: "inter_branch_png",
@@ -605,56 +572,27 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
       { repository, geminiClient }
     );
     assert.equal(pngBranch.status, "illustration_painted");
-    assert.equal(decodeRenderedBannerText(pngBranch.webpBuffer, 200, 1), SCENARIO_BRANCH_WATERMARK.toUpperCase());
+    await assertBranchBannerAndXmp(pngBranch.webpBuffer, 200, 24);
 
-    const opaqueCompressedVp8lPayload = Buffer.from([0x2f, 31, (17 << 6) & 0xff, 0x00, 0x00, 0x80, 0xaa, 0x55, 0x11]);
-    const opaqueCompressedWebp = wrapWebp([riffChunk("VP8L", opaqueCompressedVp8lPayload)]);
+    const sampleJpeg = await sharp({
+      create: { width: 120, height: 40, channels: 3, background: { r: 245, g: 242, b: 235 } },
+    })
+      .jpeg({ quality: 90 })
+      .toBuffer();
     responseQueue.push({
-      id: "inter_branch_opaque_vp8l",
+      id: "inter_branch_jpeg",
       status: "completed",
-      output_image: { mime_type: "image/webp", data: opaqueCompressedWebp.toString("base64") },
+      output_image: { mime_type: "image/jpeg", data: sampleJpeg.toString("base64") },
       usage: { total_tokens: 910 },
     });
-    const opaqueBranch = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Opaque compressed VP8L flag check", now: branchNow },
+    const jpegBranch = await branchTimeline(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "JPEG single-pass sharp watermark verification", now: branchNow },
       { repository, geminiClient }
     );
-    assert.equal(opaqueBranch.status, "illustration_painted");
-    assert.equal(opaqueBranch.webpBuffer[20], 0x04);
-    assert.deepEqual(parseWebpChunks(opaqueBranch.webpBuffer).find((c) => c.fourCc === "VP8L")?.data, opaqueCompressedVp8lPayload);
+    assert.equal(jpegBranch.status, "illustration_painted");
+    await assertBranchBannerAndXmp(jpegBranch.webpBuffer, 120, 40);
 
-    const iccpData = Buffer.from("sRGB-profile", "ascii");
-    const alphData = Buffer.from([0x00, 0xff, 0xff, 0xff]);
-    const vp8LossyData = Buffer.from([0x10, 0x00, 0x00, 0x9d, 0x01, 0x2a, 32, 0x00, 18, 0x00, 0xde, 0xad]);
-    const exifData = Buffer.from("Exif\0\0II", "ascii");
-    const srcVp8x = Buffer.from([0x20 | 0x10 | 0x08, 0, 0, 0, 31, 0, 0, 17, 0, 0]);
-    const extendedLossyWebp = wrapWebp([
-      riffChunk("VP8X", srcVp8x),
-      riffChunk("ICCP", iccpData),
-      riffChunk("ALPH", alphData),
-      riffChunk("VP8 ", vp8LossyData),
-      riffChunk("EXIF", exifData),
-    ]);
-    responseQueue.push({
-      id: "inter_branch_extended_vp8",
-      status: "completed",
-      output_image: { mime_type: "image/webp", data: extendedLossyWebp.toString("base64") },
-      usage: { total_tokens: 920 },
-    });
-    const extendedBranch = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Extended VP8X ICCP+ALPH+VP8+EXIF check", now: branchNow },
-      { repository, geminiClient }
-    );
-    assert.equal(extendedBranch.status, "illustration_painted");
-    assert.equal(extendedBranch.webpBuffer[20], 0x3c);
-    const outChunks = parseWebpChunks(extendedBranch.webpBuffer);
-    assert.deepEqual(outChunks.map((c) => c.fourCc), ["VP8X", "ICCP", "ALPH", "VP8 ", "EXIF", "XMP "]);
-    assert.deepEqual(outChunks[1]?.data, iccpData);
-    assert.deepEqual(outChunks[2]?.data, alphData);
-    assert.deepEqual(outChunks[3]?.data, vp8LossyData);
-    assert.deepEqual(outChunks[4]?.data, exifData);
-
-    // 3. Sad Path via public seams: corrupt VP8X rejected by bootstrapCanvas & branchTimeline
+    // 3. Sad Path via public seams: corrupt VP8X, empty payload, and missing XMP rights fail closed without overwriting active plate
     const brokenVp8x = Buffer.from(branchResult.webpBuffer);
     brokenVp8x[20] = 0x00;
     const rejectedCanvas = await bootstrapCanvas(
@@ -664,18 +602,41 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(rejectedCanvas.status, "painter_failed");
     assert.equal(rejectedCanvas.errorCode, "invalid_base_canvas");
 
+    const truncatedWebp = branchResult.webpBuffer.subarray(0, 32);
     responseQueue.push({
       id: "inter_branch_corrupt_vp8x",
       status: "completed",
-      output_image: { mime_type: "image/webp", data: brokenVp8x.toString("base64") },
+      output_image: { mime_type: "image/webp", data: truncatedWebp.toString("base64") },
       usage: { total_tokens: 300 },
     });
     const rejectedBranchImg = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Corrupt VP8X output rejection", now: branchNow },
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Corrupt WebP output rejection", now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(rejectedBranchImg.status, "painter_failed");
     assert.equal(rejectedBranchImg.errorCode, "corrupt_or_empty_image");
+
+    responseQueue.push({
+      id: "inter_branch_missing_xmp",
+      status: "completed",
+      output_image: { mime_type: "image/webp", data: rawPlateWebp.toString("base64") },
+      usage: { total_tokens: 310 },
+    });
+    const missingXmpBranch = await branchTimeline(
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Unwatermarked custom encoder rejection", now: branchNow },
+      {
+        repository,
+        geminiClient,
+        imageEncoder: () => ({
+          ok: true,
+          webpBuffer: rawPlateWebp,
+          sha256: createHash("sha256").update(rawPlateWebp).digest("hex"),
+        }),
+      }
+    );
+    assert.equal(missingXmpBranch.status, "painter_failed");
+    assert.equal(missingXmpBranch.errorCode, "corrupt_or_empty_image");
+    assert.equal(missingXmpBranch.activeIllustration?.illustrationId, rootResult.illustration.illustrationId);
 
     // 4. Pre-Gemini validation & quota rejections write zero run_records and zero Gemini requests; +90d TTL frees quota & blocks expired parents
     const runsBeforePreconditions = (await repository.listRunRecords()).length;
@@ -705,7 +666,7 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(crossLineage.errorCode, "parent_not_found");
 
     const quotaExceeded = await branchTimeline(
-      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Exceeding active branch cap", maxBranchesPerTimeline: 5, now: branchNow },
+      { parentInteractionId: "inter_branch_parent_root", scenarioPrompt: "Exceeding active branch cap", maxBranchesPerTimeline: 4, now: branchNow },
       { repository, geminiClient }
     );
     assert.equal(quotaExceeded.status, "painter_failed");
