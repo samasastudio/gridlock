@@ -51,7 +51,7 @@ export type PainterMilestoneGateOutcome =
       milestoneObservations: Observation[];
     };
 
-function createPainterTurnContext(
+export function createPainterTurnContext(
   params: { timelineId: string; existingPlates: readonly GeneratedIllustration[]; now: Date; startedWallMs?: number },
   deps: { repository: GridlockRepository; imageEncoder: PainterImageEncoder; spanSink?: RunSpanSink }
 ): PainterTurnContext {

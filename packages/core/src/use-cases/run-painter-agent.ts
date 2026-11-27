@@ -2,9 +2,11 @@ import type { Buffer } from "node:buffer";
 import {
   DEFAULT_MAX_BRANCHES_PER_TIMELINE,
   DEFAULT_TIMELINE_ID,
+  GeneratedIllustrationSchema,
   MAX_SCENARIO_PROMPT_LENGTH,
   NINETY_DAYS_MS,
   PAINTER_AGENT_MODEL,
+  type BranchIllustrationRequest,
   type GeminiInteractionsClient,
   type GeneratedIllustration,
   type GridlockRepository,
@@ -14,19 +16,28 @@ import {
   type StatefulPainterResult,
   type RunSpanSink,
 } from "../interfaces/index.ts";
+import { hydrateTimelineNodes } from "./get-frame-timeline.ts";
 import {
+  branchIllustrationError,
+  buildBranchIllustrationResult,
   buildWebpMultimodalInput,
   isGeneratedIllustrationActiveAt,
+  mapBranchPainterFailure,
   synthesizeBootstrapPrompt,
   synthesizeMilestoneDeltaPrompt,
   synthesizeScenarioBranchPrompt,
+  type BranchIllustrationError,
+  type BranchIllustrationResult,
 } from "./helpers/painter-helpers.ts";
+export type { BranchIllustrationError };
 import { createCorridorBaseCanvasWebp, isWebpBuffer } from "./helpers/webp-codec.ts";
 import {
   DEFAULT_TIMELINE_BRANCH_SLOT_TRACKER,
+  type BranchSlotHandle,
   type TimelineBranchSlotTracker,
 } from "./timeline-branch-slots.ts";
 import {
+  createPainterTurnContext,
   evaluatePainterMilestoneGate,
   failClosedInteraction,
   failClosedPainter,
@@ -43,6 +54,16 @@ export interface PainterUseCaseDeps {
   imageEncoder: PainterImageEncoder;
   spanSink?: RunSpanSink;
   branchSlotTracker?: TimelineBranchSlotTracker;
+}
+
+export interface BranchIllustrationDeps {
+  repository: GridlockRepository;
+  geminiClient?: GeminiInteractionsClient;
+  imageEncoder: PainterImageEncoder;
+  spanSink?: RunSpanSink;
+  branchSlotTracker?: TimelineBranchSlotTracker;
+  maxBranchesPerTimeline?: number;
+  now?: () => Date;
 }
 
 export interface BootstrapCanvasInput {
@@ -90,6 +111,51 @@ function rejectBranchPrecondition(
     tokensUsed: 0,
     activeIllustration: ctx.activeIllustration,
   };
+}
+
+async function executeAdmittedBranchTurn(params: {
+  ctx: PainterTurnContext;
+  geminiClient: GeminiInteractionsClient;
+  validParent: GeneratedIllustration;
+  parentObservations: readonly Observation[];
+  trimmedScenario: string;
+  slot: BranchSlotHandle;
+}): Promise<StatefulPainterResult> {
+  try {
+    const prompt = synthesizeScenarioBranchPrompt(params.validParent, params.trimmedScenario);
+    const outcome = await requestChainedOrFallbackPainterInteraction({
+      geminiClient: params.geminiClient,
+      repository: params.ctx.repository,
+      parentPlate: params.validParent,
+      prompt,
+    });
+    if (!outcome.ok) {
+      await params.slot.release();
+      return failClosedInteraction(params.ctx, "painter_branch_timeline", outcome, params.parentObservations);
+    }
+
+    return await finalizePaintedIllustrationTurn(params.ctx, {
+      operation: "branchTimeline",
+      stage: "painter_branch_timeline",
+      turn: outcome.turn,
+      parentPlate: params.validParent,
+      observations: params.parentObservations,
+      prompt,
+      isBranch: true,
+      scenarioPrompt: params.trimmedScenario,
+      expiresAt: new Date(params.ctx.now.getTime() + NINETY_DAYS_MS).toISOString(),
+      onCommitIllustration: async (plate, webpBuffer) => {
+        params.slot.markPersisting(plate.illustrationId);
+        try {
+          await params.ctx.repository.saveGeneratedIllustration(plate, webpBuffer);
+        } finally {
+          await params.slot.release();
+        }
+      },
+    });
+  } finally {
+    await params.slot.release();
+  }
 }
 
 export async function bootstrapCanvas(input: BootstrapCanvasInput, deps: PainterUseCaseDeps): Promise<StatefulPainterResult> {
@@ -176,6 +242,44 @@ export async function paintMilestoneDelta(
   });
 }
 
+function checkBranchPreconditions(params: {
+  trimmedScenario: string;
+  parentInteractionId: string;
+  parentPlate: GeneratedIllustration | null;
+  timelineId: string;
+  existingPlates: readonly GeneratedIllustration[];
+  maxBranches: number;
+  now: Date;
+  slotTracker: TimelineBranchSlotTracker;
+}): { ok: true; validParent: GeneratedIllustration } | { ok: false; errorCode: PainterErrorCode; reason: string } {
+  if (params.trimmedScenario.length === 0 || params.trimmedScenario.length > MAX_SCENARIO_PROMPT_LENGTH) {
+    return {
+      ok: false,
+      errorCode: "invalid_scenario_prompt",
+      reason: `scenarioPrompt must be between 1 and ${MAX_SCENARIO_PROMPT_LENGTH} characters`,
+    };
+  }
+  if (
+    !params.parentPlate ||
+    params.parentPlate.timelineId !== params.timelineId ||
+    !isGeneratedIllustrationActiveAt(params.parentPlate, params.now)
+  ) {
+    return {
+      ok: false,
+      errorCode: "parent_not_found",
+      reason: `Unknown or expired parent interactionId "${params.parentInteractionId}" for timeline "${params.timelineId}"`,
+    };
+  }
+  if (params.slotTracker.countOccupiedBranchSlots(params.existingPlates, params.timelineId, params.now) >= params.maxBranches) {
+    return {
+      ok: false,
+      errorCode: "branch_quota_exceeded",
+      reason: `Branch quota exceeded for timeline "${params.timelineId}" (max ${params.maxBranches})`,
+    };
+  }
+  return { ok: true, validParent: params.parentPlate };
+}
+
 export async function branchTimeline(input: BranchTimelineInput, deps: PainterUseCaseDeps): Promise<StatefulPainterResult> {
   const trimmedScenario = input.scenarioPrompt.trim();
   const parentPlate = await deps.repository.getGeneratedIllustrationByInteractionId(input.parentInteractionId);
@@ -188,74 +292,108 @@ export async function branchTimeline(input: BranchTimelineInput, deps: PainterUs
       { timelineId, ...(input.now !== undefined ? { now: input.now } : {}) },
       deps
     );
-    if (trimmedScenario.length === 0 || trimmedScenario.length > MAX_SCENARIO_PROMPT_LENGTH) {
-      return {
-        admitted: false as const,
-        result: rejectBranchPrecondition(
-          ctx,
-          "invalid_scenario_prompt",
-          `scenarioPrompt must be between 1 and ${MAX_SCENARIO_PROMPT_LENGTH} characters`
-        ),
-      };
+    const check = checkBranchPreconditions({
+      trimmedScenario,
+      parentInteractionId: input.parentInteractionId,
+      parentPlate,
+      timelineId,
+      existingPlates,
+      maxBranches,
+      now: ctx.now,
+      slotTracker,
+    });
+    if (!check.ok) {
+      return { admitted: false as const, result: rejectBranchPrecondition(ctx, check.errorCode, check.reason) };
     }
-    if (!parentPlate || parentPlate.timelineId !== timelineId || !isGeneratedIllustrationActiveAt(parentPlate, ctx.now)) {
-      return {
-        admitted: false as const,
-        result: rejectBranchPrecondition(
-          ctx,
-          "parent_not_found",
-          `Unknown or expired parent interactionId "${input.parentInteractionId}" for timeline "${timelineId}"`
-        ),
-      };
-    }
-    if (slotTracker.countOccupiedBranchSlots(existingPlates, timelineId, ctx.now) >= maxBranches) {
-      return {
-        admitted: false as const,
-        result: rejectBranchPrecondition(
-          ctx,
-          "branch_quota_exceeded",
-          `Branch quota exceeded for timeline "${timelineId}" (max ${maxBranches})`
-        ),
-      };
-    }
-    return { admitted: true as const, ctx, validParent: parentPlate, slot: reserve() };
+    return { admitted: true as const, ctx, validParent: check.validParent, slot: reserve() };
   });
   if (!admission.admitted) return admission.result;
 
   try {
     const parentObservations = await loadObservationsForPlate(deps.repository, admission.validParent);
-    const prompt = synthesizeScenarioBranchPrompt(admission.validParent, trimmedScenario);
-    const outcome = await requestChainedOrFallbackPainterInteraction({
+    return await executeAdmittedBranchTurn({
+      ctx: admission.ctx,
       geminiClient: deps.geminiClient,
-      repository: deps.repository,
-      parentPlate: admission.validParent,
-      prompt,
-    });
-    if (!outcome.ok) {
-      await admission.slot.release();
-      return failClosedInteraction(admission.ctx, "painter_branch_timeline", outcome, parentObservations);
-    }
-
-    return await finalizePaintedIllustrationTurn(admission.ctx, {
-      operation: "branchTimeline",
-      stage: "painter_branch_timeline",
-      turn: outcome.turn,
-      parentPlate: admission.validParent,
-      observations: parentObservations,
-      prompt,
-      isBranch: true,
-      scenarioPrompt: trimmedScenario,
-      expiresAt: new Date(admission.ctx.now.getTime() + NINETY_DAYS_MS).toISOString(),
-      onCommitIllustration: async (plate, webpBuffer) => {
-        admission.slot.markPersisting(plate.illustrationId);
-        try {
-          await deps.repository.saveGeneratedIllustration(plate, webpBuffer);
-        } finally {
-          await admission.slot.release();
-        }
-      },
+      validParent: admission.validParent,
+      parentObservations,
+      trimmedScenario,
+      slot: admission.slot,
     });
   } finally {
     await admission.slot.release();
+  }
+}
+
+export async function branchIllustration(
+  input: BranchIllustrationRequest,
+  deps: BranchIllustrationDeps
+): Promise<BranchIllustrationResult> {
+  try {
+    const startedWallMs = Date.now();
+    const trimmedScenario = input.scenarioPrompt.trim();
+    const parentCandidate = await deps.repository.getGeneratedIllustrationByInteractionId(input.interactionId);
+    const parsedParent =
+      parentCandidate !== null && parentCandidate !== undefined
+        ? GeneratedIllustrationSchema.safeParse(parentCandidate)
+        : null;
+    if (parsedParent !== null && (!parsedParent.success || parsedParent.data.interactionId !== input.interactionId)) {
+      return branchIllustrationError("illustration_branch_error", "Stored parent GeneratedIllustration failed runtime schema validation");
+    }
+
+    const candidateParent = parsedParent?.success ? parsedParent.data : null;
+    const timelineId = input.timelineId ?? candidateParent?.timelineId ?? DEFAULT_TIMELINE_ID;
+    const maxBranches = deps.maxBranchesPerTimeline ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
+    const now = deps.now ? deps.now() : new Date();
+    const slotTracker = deps.branchSlotTracker ?? DEFAULT_TIMELINE_BRANCH_SLOT_TRACKER;
+
+    const admission = await slotTracker.withTimelineBranchAdmission(timelineId, async (reserve) => {
+      const rawTimelineIllustrations = await deps.repository.listGeneratedIllustrationsByTimeline(timelineId);
+      if (!Array.isArray(rawTimelineIllustrations)) {
+        return { admitted: false as const, response: branchIllustrationError("illustration_branch_error", "Stored GeneratedIllustration timeline list failed runtime schema validation") };
+      }
+      const parsedTimelineIllustrations = rawTimelineIllustrations.map((plate) => GeneratedIllustrationSchema.safeParse(plate));
+      if (parsedTimelineIllustrations.some((result) => !result.success || result.data.timelineId !== timelineId)) {
+        return { admitted: false as const, response: branchIllustrationError("illustration_branch_error", "Stored GeneratedIllustration timeline record failed runtime schema validation") };
+      }
+      const validTimelineIllustrations = parsedTimelineIllustrations.flatMap((result) => (result.success ? [result.data] : []));
+      const check = checkBranchPreconditions({
+        trimmedScenario,
+        parentInteractionId: input.interactionId,
+        parentPlate: candidateParent,
+        timelineId,
+        existingPlates: validTimelineIllustrations,
+        maxBranches,
+        now,
+        slotTracker,
+      });
+      if (!check.ok) {
+        return { admitted: false as const, response: mapBranchPainterFailure(check.errorCode, check.reason) };
+      }
+      const parentHydrated = await hydrateTimelineNodes([check.validParent], deps.repository, now);
+      if (!parentHydrated.ok || !parentHydrated.nodes[0]) {
+        return {
+          admitted: false as const,
+          response: branchIllustrationError("illustration_branch_error", parentHydrated.ok ? "Failed to hydrate parent FrameTimelineNode" : parentHydrated.message),
+        };
+      }
+      if (!deps.geminiClient) {
+        return { admitted: false as const, response: branchIllustrationError("painter_unavailable", "Stateful Painter Agent Gemini client is not configured") };
+      }
+      const ctx = createPainterTurnContext({ timelineId, existingPlates: validTimelineIllustrations, now, startedWallMs }, deps);
+      return { admitted: true as const, ctx, validParent: check.validParent, parentNode: parentHydrated.nodes[0], geminiClient: deps.geminiClient, slot: reserve() };
+    });
+    if (!admission.admitted) return admission.response;
+
+    const painterResult = await executeAdmittedBranchTurn({
+      ctx: admission.ctx,
+      geminiClient: admission.geminiClient,
+      validParent: admission.validParent,
+      parentObservations: admission.parentNode.triggeringObservations,
+      trimmedScenario,
+      slot: admission.slot,
+    });
+    return buildBranchIllustrationResult(painterResult, admission.parentNode);
+  } catch (error) {
+    return branchIllustrationError("illustration_branch_error", error instanceof Error ? error.message : "Failed to branch GeneratedIllustration");
   }
 }

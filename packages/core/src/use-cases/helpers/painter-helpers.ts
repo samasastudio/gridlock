@@ -2,14 +2,20 @@ import type { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import {
   ARTIFACT_BUCKET_URI,
+  BranchIllustrationResponseSchema,
   CANONICAL_MILESTONE_LABEL,
+  FrameTimelineNodeSchema,
   GeneratedIllustrationSchema,
   PAINTER_AGENT_MODEL,
   SCENARIO_BRANCH_WATERMARK,
+  type BranchIllustrationResponse,
+  type FrameTimelineNode,
   type GeminiInteractionResponse,
   type GeneratedIllustration,
   type Observation,
+  type PainterErrorCode,
   type RunStage,
+  type StatefulPainterResult,
 } from "../../interfaces/index.ts";
 
 export type PainterStage = Extract<RunStage, `painter_${string}`>;
@@ -228,4 +234,75 @@ export function buildGeneratedIllustrationRecord(
     createdAt: params.createdAt,
     expiresAt: variant.expiresAt,
   });
+}
+
+export type BranchIllustrationError =
+  | "invalid_request_body"
+  | "parent_illustration_not_found"
+  | "branch_quota_exceeded"
+  | "painter_unavailable"
+  | "painter_upstream_error"
+  | "illustration_branch_error";
+
+export type BranchIllustrationResult =
+  | { ok: true; response: BranchIllustrationResponse }
+  | { ok: false; error: BranchIllustrationError; message: string };
+
+export function branchIllustrationError(
+  error: BranchIllustrationError,
+  message: string
+): BranchIllustrationResult {
+  return { ok: false, error, message };
+}
+
+export function mapBranchPainterFailure(errorCode: PainterErrorCode, reason: string): BranchIllustrationResult {
+  if (errorCode === "interaction_failed" || errorCode === "corrupt_or_empty_image") {
+    return branchIllustrationError("painter_upstream_error", reason);
+  }
+  if (errorCode === "parent_not_found") {
+    return branchIllustrationError("parent_illustration_not_found", reason);
+  }
+  if (errorCode === "branch_quota_exceeded") {
+    return branchIllustrationError("branch_quota_exceeded", reason);
+  }
+  if (errorCode === "invalid_scenario_prompt") {
+    return branchIllustrationError("invalid_request_body", reason);
+  }
+  return branchIllustrationError("illustration_branch_error", reason);
+}
+
+export function buildBranchIllustrationResult(
+  painterResult: StatefulPainterResult,
+  parentNode: FrameTimelineNode
+): BranchIllustrationResult {
+  if (painterResult.status === "painter_failed") {
+    return mapBranchPainterFailure(painterResult.errorCode, painterResult.reason);
+  }
+  if (painterResult.status !== "illustration_painted") {
+    return branchIllustrationError("illustration_branch_error", "Unexpected Stateful Painter Agent branch state");
+  }
+  const branchedNode = FrameTimelineNodeSchema.safeParse({
+    plate: painterResult.illustration,
+    assetPath: `/api/illustrations/assets/${encodeURIComponent(painterResult.illustration.illustrationId)}.webp`,
+    triggeringObservations: parentNode.triggeringObservations.filter((obs) =>
+      painterResult.illustration.triggeringObservationIds.includes(obs.id)
+    ),
+    rawCaptures: parentNode.rawCaptures.filter((art) =>
+      painterResult.illustration.rawCaptureHashes.includes(art.sha256)
+    ),
+  });
+  if (!branchedNode.success) {
+    return branchIllustrationError("illustration_branch_error", "Failed to hydrate branched FrameTimelineNode");
+  }
+  const validated = BranchIllustrationResponseSchema.safeParse({
+    plate: painterResult.illustration,
+    node: branchedNode.data,
+    timelineId: painterResult.timelineId,
+    tokensUsed: painterResult.tokensUsed,
+    rebootstrappedFromParentWebp: painterResult.rebootstrappedFromParentWebp,
+  });
+  if (!validated.success) {
+    return branchIllustrationError("illustration_branch_error", "Branched GeneratedIllustration response failed runtime schema validation");
+  }
+  return { ok: true, response: validated.data };
 }

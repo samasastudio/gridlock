@@ -1261,4 +1261,63 @@ describe("POST /api/illustrations/branch HTTP Seam (Seam 3 API, Ticket #33 Phase
       assert.equal(outcome.error, "request_body_too_large");
     });
   });
+
+  test("Executes POST /api/illustrations/branch in a single pass with halved repository reads", async () => {
+    const { repository, t2, b1 } = await seedLineageGraph();
+    const clock = new Date(Date.parse(b1.createdAt) + NINETY_DAYS_MS + 1_000);
+    const readCounts = {
+      getByInteractionId: 0,
+      listByTimeline: 0,
+      listObservationsByProject: 0,
+    };
+
+    const countingRepo: GridlockRepository = {
+      ...repository,
+      getGeneratedIllustrationByInteractionId: async (interactionId) => {
+        readCounts.getByInteractionId += 1;
+        return repository.getGeneratedIllustrationByInteractionId(interactionId);
+      },
+      listGeneratedIllustrationsByTimeline: async (timelineId) => {
+        readCounts.listByTimeline += 1;
+        return repository.listGeneratedIllustrationsByTimeline(timelineId);
+      },
+      listObservationsByProject: async (projectNumber) => {
+        readCounts.listObservationsByProject += 1;
+        return repository.listObservationsByProject(projectNumber);
+      },
+    };
+
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        create: async () => ({
+          id: "inter_single_pass_branch",
+          status: "completed",
+          output_image: {
+            mime_type: "image/webp",
+            data: createFixtureWebpBuffer("single-pass").toString("base64"),
+          },
+          usage: { total_tokens: 75 },
+        }),
+      },
+    };
+
+    await withPlatesServer(
+      { repository: countingRepo, geminiClient, now: () => clock },
+      async (baseUrl) => {
+        const res = await postJson(
+          `${baseUrl}/api/illustrations/branch`,
+          JSON.stringify({
+            interactionId: t2.interactionId,
+            scenarioPrompt: "Verify single-pass repository read counts",
+          })
+        );
+        assert.equal(res.status, 201);
+        const body = BranchIllustrationResponseSchema.parse(await res.json());
+        assert.equal(body.node.plate.interactionId, "inter_single_pass_branch");
+        assert.equal(readCounts.getByInteractionId, 1);
+        assert.equal(readCounts.listByTimeline, 1);
+        assert.equal(readCounts.listObservationsByProject, t2.projectNumbers.length);
+      }
+    );
+  });
 });
