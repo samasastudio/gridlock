@@ -10,6 +10,7 @@ import {
   buildIllustrationAssetUrl,
   buildScenarioBranchUrl,
   fetchFrameTimelineSnapshot,
+  fetchRepairChangelogSnapshot,
   submitScenarioBranch,
 } from "../src/index.ts";
 import { seedTestFrameTimeline, withTestTimelineServer } from "./helpers/timeline-fixtures.ts";
@@ -255,6 +256,86 @@ describe("Frame Timeline HTTP Client (Ticket #34 Phase 1)", () => {
       if (!gateway502.ok) {
         assert.equal(gateway502.errorCode, undefined);
       }
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  test("Shared JSON transport parses structured errorCode, non-JSON error bodies, AbortSignal, and network failures across snapshot clients", async () => {
+    const origFetch = globalThis.fetch;
+    try {
+      const seenSignals: Array<AbortSignal | null | undefined> = [];
+      globalThis.fetch = async (_input, init) => {
+        seenSignals.push(init?.signal);
+        return Response.json(
+          { error: "invalid_query_parameters", message: "Query parameter timeline_id is invalid" },
+          { status: 400 }
+        );
+      };
+      const controller = new AbortController();
+      const timelineErr = await fetchFrameTimelineSnapshot({
+        apiBaseUrl: "https://api.example.com",
+        timelineId: "bad/id",
+        signal: controller.signal,
+      });
+      assert.deepEqual(timelineErr, {
+        ok: false,
+        statusCode: 400,
+        errorCode: "invalid_query_parameters",
+        message: "Query parameter timeline_id is invalid",
+      });
+      assert.equal(seenSignals[0], controller.signal);
+
+      globalThis.fetch = async (input, init) => {
+        seenSignals.push(init?.signal);
+        const url = String(input);
+        if (url.includes("/api/repairs/changelog")) {
+          return Response.json(
+            { error: "connector_not_found", message: "Unknown connector" },
+            { status: 404 }
+          );
+        }
+        return Response.json({ runs: [] }, { status: 200 });
+      };
+      const changelogErr = await fetchRepairChangelogSnapshot({
+        apiBaseUrl: "https://api.example.com",
+        connectorId: "missing-connector",
+        signal: controller.signal,
+      });
+      assert.deepEqual(changelogErr, {
+        ok: false,
+        statusCode: 404,
+        errorCode: "connector_not_found",
+        message: "Unknown connector",
+      });
+      assert.equal(seenSignals[1], controller.signal);
+
+      globalThis.fetch = async () =>
+        new Response("<html>502 Bad Gateway</html>", {
+          status: 502,
+          headers: { "content-type": "text/html" },
+        });
+      const nonJsonTimeline = await fetchFrameTimelineSnapshot({ apiBaseUrl: "" });
+      assert.deepEqual(nonJsonTimeline, {
+        ok: false,
+        statusCode: 502,
+        message: "Frame Timeline HTTP 502",
+      });
+      const nonJsonChangelog = await fetchRepairChangelogSnapshot({ apiBaseUrl: "" });
+      assert.deepEqual(nonJsonChangelog, {
+        ok: false,
+        statusCode: 502,
+        message: "Repair Changelog HTTP 502",
+      });
+
+      globalThis.fetch = async () => {
+        throw new TypeError("Failed to fetch");
+      };
+      const networkErr = await fetchRepairChangelogSnapshot({ apiBaseUrl: "" });
+      assert.deepEqual(networkErr, {
+        ok: false,
+        message: "Failed to fetch",
+      });
     } finally {
       globalThis.fetch = origFetch;
     }

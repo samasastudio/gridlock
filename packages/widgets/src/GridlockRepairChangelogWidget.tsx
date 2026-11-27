@@ -1,14 +1,12 @@
-import { Suspense, use, useEffect, useId, useRef, useState, type Ref } from "react";
-import { MotionConfig } from "motion/react";
+import { useState, type Ref } from "react";
 import { EfficiencyScorecardSchema, RepairChangelogResponseSchema, type EfficiencyScorecard, type RepairChangelogResponse } from "@samasastudio/gridlock-core/schemas";
 import { buildRepairChangelogUrl, fetchRepairChangelogSnapshot, type RepairChangelogQuery, type RepairChangelogSnapshotResult } from "./repair-changelog-client.ts";
 import { ConnectorStatusBadge, EXPORT_ARROW_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
+import { DossierSnapshotShell } from "./DossierSnapshotShell.tsx";
 import { EfficiencyLineChart } from "./EfficiencyLineChart.tsx";
-import { DOSSIER_BASE_STYLESHEET_NODE } from "./dossier-styles.ts";
 import { GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET } from "./repair-changelog-styles.ts";
 import {
   ConnectorHealthBanner,
-  DossierErrorShell,
   DossierTitle,
   EfficiencyScorecardPanel,
   RepairChangelogLoadingPlaceholder,
@@ -18,13 +16,9 @@ import { RepairChangelogTimelineSection } from "./RepairChangelogTimeline.tsx";
 export type { GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 
 const WIDGET_STYLESHEET_NODE = (
-  <>
-    {DOSSIER_BASE_STYLESHEET_NODE}
-    <style href="gridlock-repair-changelog-widget" precedence="default">{GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET}</style>
-  </>
+  <style href="gridlock-repair-changelog-widget" precedence="default">{GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET}</style>
 );
 const LOADING_PLACEHOLDER_NODE = <RepairChangelogLoadingPlaceholder />;
-const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<RepairChangelogSnapshotResult>, Promise<RepairChangelogSnapshotResult>>();
 
 interface RepairChangelogWidgetBaseProps {
   theme?: GridlockWidgetTheme;
@@ -45,21 +39,9 @@ export type GridlockRepairChangelogWidgetProps =
       onRetry?: () => void;
     });
 
-function matchesQuery(a: RepairChangelogQuery, b: RepairChangelogQuery): boolean {
-  return a.apiBaseUrl === b.apiBaseUrl && a.connectorId === b.connectorId && a.limit === b.limit && a.runsLimit === b.runsLimit;
-}
-
-function toSafeSnapshotPromise(promise: Promise<RepairChangelogSnapshotResult>): Promise<RepairChangelogSnapshotResult> {
-  const cached = SAFE_SNAPSHOT_PROMISES.get(promise);
-  if (cached) return cached;
-  const safe = promise.catch(
-    (error: unknown): RepairChangelogSnapshotResult => ({
-      ok: false,
-      message: error instanceof Error ? error.message : "Network error loading Repair Changelog",
-    })
-  );
-  SAFE_SNAPSHOT_PROMISES.set(promise, safe);
-  return safe;
+interface RepairChangelogSnapshotData {
+  changelog: RepairChangelogResponse;
+  efficiencyScorecard: EfficiencyScorecard;
 }
 
 function LoadedDossierContent(props: {
@@ -124,84 +106,58 @@ function LoadedDossierContent(props: {
   );
 }
 
-function PromiseDossierBoundary(props: {
-  snapshotPromise: Promise<RepairChangelogSnapshotResult>;
-  baseId: string;
-  query?: Partial<RepairChangelogQuery>;
-  onRetry: () => void;
-}) {
-  const result = use(props.snapshotPromise);
-  if (!result.ok) return <DossierErrorShell baseId={props.baseId} message={result.message} onRetry={props.onRetry} />;
-  return <LoadedDossierContent baseId={props.baseId} changelog={result.changelog} efficiencyScorecard={result.efficiencyScorecard} query={props.query} />;
-}
-
 export function GridlockRepairChangelogWidget(props: GridlockRepairChangelogWidgetProps) {
   const { changelog, efficiencyScorecard, apiBaseUrl, connectorId, limit, runsLimit, snapshotPromise, onRetry, theme = "inherit", ref } = props;
-  const baseId = useId();
-  const retryAbortRef = useRef<AbortController | null>(null);
-  const [effectEntry, setEffectEntry] = useState<{ query: RepairChangelogQuery; promise: Promise<RepairChangelogSnapshotResult> } | null>(null);
-  const [retryEntry, setRetryEntry] = useState<{ query: RepairChangelogQuery; sourcePromise?: Promise<RepairChangelogSnapshotResult>; promise: Promise<RepairChangelogSnapshotResult> } | null>(null);
-  const isStaticMode = changelog !== undefined;
-
-  useEffect(() => {
-    const effectController = !isStaticMode && apiBaseUrl !== undefined && !snapshotPromise ? new AbortController() : null;
-    if (effectController && apiBaseUrl !== undefined) {
-      const query: RepairChangelogQuery = { apiBaseUrl, connectorId, limit, runsLimit };
-      setEffectEntry({ query, promise: fetchRepairChangelogSnapshot({ ...query, signal: effectController.signal }) });
-    }
-    return () => {
-      effectController?.abort();
-      retryAbortRef.current?.abort();
-      retryAbortRef.current = null;
-      setRetryEntry(null);
-    };
-  }, [apiBaseUrl, connectorId, isStaticMode, limit, runsLimit, snapshotPromise]);
-
-  const handleRetry = () => {
-    onRetry?.();
-    if (apiBaseUrl === undefined) return;
-    retryAbortRef.current?.abort();
-    const controller = new AbortController();
-    retryAbortRef.current = controller;
-    const query: RepairChangelogQuery = { apiBaseUrl, connectorId, limit, runsLimit };
-    setRetryEntry({ query, sourcePromise: snapshotPromise, promise: fetchRepairChangelogSnapshot({ ...query, signal: controller.signal }) });
-  };
-
-  const currentQuery = apiBaseUrl !== undefined ? { apiBaseUrl, connectorId, limit, runsLimit } : null;
-  const activeRetryPromise = currentQuery && retryEntry && retryEntry.sourcePromise === snapshotPromise && matchesQuery(retryEntry.query, currentQuery) ? retryEntry.promise : null;
-  const activeEffectPromise = currentQuery && !snapshotPromise && effectEntry && matchesQuery(effectEntry.query, currentQuery) ? effectEntry.promise : null;
-  const rawActivePromise = activeRetryPromise ?? snapshotPromise ?? activeEffectPromise;
-  const activePromise = rawActivePromise ? toSafeSnapshotPromise(rawActivePromise) : null;
-  const loadingShell = (
-    <>
-      <header className="gridlock-repair-header">
-        <DossierTitle baseId={baseId} connectorId={connectorId} />
-      </header>
-      {LOADING_PLACEHOLDER_NODE}
-    </>
-  );
   const parsedStatic = changelog !== undefined
     ? { changelog: RepairChangelogResponseSchema.safeParse(changelog), scorecard: EfficiencyScorecardSchema.safeParse(efficiencyScorecard) }
     : null;
+  const staticResult = parsedStatic
+    ? parsedStatic.changelog.success && parsedStatic.scorecard.success
+      ? ({
+          ok: true,
+          data: {
+            changelog: parsedStatic.changelog.data,
+            efficiencyScorecard: parsedStatic.scorecard.data,
+          },
+        } as const)
+      : ({ ok: false, message: "Malformed Repair Changelog or Efficiency Scorecard props" } as const)
+    : null;
+  const queryKey =
+    apiBaseUrl !== undefined
+      ? JSON.stringify([apiBaseUrl, connectorId ?? null, limit ?? null, runsLimit ?? null])
+      : null;
 
   return (
-    <MotionConfig reducedMotion="user">
-      <section ref={ref} aria-labelledby={`${baseId}-title`} className="gridlock-dossier-surface gridlock-repair-widget" data-gridlock-theme={theme}>
-        {WIDGET_STYLESHEET_NODE}
-        {parsedStatic ? (
-          !parsedStatic.changelog.success || !parsedStatic.scorecard.success ? (
-            <DossierErrorShell baseId={baseId} message="Malformed Repair Changelog or Efficiency Scorecard props" />
-          ) : (
-            <LoadedDossierContent baseId={baseId} changelog={parsedStatic.changelog.data} efficiencyScorecard={parsedStatic.scorecard.data} query={{ apiBaseUrl, connectorId, limit, runsLimit }} />
-          )
-        ) : activePromise ? (
-          <Suspense fallback={loadingShell}>
-            <PromiseDossierBoundary snapshotPromise={activePromise} baseId={baseId} query={{ apiBaseUrl, connectorId, limit, runsLimit }} onRetry={handleRetry} />
-          </Suspense>
-        ) : (
-          loadingShell
-        )}
-      </section>
-    </MotionConfig>
+    <DossierSnapshotShell<RepairChangelogSnapshotData, RepairChangelogSnapshotResult>
+      widgetClassName="gridlock-repair-widget"
+      stylesheetNode={WIDGET_STYLESHEET_NODE}
+      theme={theme}
+      ref={ref}
+      header={{ subjectId: connectorId }}
+      networkErrorFallback="Network error loading Repair Changelog"
+      loadingPlaceholder={LOADING_PLACEHOLDER_NODE}
+      staticResult={staticResult}
+      queryKey={queryKey}
+      snapshotPromise={snapshotPromise}
+      onRetry={onRetry}
+      fetchSnapshot={(signal) =>
+        fetchRepairChangelogSnapshot({ apiBaseUrl: apiBaseUrl ?? "", connectorId, limit, runsLimit, signal })
+      }
+      extractData={(result) => ({
+        changelog: result.changelog,
+        efficiencyScorecard: result.efficiencyScorecard,
+      })}
+      getContentKey={(data) =>
+        `${data.changelog.connectorId}::${apiBaseUrl ?? "::static"}::${connectorId ?? ""}::${limit ?? ""}::${runsLimit ?? ""}`
+      }
+      renderLoaded={(baseId, data) => (
+        <LoadedDossierContent
+          baseId={baseId}
+          changelog={data.changelog}
+          efficiencyScorecard={data.efficiencyScorecard}
+          query={{ apiBaseUrl, connectorId, limit, runsLimit }}
+        />
+      )}
+    />
   );
 }
