@@ -14,6 +14,7 @@ export const BANNED_GLOSSARY_TERMS: ReadonlyArray<{
 }>;
 export const MAX_TSX_LINES: number;
 export const MAX_CORE_TS_LINES: number;
+export const PR_WARN_CHANGED_LINES: number;
 export const MAX_PR_CHANGED_LINES: number;
 export const ALLOWED_CORE_TOP_DIRS: Set<string>;
 export function evaluateSourceFileLintRules(
@@ -26,6 +27,12 @@ export function evaluatePullRequestLineBudget(input: {
   baseRef: string;
   headRef?: string;
 }): string[];
+export function evaluatePullRequestLineBudgetWarning(input: {
+  insertions: number;
+  deletions: number;
+  baseRef: string;
+  headRef?: string;
+}): string | null;
 export function checkPullRequestDiffSize(
   repoRoot: string,
   options?: { baseRef?: string; headRef?: string; workingTree?: boolean }

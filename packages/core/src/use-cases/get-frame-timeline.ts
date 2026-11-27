@@ -39,7 +39,7 @@ type TimelineRepo = Pick<
   "listGeneratedIllustrationsByTimeline" | "listObservationsByProject" | "getRawCaptureByHash"
 >;
 
-const lineageErr = (message: string) => ({
+const timelineErr = (message: string) => ({
   ok: false as const,
   error: "frame_timeline_error" as const,
   message,
@@ -93,7 +93,7 @@ export async function hydrateTimelineNodes(
       )
   );
   if (hasInvalidObs) {
-    return lineageErr("Stored Observation record failed runtime schema validation");
+    return timelineErr("Stored Observation record failed runtime schema validation");
   }
 
   const obsById = new Map(
@@ -108,7 +108,7 @@ export async function hydrateTimelineNodes(
     .filter((entry) => entry.raw !== null && entry.raw !== undefined)
     .map(({ sha256, raw }) => ({ sha256, result: RawCaptureSchema.safeParse(raw) }));
   if (parsedArts.some(({ sha256, result }) => !result.success || result.data.sha256 !== sha256)) {
-    return lineageErr("Stored RawCapture failed runtime schema validation");
+    return timelineErr("Stored RawCapture failed runtime schema validation");
   }
 
   const nowMs = now.getTime();
@@ -148,7 +148,7 @@ export async function hydrateTimelineNodes(
   });
 
   if (parsedNodes.some((result) => !result.success)) {
-    return lineageErr("Hydrated FrameTimelineNode failed runtime schema validation");
+    return timelineErr("Hydrated FrameTimelineNode failed runtime schema validation");
   }
   return {
     ok: true,
@@ -165,14 +165,14 @@ export async function getFrameTimeline(
   try {
     const rawPlates = await deps.repository.listGeneratedIllustrationsByTimeline(timelineId);
     if (!Array.isArray(rawPlates)) {
-      return lineageErr("Stored GeneratedIllustration list failed runtime schema validation");
+      return timelineErr("Stored GeneratedIllustration list failed runtime schema validation");
     }
 
     const parsedPlates = rawPlates.map((plate) => GeneratedIllustrationSchema.safeParse(plate));
     if (
       parsedPlates.some((result) => !result.success || result.data.timelineId !== timelineId)
     ) {
-      return lineageErr("Stored GeneratedIllustration record failed runtime schema validation");
+      return timelineErr("Stored GeneratedIllustration record failed runtime schema validation");
     }
 
     const activePlates = parsedPlates
@@ -188,7 +188,7 @@ export async function getFrameTimeline(
       });
       return empty.success
         ? { ok: true, timeline: empty.data }
-        : lineageErr("Invalid frame timeline response envelope");
+        : timelineErr("Invalid frame timeline response envelope");
     }
 
     const hydrated = await hydrateTimelineNodes(activePlates, deps.repository, now);
@@ -225,9 +225,9 @@ export async function getFrameTimeline(
     });
     return validated.success
       ? { ok: true, timeline: validated.data }
-      : lineageErr("Frame timeline response failed runtime schema validation");
+      : timelineErr("Frame timeline response failed runtime schema validation");
   } catch (error) {
-    return lineageErr(
+    return timelineErr(
       error instanceof Error ? error.message : "Failed to read GeneratedIllustration timeline"
     );
   }

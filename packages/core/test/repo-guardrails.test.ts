@@ -23,8 +23,10 @@ import {
   MAX_PR_CHANGED_LINES,
   MAX_TSX_LINES,
   NON_LINTABLE_GLOSSARY_WORDS,
+  PR_WARN_CHANGED_LINES,
   checkPullRequestDiffSize,
   evaluatePullRequestLineBudget,
+  evaluatePullRequestLineBudgetWarning,
   evaluateSourceFileLintRules,
   evaluateUnusedModuleExports,
   parseGlossaryAvoidTerms,
@@ -499,5 +501,57 @@ describe("Repository Guardrails: RunStageSchema & Unused Slice Exports (Issue #2
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
+  });
+
+  test("retro #84/#85 guardrails catch camelCase glossary terms, unscoped widget CSS fallbacks, use-case HTTP statuses, and low PR headroom", () => {
+    const camelViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/new-painter.ts",
+      "export const rawLineagePlates: string[] = [];\nexport const validTimelineIllustrations: string[] = [];\n"
+    );
+    assert.equal(camelViolations.length, 1);
+    assert.ok(camelViolations[0]?.includes("Banned GLOSSARY.md term"));
+
+    const cssViolations = evaluateSourceFileLintRules(
+      "packages/widgets/src/new-console-styles.ts",
+      'export const CSS = "--gridlock-card: var(--card, #fff); --gridlock-muted: var(--muted-foreground, #666); --gridlock-border: var(--border, #ccc);";\n'
+    );
+    assert.equal(cssViolations.length, 1);
+    assert.ok(cssViolations[0]?.includes("Unscoped host CSS variable fallback"));
+
+    const cleanCss = evaluateSourceFileLintRules(
+      "packages/widgets/src/new-console-styles.ts",
+      'export const CSS = "--gridlock-card: color-mix(in oklab, var(--gridlock-paper) 92%, var(--gridlock-ink));";\n'
+    );
+    assert.deepEqual(cleanCss, []);
+
+    const httpViolations = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/new-branch.ts",
+      'export type BadResult = { ok: false; status: 429; error: "quota" };\n'
+    );
+    assert.equal(httpViolations.length, 1);
+    assert.ok(httpViolations[0]?.includes("map HTTP status codes in controllers/"));
+
+    const cleanUseCase = evaluateSourceFileLintRules(
+      "packages/core/src/use-cases/new-branch.ts",
+      'export type GoodResult = { ok: false; error: "branch_quota_exceeded" };\n'
+    );
+    assert.deepEqual(cleanUseCase, []);
+
+    assert.equal(PR_WARN_CHANGED_LINES, 700);
+    assert.equal(
+      evaluatePullRequestLineBudgetWarning({ insertions: 400, deletions: 300, baseRef: "main" }),
+      null
+    );
+    const warn = evaluatePullRequestLineBudgetWarning({
+      insertions: 401,
+      deletions: 300,
+      baseRef: "main",
+      headRef: "WORKTREE",
+    });
+    assert.ok(warn && warn.includes("701/800") && warn.includes("review headroom"));
+    assert.equal(
+      evaluatePullRequestLineBudgetWarning({ insertions: 500, deletions: 301, baseRef: "main" }),
+      null
+    );
   });
 });
