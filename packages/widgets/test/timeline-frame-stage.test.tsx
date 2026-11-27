@@ -8,7 +8,7 @@ import {
   type FrameTimelineNode,
 } from "@samasastudio/gridlock-core";
 import { TimelineFrameStage } from "../src/index.ts";
-import { withWidgetDom } from "./helpers/dom-harness.ts";
+import { extractStylesheetText, withWidgetDom } from "./helpers/dom-harness.ts";
 import { seedTestFrameTimeline } from "./helpers/timeline-fixtures.ts";
 
 function ControlledStageHarness(props: {
@@ -37,12 +37,13 @@ describe("TimelineFrameStage Scrubber (Ticket #34 Phase 1)", () => {
     const ssrHtml = renderToStaticMarkup(
       <TimelineFrameStage nodes={shuffled} activeIllustrationId={seeded.t2.illustrationId} onSelectIllustration={() => {}} apiBaseUrl="" />
     );
-    const styleCss = ssrHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+    const styleCss = extractStylesheetText(ssrHtml);
     const remSizes = Array.from(styleCss.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
     assert.ok(remSizes.length > 0 && remSizes.every((size) => size >= 0.75));
-    assert.match(styleCss, /:where\(\.gridlock-timeline-stage:not\(\.gridlock-dossier-surface \*\)\)\s*\{[\s\S]*?--gridlock-ink:[\s\S]*?--gridlock-radius:\s*0rem/);
-    assert.match(styleCss, /:where\(\.gridlock-timeline-stage code\)\s*\{[^}]*font-size:\s*max\(0\.75rem,\s*0\.875em\)/);
-    assert.match(styleCss, /:where\(\.gridlock-timeline-stage :is\(button, a, \[role="button"\], \[tabindex="0"\], summary\)\):focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/);
+    assert.doesNotMatch(styleCss, /var\(--(?:card|muted-foreground|border)\b/);
+    assert.match(styleCss, /:where\(\.gridlock-dossier-surface,\s*\.gridlock-timeline-stage:not\(\.gridlock-dossier-surface \*\)\)\s*\{[\s\S]*?--gridlock-ink:[\s\S]*?--gridlock-radius:\s*0rem/);
+    assert.match(styleCss, /:where\(:is\(\.gridlock-dossier-surface,\s*\.gridlock-timeline-stage\) code\)\s*\{[^}]*font-size:\s*max\(0\.75rem,\s*0\.875em\)/);
+    assert.match(styleCss, /:where\(:is\(\.gridlock-dossier-surface,\s*\.gridlock-timeline-stage\) :is\(button, a, input, textarea, select, \[role="button"\], \[tabindex="0"\], summary\)\):focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/);
     assert.match(styleCss, /:where\(\.gridlock-timeline-stage \.gridlock-status-badge\)\s*\{\s*padding-block:\s*0\.25rem/);
     assert.match(ssrHtml, new RegExp(`src="/api/illustrations/assets/${seeded.t2.illustrationId}\\.webp"`));
 

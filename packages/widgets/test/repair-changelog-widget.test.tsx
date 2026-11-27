@@ -5,6 +5,7 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { createGridlockHttpServer, createInMemoryGridlockRepository, DEFAULT_EFFICIENCY_SCORECARD, DEFAULT_TDLR_CONNECTOR_CONFIG, type GridlockRepository } from "@samasastudio/gridlock-core";
+import { extractStylesheetText } from "./helpers/dom-harness.ts";
 import {
   buildRepairChangelogUrl,
   ConnectorStatusBadge,
@@ -61,16 +62,18 @@ describe("<GridlockRepairChangelogWidget /> Seam 2 UI (Ticket #6)", () => {
 
     const sectionRef = createRef<HTMLElement>();
     const diurnalHtml = renderToStaticMarkup(<GridlockRepairChangelogWidget ref={sectionRef} {...HealedWithAmortization.args} />);
-    const styleBlock = diurnalHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+    const styleBlock = extractStylesheetText(diurnalHtml);
     const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
     assert.ok(remFontSizes.length > 0 && remFontSizes.every((s) => s >= 0.75), "Expected all rem font-size rules >= 0.75rem");
     assert.doesNotMatch(styleBlock, /gridlock-diff-table thead\)\s*\{\s*display:\s*none/);
+    assert.doesNotMatch(styleBlock, /var\(--(?:card|muted-foreground|border)\b/, "Widget CSS must not fall back to unscoped host --card, --muted-foreground, or --border tokens");
     assert.doesNotMatch(diurnalHtml, /<details[^>]*open/);
     for (const pattern of [
       /<section[^>]*class="[^"]*\bgridlock-dossier-surface\b[^"]*\bgridlock-repair-widget\b"/,
       /data-gridlock-theme="diurnal"/, /var\(--font-sans/, /--paper:\s*var\(--atlas-paper/, /--ink:\s*var\(--atlas-ink/, /--gridlock-radius:\s*0rem/,
-      /--gridlock-card:\s*var\(--card,\s*color-mix\(in oklab,\s*var\(--gridlock-paper\)\s*92%,\s*var\(--gridlock-ink\)\)\)/,
-      /--gridlock-muted:\s*var\(--muted-foreground,\s*color-mix\(in oklab,\s*var\(--gridlock-ink\)\s*68%,\s*var\(--gridlock-paper\)\)\)/,
+      /--gridlock-card:\s*color-mix\(in oklab,\s*var\(--gridlock-paper\)\s*92%,\s*var\(--gridlock-ink\)\)/,
+      /--gridlock-muted:\s*color-mix\(in oklab,\s*var\(--gridlock-ink\)\s*68%,\s*var\(--gridlock-paper\)\)/,
+      /--gridlock-border:\s*color-mix\(in oklab,\s*var\(--gridlock-ink\)\s*16%,\s*transparent\)/,
       /--relief-coral-mid/, /:focus-visible\s*\{\s*outline:\s*2px solid var\(--gridlock-ink\)/,
       /data-chart="cumulative-efficiency"/, /Cumulative Tokens Avoided Across Runs/, /9 recent runs/, /data-series="avoided"/, /data-series="actual"/, /aria-pressed="true"/,
       /Inspect Out-of-Band Repair v1 → v2 \(2026-10-27\)/, /Inspect Out-of-Band Repair v2 → v3 \(2026-11-03\)/,

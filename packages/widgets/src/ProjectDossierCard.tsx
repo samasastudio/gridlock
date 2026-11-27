@@ -2,7 +2,7 @@ import { Fragment, useId, type Ref } from "react";
 import { MotionConfig, motion } from "motion/react";
 import { CANONICAL_MILESTONE_LABEL, ProjectDossierCardNodeSchema, type CitedProject } from "@samasastudio/gridlock-core/schemas";
 import { computeBuildWindowSummary, computeCostPerSqFtUsd, unescapeWorkspaceProse } from "./workspace-card-model.ts";
-import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "./workspace-card-styles.ts";
+import { WORKSPACE_CARD_STYLESHEET_NODE } from "./workspace-card-styles.ts";
 import {
   CopyCitationButton,
   DossierNumber,
@@ -12,8 +12,6 @@ import {
   type GridlockWidgetTheme,
 } from "./DossierPrimitives.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
-
-const WORKSPACE_CARD_STYLESHEET_NODE = <style href="gridlock-workspace-cards" precedence="default">{GRIDLOCK_WORKSPACE_CARD_STYLESHEET}</style>;
 const META_DOT_NODE = <span aria-hidden="true">·</span>;
 const INTEGER_FORMAT = { maximumFractionDigits: 0 } as const;
 

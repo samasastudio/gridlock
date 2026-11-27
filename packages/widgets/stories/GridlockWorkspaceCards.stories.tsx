@@ -1,5 +1,5 @@
 import type { CSSProperties, ComponentType } from "react";
-import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "../src/workspace-card-styles.ts";
+import { WORKSPACE_CARD_STYLESHEET_NODE } from "../src/workspace-card-styles.ts";
 import {
   DossierStatusBadge,
   MetricComparisonTable,
@@ -35,12 +35,6 @@ export interface WorkspaceCardsShowcaseProps {
   theme?: GridlockWidgetTheme;
   apiBaseUrl?: string;
 }
-
-const WORKSPACE_CARD_STYLESHEET_NODE = (
-  <style href="gridlock-workspace-cards" precedence="default">
-    {GRIDLOCK_WORKSPACE_CARD_STYLESHEET}
-  </style>
-);
 
 const DEFAULT_BRIEF_TITLE =
   "Williamson–Hays 345kV Corridor Investigative Brief";

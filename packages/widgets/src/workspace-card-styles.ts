@@ -1,7 +1,7 @@
-import { GRIDLOCK_DOSSIER_BASE_CSS } from "./dossier-styles.ts";
+import { createElement, Fragment } from "react";
+import { DOSSIER_BASE_STYLESHEET_NODE } from "./dossier-styles.ts";
 
-export const GRIDLOCK_WORKSPACE_CARD_STYLESHEET = `@layer gridlock-widgets {
-${GRIDLOCK_DOSSIER_BASE_CSS}
+const GRIDLOCK_WORKSPACE_CARD_STYLESHEET = `@layer gridlock-widgets {
   .gridlock-workspace-card:where(.gridlock-dossier-surface) {
     display: flex;
     flex-direction: column;
@@ -19,106 +19,18 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   .gridlock-workspace-card :where(.gridlock-banner) {
     margin-block-end: 0;
   }
-
   .gridlock-workspace-card :where(.gridlock-repair-header) {
-    display: flex;
-    flex-wrap: wrap;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
     padding-block-end: 1.25rem;
     margin-block-end: 0;
-    border-block-end: 1px solid var(--gridlock-border);
-  }
-  .gridlock-workspace-card :where(.gridlock-title-block) {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    min-inline-size: 0;
-    max-inline-size: 100%;
   }
   .gridlock-workspace-card :where(.gridlock-dossier-title) {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.6rem;
-    font-family: var(--gridlock-font-display);
     font-size: clamp(1.3rem, 1.12rem + 0.55cqi, 1.6rem);
-    font-weight: 800;
-    letter-spacing: -0.025em;
     line-height: 1.12;
-    overflow-wrap: anywhere;
-  }
-  .gridlock-workspace-card :where(.gridlock-connector-chip, .gridlock-project-chip) {
-    display: inline-flex;
-    align-items: center;
-    max-inline-size: 100%;
-    padding-block: 0.2rem;
-    padding-inline: 0.5rem;
-    border: 1px solid var(--gridlock-border-strong);
-    border-radius: var(--gridlock-radius);
-    background-color: var(--gridlock-card);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    overflow-wrap: anywhere;
-  }
-  .gridlock-workspace-card :where(.gridlock-title-rule) {
-    block-size: 2px;
-    inline-size: 2.75rem;
-    background-color: var(--gridlock-ink);
-  }
-  .gridlock-workspace-card :where(.gridlock-header-controls) {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.625rem;
-  }
-
-  .gridlock-workspace-card :where(.gridlock-headline-stats) {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-    gap: 1.25rem 2rem;
-  }
-  .gridlock-workspace-card :where(.gridlock-headline-stat) {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    min-inline-size: 0;
-  }
-  @container (width >= 42em) {
-    .gridlock-workspace-card :where(.gridlock-headline-stat + .gridlock-headline-stat) {
-      padding-inline-start: 1.75rem;
-      border-inline-start: 1px solid var(--gridlock-border);
-    }
-  }
-  .gridlock-workspace-card :where(.gridlock-headline-stat dt) {
-    font-family: var(--gridlock-font-sans);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--gridlock-muted);
   }
   .gridlock-workspace-card :where(.gridlock-kpi-value) {
-    display: block;
-    contain: layout style;
-    font-family: var(--gridlock-font-display);
-    font-size-adjust: cap-height from-font;
     font-size: clamp(1.9rem, 1.6rem + 1vw, 2.6rem);
-    font-weight: 900;
-    letter-spacing: -0.03em;
     line-height: 1.04;
-    font-variant-numeric: tabular-nums;
-    color: var(--gridlock-ink);
-  }
-  .gridlock-workspace-card :where(.gridlock-kpi-sub) {
-    display: block;
-    margin-block-start: 0.25rem;
-    font-family: var(--gridlock-font-mono);
-    font-size: 0.75rem;
-    color: var(--gridlock-muted);
-    overflow-wrap: anywhere;
   }
 
   .gridlock-workspace-card :where(.gridlock-workspace-specimen) {
@@ -138,88 +50,9 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
     color: var(--gridlock-ink);
     overflow-wrap: anywhere;
   }
-  .gridlock-workspace-card :where(.gridlock-inline-meta) {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.45rem 0.65rem;
-    min-inline-size: 0;
-    max-inline-size: 100%;
-    font-family: var(--gridlock-font-mono);
-    font-variant-numeric: tabular-nums;
-    font-size: 0.75rem;
-    color: var(--gridlock-muted);
-    overflow-wrap: anywhere;
-  }
-  .gridlock-workspace-card :where(.gridlock-citations-row) {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.55rem 0.9rem;
-    padding-block-start: 0.15rem;
-  }
-  .gridlock-workspace-card :where(.gridlock-citation-item) {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.45rem;
-    max-inline-size: 100%;
-  }
-  .gridlock-workspace-card :where(.gridlock-citation-link) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-family: var(--gridlock-font-mono);
-    font-size: 0.75rem;
-    color: var(--gridlock-ink);
-    text-decoration: underline;
-    text-decoration-color: var(--gridlock-border-strong);
-    transition: color 240ms cubic-bezier(0.16, 1, 0.3, 1), text-decoration-color 240ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .gridlock-workspace-card :where(.gridlock-citation-link:hover) {
-    text-decoration-color: var(--gridlock-accent);
-  }
-
-  .gridlock-workspace-card :where(.gridlock-workspace-disclosure) {
-    margin-block-start: 0.25rem;
-    border-block-start: 1px solid var(--gridlock-border);
-  }
-  .gridlock-workspace-card :where(.gridlock-workspace-disclosure-summary) {
-    list-style: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-block-size: 2.5rem;
-    cursor: pointer;
-    font-family: var(--gridlock-font-sans);
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--gridlock-muted);
-    transition: color 300ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
-  .gridlock-workspace-card :where(.gridlock-workspace-disclosure-summary)::-webkit-details-marker {
-    display: none;
-  }
-  .gridlock-workspace-card :where(.gridlock-workspace-disclosure-summary)::before {
-    content: "+";
-    font-family: var(--gridlock-font-mono);
-    font-size: 0.875rem;
-    color: var(--gridlock-accent);
-  }
-  .gridlock-workspace-card :where(.gridlock-workspace-disclosure[open] > .gridlock-workspace-disclosure-summary)::before {
-    content: "−";
-  }
-  .gridlock-workspace-card :where(.gridlock-workspace-disclosure-summary:hover) {
-    color: var(--gridlock-ink);
-  }
   .gridlock-workspace-card :where(.gridlock-workspace-disclosure-body) {
-    display: flex;
-    flex-direction: column;
     gap: 0.65rem;
     padding-block: 0.35rem 0.15rem;
-    min-inline-size: 0;
   }
 
   .gridlock-workspace-card :where(.gridlock-tracked-projects) {
@@ -448,10 +281,15 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
       content: var(--col-6) ": ";
     }
   }
-
-  @media (prefers-reduced-motion: reduce) {
-    .gridlock-workspace-card :where(.gridlock-citation-link, .gridlock-workspace-disclosure-summary) {
-      transition: none;
-    }
-  }
 }`;
+
+export const WORKSPACE_CARD_STYLESHEET_NODE = createElement(
+  Fragment,
+  null,
+  DOSSIER_BASE_STYLESHEET_NODE,
+  createElement(
+    "style",
+    { href: "gridlock-workspace-cards", precedence: "default" },
+    GRIDLOCK_WORKSPACE_CARD_STYLESHEET
+  )
+);

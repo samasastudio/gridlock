@@ -2,11 +2,9 @@ import { useId, type Ref } from "react";
 import { MotionConfig, motion } from "motion/react";
 import { MetricComparisonTableNodeSchema, type CitedProject } from "@samasastudio/gridlock-core/schemas";
 import { buildComparisonBenchmarkModel, unescapeWorkspaceProse, type ComparisonRowViewModel } from "./workspace-card-model.ts";
-import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "./workspace-card-styles.ts";
+import { WORKSPACE_CARD_STYLESHEET_NODE } from "./workspace-card-styles.ts";
 import { CopyCitationButton, DossierNumber, DossierStatusBadge, EDITORIAL_EASE, EXPORT_ARROW_ICON, RELIEF_RETICLE_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
-
-const WORKSPACE_CARD_STYLESHEET_NODE = <style href="gridlock-workspace-cards" precedence="default">{GRIDLOCK_WORKSPACE_CARD_STYLESHEET}</style>;
 const INTEGER_FORMAT = { maximumFractionDigits: 0 } as const;
 const COMPARISON_COLUMNS = [
   "Project",
