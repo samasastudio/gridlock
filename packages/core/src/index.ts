@@ -198,6 +198,11 @@ export type PainterDeps = Omit<PainterUseCaseDeps, "imageEncoder"> & {
   imageEncoder?: PainterImageEncoder;
 };
 
+export {
+  createTimelineBranchSlotTracker,
+  type TimelineBranchSlotTracker,
+} from "./use-cases/timeline-branch-slots.ts";
+
 export type GridlockHttpDeps = Omit<GridlockHttpControllerDeps, "imageEncoder"> & {
   imageEncoder?: PainterImageEncoder;
 };

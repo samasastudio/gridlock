@@ -10,6 +10,7 @@ import type {
   PainterImageEncoder,
   RunSpanSink,
 } from "../interfaces/index.ts";
+import type { TimelineBranchSlotTracker } from "../use-cases/timeline-branch-slots.ts";
 import { CORS_HEADERS, sendJson } from "./http-utils.ts";
 import { handlePostInvestigatePlan } from "./investigate-controller.ts";
 import {
@@ -26,6 +27,7 @@ export type GridlockHttpDeps = {
   geminiClient?: GeminiInteractionsClient;
   imageEncoder: PainterImageEncoder;
   spanSink?: RunSpanSink;
+  branchSlotTracker?: TimelineBranchSlotTracker;
   maxBranchesPerTimeline?: number;
   now?: () => Date;
 };

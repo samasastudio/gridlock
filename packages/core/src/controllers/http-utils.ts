@@ -62,11 +62,11 @@ export function sendWebp(
   res.end(webpBuffer);
 }
 
-export type ParsedQueryResult<T> =
+type ParsedQueryResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string; issues: readonly z.ZodIssue[] };
 
-export function parseSingleValueSearchParams<TSchema extends z.ZodTypeAny>(
+function parseSingleValueSearchParams<TSchema extends z.ZodTypeAny>(
   searchParams: URLSearchParams,
   schema: TSchema
 ): ParsedQueryResult<z.output<TSchema>> {
@@ -89,6 +89,23 @@ export function parseSingleValueSearchParams<TSchema extends z.ZodTypeAny>(
     };
   }
   return { ok: true, data: parsed.data };
+}
+
+export function parseQueryOrSendBadRequest<TSchema extends z.ZodTypeAny>(
+  res: ServerResponse,
+  searchParams: URLSearchParams,
+  schema: TSchema
+): z.output<TSchema> | null {
+  const parsed = parseSingleValueSearchParams(searchParams, schema);
+  if (!parsed.ok) {
+    sendJson(res, 400, {
+      error: "invalid_query_parameters",
+      message: parsed.message,
+      issues: parsed.issues,
+    });
+    return null;
+  }
+  return parsed.data;
 }
 
 const MAX_JSON_BODY_BYTES = 16_384;

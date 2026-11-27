@@ -349,6 +349,7 @@ describe("Efficiency Scorecard & Cloud Trace Spans (Ticket #4)", () => {
         "?limit=0",
         "?limit=abc",
         "?limit=999",
+        "?limit=5&limit=10",
         "?execution_mode=magic",
         "?unexpected=1",
       ]) {
@@ -363,6 +364,13 @@ describe("Efficiency Scorecard & Cloud Trace Spans (Ticket #4)", () => {
         assert.equal(errBody.error, "invalid_query_parameters");
         assert.ok(errBody.message.length > 0);
       }
+
+      const postRes = await fetch(`${apiBaseUrl}/api/efficiency/scorecard`, {
+        method: "POST",
+      });
+      assert.equal(postRes.status, 405);
+      assert.equal(postRes.headers.get("allow"), "GET");
+      assert.equal(((await postRes.json()) as { error: string }).error, "method_not_allowed");
 
       // 4. Sad Path: corrupted scorecard document returns 500 JSON error without crashing server
       simulateCorruptedScorecard = true;

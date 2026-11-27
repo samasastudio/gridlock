@@ -23,9 +23,8 @@ import {
 } from "./helpers/painter-helpers.ts";
 import { createCorridorBaseCanvasWebp, isWebpBuffer } from "./helpers/webp-codec.ts";
 import {
-  countOccupiedBranchSlots,
-  withTimelineBranchAdmission,
-  wrapRepositoryWithBranchSlot,
+  DEFAULT_TIMELINE_BRANCH_SLOT_TRACKER,
+  type TimelineBranchSlotTracker,
 } from "./timeline-branch-slots.ts";
 import {
   evaluatePainterMilestoneGate,
@@ -43,6 +42,7 @@ export interface PainterUseCaseDeps {
   geminiClient: GeminiInteractionsClient;
   imageEncoder: PainterImageEncoder;
   spanSink?: RunSpanSink;
+  branchSlotTracker?: TimelineBranchSlotTracker;
 }
 
 export interface BootstrapCanvasInput {
@@ -181,8 +181,9 @@ export async function branchTimeline(input: BranchTimelineInput, deps: PainterUs
   const parentPlate = await deps.repository.getGeneratedIllustrationByInteractionId(input.parentInteractionId);
   const timelineId = input.timelineId ?? parentPlate?.timelineId ?? DEFAULT_TIMELINE_ID;
   const maxBranches = input.maxBranchesPerTimeline ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
+  const slotTracker = deps.branchSlotTracker ?? DEFAULT_TIMELINE_BRANCH_SLOT_TRACKER;
 
-  const admission = await withTimelineBranchAdmission(deps.repository, timelineId, async (reserve) => {
+  const admission = await slotTracker.withTimelineBranchAdmission(timelineId, async (reserve) => {
     const { ctx, existingPlates } = await preparePainterTurn(
       { timelineId, ...(input.now !== undefined ? { now: input.now } : {}) },
       deps
@@ -207,7 +208,7 @@ export async function branchTimeline(input: BranchTimelineInput, deps: PainterUs
         ),
       };
     }
-    if (countOccupiedBranchSlots(existingPlates, deps.repository, timelineId, ctx.now) >= maxBranches) {
+    if (slotTracker.countOccupiedBranchSlots(existingPlates, timelineId, ctx.now) >= maxBranches) {
       return {
         admitted: false as const,
         result: rejectBranchPrecondition(
@@ -235,20 +236,25 @@ export async function branchTimeline(input: BranchTimelineInput, deps: PainterUs
       return failClosedInteraction(admission.ctx, "painter_branch_timeline", outcome, parentObservations);
     }
 
-    return await finalizePaintedIllustrationTurn(
-      { ...admission.ctx, repository: wrapRepositoryWithBranchSlot(deps.repository, admission.slot) },
-      {
-        operation: "branchTimeline",
-        stage: "painter_branch_timeline",
-        turn: outcome.turn,
-        parentPlate: admission.validParent,
-        observations: parentObservations,
-        prompt,
-        isBranch: true,
-        scenarioPrompt: trimmedScenario,
-        expiresAt: new Date(admission.ctx.now.getTime() + NINETY_DAYS_MS).toISOString(),
-      }
-    );
+    return await finalizePaintedIllustrationTurn(admission.ctx, {
+      operation: "branchTimeline",
+      stage: "painter_branch_timeline",
+      turn: outcome.turn,
+      parentPlate: admission.validParent,
+      observations: parentObservations,
+      prompt,
+      isBranch: true,
+      scenarioPrompt: trimmedScenario,
+      expiresAt: new Date(admission.ctx.now.getTime() + NINETY_DAYS_MS).toISOString(),
+      onCommitIllustration: async (plate, webpBuffer) => {
+        admission.slot.markPersisting(plate.illustrationId);
+        try {
+          await deps.repository.saveGeneratedIllustration(plate, webpBuffer);
+        } finally {
+          await admission.slot.release();
+        }
+      },
+    });
   } finally {
     await admission.slot.release();
   }

@@ -8,7 +8,7 @@ import {
 } from "../use-cases/get-frame-timeline.ts";
 import type { GridlockHttpDeps } from "./http-server.ts";
 import {
-  parseSingleValueSearchParams,
+  parseQueryOrSendBadRequest,
   readJsonObjectBody,
   sendJson,
   sendMethodNotAllowed,
@@ -63,20 +63,14 @@ export async function handleGetFrameTimeline(
     return;
   }
 
-  const parsedQuery = parseSingleValueSearchParams(
+  const query = parseQueryOrSendBadRequest(
+    res,
     parsedUrl.searchParams,
     TimelineQueryParamsSchema
   );
-  if (!parsedQuery.ok) {
-    sendJson(res, 400, {
-      error: "invalid_query_parameters",
-      message: parsedQuery.message,
-      issues: parsedQuery.issues,
-    });
-    return;
-  }
+  if (!query) return;
 
-  const { timeline_id } = parsedQuery.data;
+  const { timeline_id } = query;
   const result = await getFrameTimeline(
     {
       ...(timeline_id !== undefined ? { timelineId: timeline_id } : {}),
@@ -104,16 +98,7 @@ export async function handleGetIllustrationAsset(
     return;
   }
 
-  const parsedQuery = parseSingleValueSearchParams(
-    parsedUrl.searchParams,
-    EmptyQueryParamsSchema
-  );
-  if (!parsedQuery.ok) {
-    sendJson(res, 400, {
-      error: "invalid_query_parameters",
-      message: parsedQuery.message,
-      issues: parsedQuery.issues,
-    });
+  if (!parseQueryOrSendBadRequest(res, parsedUrl.searchParams, EmptyQueryParamsSchema)) {
     return;
   }
 
@@ -144,16 +129,7 @@ export async function handlePostIllustrationBranch(
     return;
   }
 
-  const parsedQuery = parseSingleValueSearchParams(
-    parsedUrl.searchParams,
-    EmptyQueryParamsSchema
-  );
-  if (!parsedQuery.ok) {
-    sendJson(res, 400, {
-      error: "invalid_query_parameters",
-      message: parsedQuery.message,
-      issues: parsedQuery.issues,
-    });
+  if (!parseQueryOrSendBadRequest(res, parsedUrl.searchParams, EmptyQueryParamsSchema)) {
     return;
   }
 
