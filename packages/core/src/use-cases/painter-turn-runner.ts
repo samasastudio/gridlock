@@ -1,3 +1,4 @@
+import type { Buffer } from "node:buffer";
 import {
   DEFAULT_TIMELINE_ID,
   PAINTER_AGENT_MODEL,
@@ -50,6 +51,21 @@ export type PainterMilestoneGateOutcome =
       milestoneObservations: Observation[];
     };
 
+function createPainterTurnContext(
+  params: { timelineId: string; existingPlates: readonly GeneratedIllustration[]; now: Date; startedWallMs?: number },
+  deps: { repository: GridlockRepository; imageEncoder: PainterImageEncoder; spanSink?: RunSpanSink }
+): PainterTurnContext {
+  return {
+    timelineId: params.timelineId,
+    activeIllustration: selectActiveCanonicalIllustration(params.existingPlates),
+    now: params.now,
+    startedWallMs: params.startedWallMs ?? Date.now(),
+    repository: deps.repository,
+    imageEncoder: deps.imageEncoder,
+    ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
+  };
+}
+
 export async function preparePainterTurn(
   input: { timelineId?: string; now?: Date },
   deps: { repository: GridlockRepository; imageEncoder: PainterImageEncoder; spanSink?: RunSpanSink }
@@ -58,17 +74,8 @@ export async function preparePainterTurn(
   const timelineId = input.timelineId ?? DEFAULT_TIMELINE_ID;
   const now = input.now ?? new Date();
   const existingPlates = await deps.repository.listGeneratedIllustrationsByTimeline(timelineId);
-  const activeIllustration = selectActiveCanonicalIllustration(existingPlates);
   return {
-    ctx: {
-      timelineId,
-      activeIllustration,
-      now,
-      startedWallMs,
-      repository: deps.repository,
-      imageEncoder: deps.imageEncoder,
-      ...(deps.spanSink !== undefined ? { spanSink: deps.spanSink } : {}),
-    },
+    ctx: createPainterTurnContext({ timelineId, existingPlates, now, startedWallMs }, deps),
     existingPlates,
   };
 }
@@ -245,6 +252,7 @@ export async function finalizePaintedIllustrationTurn(
     operation: "bootstrapCanvas" | "paintMilestoneDelta" | "branchTimeline";
     stage: PainterStage;
     turn: PainterCompletedTurn;
+    onCommitIllustration?: (plate: GeneratedIllustration, webpBuffer: Buffer) => Promise<void>;
   }
 ): Promise<StatefulPainterResult> {
   const { interaction, rebootstrappedFromParentWebp, priorTokensUsed } = params.turn;
@@ -267,7 +275,9 @@ export async function finalizePaintedIllustrationTurn(
     return failClosedPainter(ctx, { stage: params.stage, reason: "Encoded Scenario Branch illustration missing required XMP rights watermark metadata", errorCode: "corrupt_or_empty_image", tokensUsed, interactionId, observations: params.observations });
   }
   const plate = buildGeneratedIllustrationRecord({ ...params, rebootstrappedFromParentWebp, timelineId: ctx.timelineId, interactionId, webpBuffer: encoded.webpBuffer, sha256: encoded.sha256, createdAt: ctx.now.toISOString() });
-  await ctx.repository.saveGeneratedIllustration(plate, encoded.webpBuffer);
+  await (params.onCommitIllustration
+    ? params.onCommitIllustration(plate, encoded.webpBuffer)
+    : ctx.repository.saveGeneratedIllustration(plate, encoded.webpBuffer));
   if (!params.isBranch) await pinMilestoneRawCaptures(ctx.repository, plate.rawCaptureHashes);
   await recordAgenticStageRun(
     {

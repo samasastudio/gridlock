@@ -7,7 +7,7 @@ import {
 import { runUiOrchestrationAgent } from "../use-cases/run-ui-orchestration-agent.ts";
 import type { GridlockHttpDeps } from "./http-server.ts";
 import {
-  parseSingleValueSearchParams,
+  parseQueryOrSendBadRequest,
   readJsonObjectBody,
   sendJson,
   sendMethodNotAllowed,
@@ -30,16 +30,7 @@ export async function handlePostInvestigatePlan(
     return;
   }
 
-  const parsedQuery = parseSingleValueSearchParams(
-    parsedUrl.searchParams,
-    EmptyQueryParamsSchema
-  );
-  if (!parsedQuery.ok) {
-    sendJson(res, 400, {
-      error: "invalid_query_parameters",
-      message: parsedQuery.message,
-      issues: parsedQuery.issues,
-    });
+  if (!parseQueryOrSendBadRequest(res, parsedUrl.searchParams, EmptyQueryParamsSchema)) {
     return;
   }
 

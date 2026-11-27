@@ -6,7 +6,11 @@ import {
   type GridlockRepository,
 } from "../interfaces/index.ts";
 import { getEfficiencyScorecard } from "../use-cases/get-efficiency-scorecard.ts";
-import { sendJson } from "./http-utils.ts";
+import {
+  parseQueryOrSendBadRequest,
+  sendJson,
+  sendMethodNotAllowed,
+} from "./http-utils.ts";
 
 const EfficiencyQueryParamsSchema = z
   .object({
@@ -26,39 +30,26 @@ export async function handleGetEfficiencyScorecard(
   }
 ): Promise<void> {
   if (req.method !== "GET") {
-    sendJson(res, 405, {
-      error: "method_not_allowed",
-      message: "Only GET is supported on /api/efficiency/scorecard",
-    });
+    sendMethodNotAllowed(
+      res,
+      "GET",
+      "Only GET is supported on /api/efficiency/scorecard"
+    );
     return;
   }
 
-  const rawQuery = Array.from(parsedUrl.searchParams.entries()).reduce<
-    Record<string, string>
-  >((acc, [key, value]) => {
-    acc[key] = value;
-    return acc;
-  }, {});
-
-  const parsedQuery = EfficiencyQueryParamsSchema.safeParse(rawQuery);
-  if (!parsedQuery.success) {
-    sendJson(res, 400, {
-      error: "invalid_query_parameters",
-      message: parsedQuery.error.issues
-        .map((issue) => `${issue.path.join(".") || "query"}: ${issue.message}`)
-        .join("; "),
-      issues: parsedQuery.error.issues,
-    });
-    return;
-  }
+  const query = parseQueryOrSendBadRequest(
+    res,
+    parsedUrl.searchParams,
+    EfficiencyQueryParamsSchema
+  );
+  if (!query) return;
 
   const result = await getEfficiencyScorecard(
     {
-      ...(parsedQuery.data.limit !== undefined
-        ? { limit: parsedQuery.data.limit }
-        : {}),
-      ...(parsedQuery.data.execution_mode !== undefined
-        ? { executionMode: parsedQuery.data.execution_mode }
+      ...(query.limit !== undefined ? { limit: query.limit } : {}),
+      ...(query.execution_mode !== undefined
+        ? { executionMode: query.execution_mode }
         : {}),
     },
     deps

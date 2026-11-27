@@ -836,4 +836,54 @@ describe("Stateful Painter Agent & Timeline Chaining (Seam 3 Core, Ticket #7)", 
     assert.equal(rejected[0]?.errorCode, "branch_quota_exceeded");
     assert.equal(interSeq - callsBeforeRace, 1);
   });
+
+  test("Part 5b (Sad Path): branchTimeline releases reserved slot when listObservationsByProject rejects", async () => {
+    const repo = createInMemoryGridlockRepository();
+    const { milestoneObs: obs } = createPainterTestObservations();
+    await repo.appendObservation(obs);
+    const webp = createFixtureWebpBuffer("slot-obs-fail");
+    let seq = 0;
+    const geminiClient: GeminiInteractionsClient = {
+      interactions: {
+        create: async (req) => ({
+          id: `inter_obs_fail_${++seq}`,
+          status: "completed",
+          ...(req.previous_interaction_id !== undefined ? { previous_interaction_id: req.previous_interaction_id } : {}),
+          output_image: { mime_type: "image/webp", data: webp.toString("base64") },
+          usage: { total_tokens: 120 },
+        }),
+      },
+    };
+    const root = await bootstrapCanvas(
+      { timelineId: "corridor-slot-obs-failure", observations: [obs], now: new Date("2026-10-27T18:05:00.000Z") },
+      { repository: repo, geminiClient }
+    );
+    assert.equal(root.status, "illustration_painted");
+
+    let failedOnce = false;
+    const flakyRepo: GridlockRepository = {
+      ...repo,
+      listObservationsByProject: async (projectNumber) => {
+        if (!failedOnce) {
+          failedOnce = true;
+          throw new Error("transient listObservationsByProject failure");
+        }
+        return repo.listObservationsByProject(projectNumber);
+      },
+    };
+    const now = new Date("2026-10-28T10:00:00.000Z");
+    await assert.rejects(
+      () =>
+        branchTimeline(
+          { parentInteractionId: root.illustration.interactionId, scenarioPrompt: "Fail read once", maxBranchesPerTimeline: 1, now },
+          { repository: flakyRepo, geminiClient }
+        ),
+      /transient listObservationsByProject failure/
+    );
+    const retry = await branchTimeline(
+      { parentInteractionId: root.illustration.interactionId, scenarioPrompt: "Retry after slot release", maxBranchesPerTimeline: 1, now },
+      { repository: flakyRepo, geminiClient }
+    );
+    assert.equal(retry.status, "illustration_painted");
+  });
 });

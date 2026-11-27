@@ -14,7 +14,7 @@ import {
 } from "../interfaces/index.ts";
 import { hydrateTimelineNodes } from "./get-frame-timeline.ts";
 import { isGeneratedIllustrationActiveAt } from "./helpers/painter-helpers.ts";
-import { countOccupiedBranchSlots } from "./timeline-branch-slots.ts";
+import { DEFAULT_TIMELINE_BRANCH_SLOT_TRACKER } from "./timeline-branch-slots.ts";
 import { branchTimeline } from "./run-painter-agent.ts";
 
 export interface BranchIllustrationDeps {
@@ -141,7 +141,7 @@ export async function branchIllustration(
     const maxBranches =
       deps.maxBranchesPerTimeline ?? DEFAULT_MAX_BRANCHES_PER_TIMELINE;
     if (
-      countOccupiedBranchSlots(validLineagePlates, deps.repository, timelineId, now) >=
+      DEFAULT_TIMELINE_BRANCH_SLOT_TRACKER.countOccupiedBranchSlots(validLineagePlates, timelineId, now) >=
       maxBranches
     ) {
       return branchErr(

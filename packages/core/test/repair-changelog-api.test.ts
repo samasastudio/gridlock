@@ -298,6 +298,7 @@ describe("GET /api/repairs/changelog HTTP Seam (Seam 2 API, Ticket #6)", () => {
 
       const postRes = await fetch(`${apiBaseUrl}/api/repairs/changelog`, { method: "POST" });
       assert.equal(postRes.status, 405);
+      assert.equal(postRes.headers.get("allow"), "GET");
       assert.equal(((await postRes.json()) as { error: string }).error, "method_not_allowed");
 
       for (const badQuery of ["?limit=0", "?limit=abc", "?limit=999", "?format=xml", "?connector_id=%20%20", "?unexpected=1", "?format=xml&format=md"]) {
