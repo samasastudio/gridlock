@@ -30,7 +30,7 @@ Gridlock is an **editorial civic publishing pipeline**, not a high-QPS platform.
   - [x] [`#82`](https://github.com/samasastudio/gridlock/issues/82) — Glossary alignment, public routes, docs, widget exports, and `400`/`280`-line caps *(completed & closed)*.
   - [x] [`#83`](https://github.com/samasastudio/gridlock/issues/83) — Deepen persistence boundary for atomic transitions and bounded reads *(completed)*.
   - [x] [`#84`](https://github.com/samasastudio/gridlock/issues/84) — Collapse illustration encoder onto `sharp`, fold Scenario Branch wrapper, and unify HTTP guards *(completed)*.
-  - [ ] [`#85`](https://github.com/samasastudio/gridlock/issues/85) — Isolate widget theme tokens, deduplicate base CSS, and extract shared snapshot loading shell *(unblocked)*.
+  - [x] [`#85`](https://github.com/samasastudio/gridlock/issues/85) — Isolate widget theme tokens, deduplicate base CSS, and extract shared snapshot loading shell *(completed)*.
 - **In MVP (Wave 5 — Queued Behind `#81`)**:
   - Execute the remaining **4-Step `#11` Live Smoke Spike** slices (`Slices 2–5`) and deploy the Cloud Run Service + daily/backfill Job + Firestore/GCS spine (`#11` is **no longer blocked by `#39`/`#40`**).
   - Mount the two already-built live widgets (`<GridlockTimelineWidget />` and `<GridlockRepairChangelogWidget />`) on `/work/gridlock` in `profile-site` with Firebase `/api/**` rewrites (`profile-site#1`).

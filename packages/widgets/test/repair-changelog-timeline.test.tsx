@@ -12,7 +12,7 @@ import {
 } from "@samasastudio/gridlock-core";
 import { CopyCitationButton, fetchRepairChangelogSnapshot, GridlockRepairChangelogWidget } from "../src/index.ts";
 import { HealedWithAmortization } from "../stories/GridlockRepairChangelogWidget.stories.tsx";
-import { withWidgetDom } from "./helpers/dom-harness.ts";
+import { waitForDom, withWidgetDom } from "./helpers/dom-harness.ts";
 
 const HISTORICAL_HTML = `<div class="project-details"><dl class="dl-horizontal">
   <dt>Project Name:</dt><dd>Compass Datacenters - Building 10</dd><dt>Project Number:</dt><dd>TABS2027003697</dd>
@@ -137,5 +137,110 @@ describe("<GridlockRepairChangelogWidget /> Timeline, Live Core Pipeline & Inter
     });
     assert.equal("window" in globalThis, hadWindowBefore);
     assert.equal(typeof Object.getOwnPropertyDescriptor(globalThis, "navigator")?.get, typeof navDescBefore?.get);
+  });
+
+  test("Switching queryKey synchronously resets selectedEntryId and error state, aborts in-flight fetches, and renders retryable structured alerts", async () => {
+    await withWidgetDom(async ({ window: win, container, root }) => {
+      await act(async () => {
+        root.render(
+          <GridlockRepairChangelogWidget
+            {...HealedWithAmortization.args}
+            apiBaseUrl="https://alpha.example.com"
+            connectorId="tdlr-tabs"
+          />
+        );
+      });
+      const getTabs = () => Array.from(container.querySelectorAll('[role="tab"]'));
+      assert.equal(getTabs()[1]?.getAttribute("aria-selected"), "true");
+
+      await act(async () => {
+        getTabs()[0]!.dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+      });
+      assert.equal(getTabs()[0]?.getAttribute("aria-selected"), "true");
+
+      await act(async () => {
+        root.render(
+          <GridlockRepairChangelogWidget
+            {...HealedWithAmortization.args}
+            apiBaseUrl="https://beta.example.com"
+            connectorId="tdlr-tabs"
+          />
+        );
+      });
+      assert.equal(
+        getTabs()[1]?.getAttribute("aria-selected"),
+        "true",
+        "Changing queryKey must synchronously reset selectedEntryId back to the latest entry"
+      );
+
+      const origFetch = globalThis.fetch;
+      const abortedSignals: AbortSignal[] = [];
+      let alphaCalls = 0;
+      try {
+        globalThis.fetch = async (input, init) => {
+          const url = String(input);
+          if (url.includes("connector_id=alpha-conn")) {
+            alphaCalls += 1;
+            if (alphaCalls === 1) {
+              return Response.json(
+                { error: "repair_feed_unavailable", message: "Repair feed temporarily offline" },
+                { status: 503 }
+              );
+            }
+            if (init?.signal) abortedSignals.push(init.signal);
+            return await new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+            });
+          }
+          if (url.includes("/api/repairs/changelog")) {
+            return Response.json({
+              ...HealedWithAmortization.args.changelog!,
+              connectorId: "beta-conn",
+            });
+          }
+          return Response.json(HealedWithAmortization.args.efficiencyScorecard!);
+        };
+
+        await act(async () => {
+          root.render(<GridlockRepairChangelogWidget apiBaseUrl="" connectorId="alpha-conn" />);
+        });
+        await waitForDom(() => /Repair feed temporarily offline/.test(container.textContent ?? ""));
+        const retryBtn = container.querySelector("button.gridlock-action-btn") as HTMLButtonElement | null;
+        assert.ok(retryBtn && /Retry/i.test(retryBtn.textContent ?? ""));
+
+        await act(async () => {
+          retryBtn.click();
+        });
+        await waitForDom(() => abortedSignals.length > 0);
+
+        await act(async () => {
+          root.render(<GridlockRepairChangelogWidget apiBaseUrl="" connectorId="beta-conn" />);
+        });
+        assert.ok(abortedSignals.every((sig) => sig.aborted), "In-flight retry fetch must abort on queryKey change");
+        assert.doesNotMatch(container.textContent ?? "", /Repair feed temporarily offline/);
+        await waitForDom(() => /beta-conn/.test(container.textContent ?? ""));
+
+        await act(async () => {
+          root.render(
+            <GridlockRepairChangelogWidget
+              changelog={HealedWithAmortization.args.changelog!}
+              efficiencyScorecard={HealedWithAmortization.args.efficiencyScorecard!}
+              apiBaseUrl=""
+              connectorId="alpha-conn"
+            />
+          );
+        });
+        await act(async () => {
+          root.render(<GridlockRepairChangelogWidget apiBaseUrl="" connectorId="alpha-conn" />);
+        });
+        assert.doesNotMatch(
+          container.textContent ?? "",
+          /Repair feed temporarily offline/,
+          "Returning to live mode with the same queryKey after static mode must not flash a stale errored promise"
+        );
+      } finally {
+        globalThis.fetch = origFetch;
+      }
+    });
   });
 });
