@@ -53,6 +53,7 @@ export const BANNED_GLOSSARY_TERMS = loadBannedGlossaryTerms();
 
 export const MAX_TSX_LINES = 280;
 export const MAX_CORE_TS_LINES = 400;
+export const PR_WARN_CHANGED_LINES = 700;
 export const MAX_PR_CHANGED_LINES = 800;
 export const ALLOWED_CORE_TOP_DIRS = new Set([
   "interfaces",
@@ -65,6 +66,23 @@ const PUBLIC_PACKAGE_ENTRYPOINTS = new Set([
   "packages/core/src/index.ts",
   "packages/core/src/interfaces/index.ts",
   "packages/widgets/src/index.ts",
+]);
+
+const LEGACY_CAMELCASE_GLOSSARY_FILES = new Set([
+  "packages/core/src/use-cases/branch-illustration.ts",
+  "packages/core/src/use-cases/timeline-branch-slots.ts",
+]);
+
+const LEGACY_UNSCOPED_WIDGET_STYLE_FILES = new Set([
+  "packages/widgets/src/dossier-styles.ts",
+  "packages/widgets/src/timeline-widget-styles.ts",
+]);
+
+const LEGACY_USE_CASE_HTTP_STATUS_FILES = new Set([
+  "packages/core/src/use-cases/branch-illustration.ts",
+  "packages/core/src/use-cases/preflight-site-access.ts",
+  "packages/core/src/use-cases/run-ui-orchestration-agent.ts",
+  "packages/core/src/use-cases/helpers/investigate-orchestration-prompt.ts",
 ]);
 
 const LEGACY_BARREL_HELPER_EXPORTS = new Set([
@@ -564,9 +582,42 @@ export function evaluateSourceFileLintRules(relPathRaw, content) {
     }
   }
 
+  if (
+    /^packages\/widgets\/src\/.*-styles\.ts$/.test(relPath) &&
+    !LEGACY_UNSCOPED_WIDGET_STYLE_FILES.has(relPath)
+  ) {
+    for (const [index, line] of lines.entries()) {
+      if (/var\(--(?:card|muted-foreground|border)\b/.test(line)) {
+        violations.push(
+          `${relPath}:${index + 1}: Unscoped host CSS variable fallback (--card/--muted-foreground/--border) — derive widget surface tokens from --gridlock-paper and --gridlock-ink (CODING_STANDARDS.md §5)`
+        );
+      }
+    }
+  }
+
+  if (
+    /^packages\/core\/src\/use-cases\/.+\.ts$/.test(relPath) &&
+    !LEGACY_USE_CASE_HTTP_STATUS_FILES.has(relPath)
+  ) {
+    for (const [index, line] of lines.entries()) {
+      const stripped = stripCommentsAndStrings(line);
+      if (/\bstatus:\s*(?:200|201|400|401|403|404|405|409|422|429|500|502|503)\b/.test(stripped)) {
+        violations.push(
+          `${relPath}:${index + 1}: Clean Architecture violation — map HTTP status codes in controllers/, not inside use-cases/ (ADR-0004)`
+        );
+      }
+    }
+  }
+
+  const checkCamelCaseGlossary =
+    /^packages\/[^/]+\/src\/.+\.(?:ts|tsx)$/.test(relPath) &&
+    !LEGACY_CAMELCASE_GLOSSARY_FILES.has(relPath);
   for (const [index, line] of lines.entries()) {
+    const normalized = checkCamelCaseGlossary
+      ? line.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ")
+      : line;
     for (const { pattern, useInstead } of BANNED_GLOSSARY_TERMS) {
-      if (pattern.test(line)) {
+      if (pattern.test(line) || (checkCamelCaseGlossary && pattern.test(normalized))) {
         violations.push(
           `${relPath}:${index + 1}: Banned GLOSSARY.md term matching ${pattern} (use "${useInstead}" instead)`
         );
@@ -590,6 +641,19 @@ export function evaluatePullRequestLineBudget({
   return [
     `Pull Request diff (${baseRef}...${headRef}) has ${totalChangedLines} changed lines (+${insertions} / -${deletions}), exceeding the <= ${MAX_PR_CHANGED_LINES}-line budget (CODING_STANDARDS.md §1). Slice into stacked vertical PRs.`,
   ];
+}
+
+export function evaluatePullRequestLineBudgetWarning({
+  insertions,
+  deletions,
+  baseRef,
+  headRef = "HEAD",
+}) {
+  const totalChangedLines = insertions + deletions;
+  if (totalChangedLines <= PR_WARN_CHANGED_LINES || totalChangedLines > MAX_PR_CHANGED_LINES) {
+    return null;
+  }
+  return `Pull Request diff (${baseRef}...${headRef}) has ${totalChangedLines}/${MAX_PR_CHANGED_LINES} changed lines (+${insertions} / -${deletions}), leaving < ${MAX_PR_CHANGED_LINES - PR_WARN_CHANGED_LINES} lines of review headroom — consider splitting into stacked vertical PRs (CODING_STANDARDS.md §1).`;
 }
 
 function countUntrackedWorkingTreeLines(repoRoot) {
@@ -893,6 +957,10 @@ if (
     console.log(
       `PR diff size OK: ${total}/${MAX_PR_CHANGED_LINES} changed lines (+${prCheck.insertions} / -${prCheck.deletions} for ${prCheck.baseRef}...${prCheck.headRef})`
     );
+    const warning = evaluatePullRequestLineBudgetWarning(prCheck);
+    if (warning) {
+      console.warn(`WARN: ${warning}`);
+    }
     process.exit(0);
   }
 
