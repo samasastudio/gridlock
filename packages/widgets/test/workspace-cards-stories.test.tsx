@@ -19,15 +19,6 @@ const {
   StandaloneProjectDossier,
 } = workspaceCardsStories;
 
-function extractZeroSpecificityWhereRules(css: string): ReadonlyMap<string, string> {
-  return new Map(
-    Array.from(
-      css.matchAll(/^\s*(:where\([^{}]*)\s*\{([^}]*)\}/gm),
-      (match) => [match[1]!.trim(), match[2]!.trim()]
-    )
-  );
-}
-
 describe("GridlockWorkspaceCards CSF3 Stories, Browser Boundary & Co-Mount Parity (Ticket #38)", () => {
   test("Browser-safe runtime boundary: widget barrel and Seam 4 CSF3 stories import zero node:* modules", () => {
     const guardScript = `
@@ -157,22 +148,22 @@ describe("GridlockWorkspaceCards CSF3 Stories, Browser Boundary & Co-Mount Parit
       const styleContents = Array.from(win.document.querySelectorAll("style")).map(
         (el) => el.textContent ?? ""
       );
-      const workspaceIdx = styleContents.findIndex((css) => css.includes(".gridlock-workspace-card"));
-      const timelineIdx = styleContents.findIndex((css) => css.includes(".gridlock-timeline-tab-indicator"));
-      const repairIdx = styleContents.findIndex((css) => css.includes(".gridlock-version-tab"));
+      const isBaseSheet = (css: string) => /^\s*:where\(\.gridlock-dossier-surface\)\s*\{/m.test(css);
+      const baseSheets = styleContents.filter(isBaseSheet);
+      const workspaceSheets = styleContents.filter((css) => css.includes(".gridlock-workspace-card"));
+      const timelineSheets = styleContents.filter((css) => css.includes(".gridlock-timeline-tab-indicator"));
+      const repairSheets = styleContents.filter((css) => css.includes(".gridlock-version-tab"));
 
-      assert.equal(styleContents.filter((css) => css.includes(".gridlock-workspace-card")).length, 1);
-      assert.ok(workspaceIdx >= 0 && workspaceIdx < timelineIdx && workspaceIdx < repairIdx);
+      assert.equal(baseSheets.length, 1, "Co-mounted widgets must emit exactly one deduplicated gridlock-dossier-base stylesheet");
+      assert.equal(workspaceSheets.length, 1);
+      assert.equal(timelineSheets.length, 1);
+      assert.equal(repairSheets.length, 1);
+      assert.ok(!isBaseSheet(workspaceSheets[0]!));
+      assert.ok(!isBaseSheet(timelineSheets[0]!));
+      assert.ok(!isBaseSheet(repairSheets[0]!));
 
-      const workspaceRules = extractZeroSpecificityWhereRules(styleContents[workspaceIdx]!);
-      const timelineRules = extractZeroSpecificityWhereRules(styleContents[timelineIdx]!);
-      const repairRules = extractZeroSpecificityWhereRules(styleContents[repairIdx]!);
-      assert.ok(workspaceRules.size >= 25);
-
-      for (const [selector, workspaceBody] of workspaceRules) {
-        assert.equal(timelineRules.get(selector), workspaceBody, `Timeline mismatch on ${selector}`);
-        assert.equal(repairRules.get(selector), workspaceBody, `Repair mismatch on ${selector}`);
-      }
+      const allCss = styleContents.join("\n");
+      assert.doesNotMatch(allCss, /var\(--(?:card|muted-foreground|border)\b/);
 
       for (const el of win.document.querySelectorAll("style")) {
         assert.match(el.textContent ?? "", /^@layer gridlock-widgets\s*\{[\s\S]*\}\s*$/);
@@ -193,6 +184,58 @@ describe("GridlockWorkspaceCards CSF3 Stories, Browser Boundary & Co-Mount Parit
       assert.match(cardStyle.getPropertyValue("padding-inline"), /^0(?:px)?$/);
       assert.equal(cardStyle.backgroundColor, "transparent");
       assert.match(headerStyle.getPropertyValue("margin-block-end"), /^0(?:px)?$/);
+    });
+  });
+
+  test("Opposite-theme host CSS variables (--card, --muted-foreground, --border) do not leak into diurnal/nocturnal/inherit widgets while --paper/--ink inherit", async () => {
+    await withWidgetDom(async ({ window: win, container, root }) => {
+      await act(async () => {
+        root.render(
+          <div
+            style={
+              {
+                "--paper": "#faf6ef",
+                "--ink": "#191c20",
+                "--card": "#000000",
+                "--muted-foreground": "#ff00ff",
+                "--border": "#00ff00",
+              } as Record<string, string>
+            }
+          >
+            <GridlockTimelineWidget {...CanonicalAndBranchTimeline.args} theme="diurnal" />
+            <GridlockRepairChangelogWidget {...HealedWithAmortization.args} theme="nocturnal" />
+            <GridlockRepairChangelogWidget {...HealedWithAmortization.args} theme="inherit" />
+          </div>
+        );
+      });
+
+      const styleElements = Array.from(win.document.querySelectorAll("style"));
+      const baseSheets = styleElements.filter((el) => (el.textContent ?? "").includes(":where(.gridlock-dossier-surface)"));
+      assert.equal(baseSheets.length, 1, "Co-mounted timeline + repair widgets must share one gridlock-dossier-base stylesheet");
+
+      for (const el of styleElements) {
+        assert.doesNotMatch(el.textContent ?? "", /var\(--(?:card|muted-foreground|border)\b/);
+        el.textContent = (el.textContent ?? "").replace(/^@layer gridlock-widgets\s*\{([\s\S]*)\}\s*$/, "$1");
+      }
+
+      const diurnalSurface = container.querySelector('[data-gridlock-theme="diurnal"]');
+      const nocturnalSurface = container.querySelector('[data-gridlock-theme="nocturnal"]');
+      const inheritSurface = container.querySelector('[data-gridlock-theme="inherit"]');
+      assert.ok(diurnalSurface && nocturnalSurface && inheritSurface);
+
+      const diurnalStyle = win.getComputedStyle(diurnalSurface);
+      const nocturnalStyle = win.getComputedStyle(nocturnalSurface);
+      const inheritStyle = win.getComputedStyle(inheritSurface);
+
+      assert.notEqual(diurnalStyle.getPropertyValue("--gridlock-card").trim(), "#000000");
+      assert.notEqual(diurnalStyle.getPropertyValue("--gridlock-muted").trim(), "#ff00ff");
+      assert.notEqual(nocturnalStyle.getPropertyValue("--gridlock-card").trim(), "#000000");
+      assert.notEqual(nocturnalStyle.getPropertyValue("--gridlock-border").trim(), "#00ff00");
+      assert.doesNotMatch(inheritStyle.getPropertyValue("--gridlock-card"), /--card/);
+      assert.doesNotMatch(inheritStyle.getPropertyValue("--gridlock-muted"), /--muted-foreground/);
+      assert.doesNotMatch(inheritStyle.getPropertyValue("--gridlock-border"), /--border/);
+      assert.match(inheritStyle.getPropertyValue("--gridlock-paper"), /#faf6ef|var\(--paper/);
+      assert.match(inheritStyle.getPropertyValue("--gridlock-ink"), /#191c20|var\(--ink/);
     });
   });
 });

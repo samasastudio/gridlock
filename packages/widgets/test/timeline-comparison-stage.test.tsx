@@ -8,7 +8,7 @@ import {
   SCENARIO_BRANCH_WATERMARK,
 } from "@samasastudio/gridlock-core";
 import { GridlockTimelineWidget, TimelineFrameStage } from "../src/index.ts";
-import { withWidgetDom } from "./helpers/dom-harness.ts";
+import { extractStylesheetText, withWidgetDom } from "./helpers/dom-harness.ts";
 import {
   buildBranchOnlyTimeline,
   seedTestFrameTimeline,
@@ -16,7 +16,7 @@ import {
 } from "./helpers/timeline-fixtures.ts";
 
 function extractRemFontSizes(html: string): number[] {
-  const styleBlock = html.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+  const styleBlock = extractStylesheetText(html);
   return Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) => Number(m[1]));
 }
 

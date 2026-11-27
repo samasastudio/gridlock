@@ -9,7 +9,7 @@ import {
   makeCitedProject,
   makeEscapedShellCitedProject,
 } from "./helpers/workspace-card-fixtures.ts";
-import { withWidgetDom } from "./helpers/dom-harness.ts";
+import { extractStylesheetText, withWidgetDom } from "./helpers/dom-harness.ts";
 
 describe("<ProjectDossierCard /> Seam 4 Workspace Card (Ticket #38 Phase 1)", () => {
   test("SSR renders inherit, diurnal, and nocturnal themes, enforces >= 0.75rem CSS floor, and defines standalone + nested hairline rules", () => {
@@ -30,7 +30,7 @@ describe("<ProjectDossierCard /> Seam 4 Workspace Card (Ticket #38 Phase 1)", ()
     assert.match(diurnalHtml, /data-gridlock-theme="diurnal"/);
     assert.match(nocturnalHtml, /data-gridlock-theme="nocturnal"/);
 
-    const styleBlock = diurnalHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+    const styleBlock = extractStylesheetText(diurnalHtml);
     const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) =>
       Number(m[1])
     );

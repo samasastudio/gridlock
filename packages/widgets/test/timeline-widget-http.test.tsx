@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { describe, test } from "node:test";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
+import { extractStylesheetText } from "./helpers/dom-harness.ts";
 import {
   CANONICAL_MILESTONE_LABEL, isWebpBuffer, FrameTimelineResponseSchema, SCENARIO_BRANCH_WATERMARK, type GridlockRepository,
 } from "@samasastudio/gridlock-core";
@@ -42,7 +43,7 @@ describe("<GridlockTimelineWidget /> Multi-Mode Shell, KPIs & Adaptive Summary (
 
     const seeded = await seedTestFrameTimeline();
     const diurnalHtml = renderToStaticMarkup(<GridlockTimelineWidget timeline={seeded.timeline} theme="diurnal" apiBaseUrl="" />);
-    const styleBlock = diurnalHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+    const styleBlock = extractStylesheetText(diurnalHtml);
     const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (match) => Number(match[1]));
     assert.ok(remFontSizes.length > 0 && remFontSizes.every((size) => size >= 0.75));
     assert.match(diurnalHtml, /data-gridlock-theme="diurnal"/);

@@ -8,7 +8,7 @@ import {
   makeCitedProject,
   makeEscapedShellCitedProject,
 } from "./helpers/workspace-card-fixtures.ts";
-import { withWidgetDom } from "./helpers/dom-harness.ts";
+import { extractStylesheetText, withWidgetDom } from "./helpers/dom-harness.ts";
 
 function makeSubstationCitedProject() {
   const hash = makeArtifactHash("c");
@@ -86,7 +86,7 @@ describe("<MetricComparisonTable /> Seam 4 Workspace Card (Ticket #38 Phase 3)",
     assert.doesNotMatch(emptyNocturnalHtml, /<table/);
     assert.doesNotMatch(emptyNocturnalHtml, /<dl class="gridlock-headline-stats">/);
 
-    const styleBlock = singleHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+    const styleBlock = extractStylesheetText(singleHtml);
     const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) =>
       Number(m[1])
     );

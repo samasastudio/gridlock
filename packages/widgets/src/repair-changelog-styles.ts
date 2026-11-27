@@ -1,22 +1,4 @@
-import { GRIDLOCK_DOSSIER_BASE_CSS } from "./dossier-styles.ts";
-
 export const GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET = `@layer gridlock-widgets {
-${GRIDLOCK_DOSSIER_BASE_CSS}
-  :where(.gridlock-repair-header) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding-block-end: 1.35rem; margin-block-end: 1.75rem; border-block-end: 1px solid var(--gridlock-border); }
-  :where(.gridlock-title-block) { display: flex; flex-direction: column; gap: 0.5rem; }
-  :where(.gridlock-dossier-title) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; font-family: var(--gridlock-font-display); font-size: clamp(1.35rem, 1.15rem + 0.55cqi, 1.65rem); font-weight: 800; letter-spacing: -0.025em; line-height: 1.1; }
-  :where(.gridlock-connector-chip) { display: inline-flex; align-items: center; padding-block: 0.2rem; padding-inline: 0.5rem; border: 1px solid var(--gridlock-border-strong); border-radius: var(--gridlock-radius); background-color: var(--gridlock-card); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
-  :where(.gridlock-title-rule) { block-size: 2px; inline-size: 2.75rem; background-color: var(--gridlock-ink); }
-  :where(.gridlock-header-controls) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; }
-  :where(.gridlock-scorecard-section) { display: flex; flex-direction: column; gap: 1.75rem; }
-  :where(.gridlock-headline-stats) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 1.25rem 2rem; }
-  :where(.gridlock-headline-stat) { display: flex; flex-direction: column; gap: 0.35rem; }
-  @container (width >= 42em) {
-    :where(.gridlock-headline-stat + .gridlock-headline-stat) { padding-inline-start: 1.75rem; border-inline-start: 1px solid var(--gridlock-border); }
-  }
-  :where(.gridlock-headline-stat dt) { font-family: var(--gridlock-font-sans); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-muted); }
-  :where(.gridlock-kpi-value) { display: block; contain: layout style; font-family: var(--gridlock-font-display); font-size-adjust: cap-height from-font; font-size: clamp(2rem, 1.65rem + 1.1vw, 2.75rem); font-weight: 900; letter-spacing: -0.03em; line-height: 1.02; font-variant-numeric: tabular-nums; color: var(--gridlock-ink); }
-  :where(.gridlock-kpi-sub) { display: block; margin-block-start: 0.25rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); }
   :where(.gridlock-chart-frame) { display: flex; flex-direction: column; gap: 0.75rem; background-color: var(--gridlock-card); border-block: 1px solid var(--gridlock-border-strong); padding-block: 1.1rem 0.9rem; padding-inline: clamp(0.9rem, 2cqi, 1.35rem); }
   :where(.gridlock-chart-header) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1.25rem; }
   :where(.gridlock-chart-title) { font-family: var(--gridlock-font-sans); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-muted); }
@@ -37,20 +19,9 @@ ${GRIDLOCK_DOSSIER_BASE_CSS}
   :where(.gridlock-empty-row) { display: flex; align-items: center; gap: 0.55rem; padding-block: 1.25rem 0.25rem; font-size: 0.9375rem; color: var(--gridlock-ink); }
   :where(.gridlock-specimen-panel) { display: flex; flex-direction: column; gap: 1rem; padding-block-start: 1.25rem; }
   :where(.gridlock-root-cause) { max-inline-size: 62ch; font-family: var(--gridlock-font-serif); font-size-adjust: from-font; font-size: clamp(1.15rem, 1.05rem + 0.35vw, 1.32rem); line-height: 1.62; color: var(--gridlock-ink); }
-  :where(.gridlock-inline-meta) { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.65rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); }
   :where(.gridlock-verified-inline) { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--gridlock-ink); }
-  :where(.gridlock-patch-disclosure) { margin-block-start: 0.25rem; border-block-start: 1px solid var(--gridlock-border); }
-  :where(.gridlock-patch-summary) { list-style: none; display: inline-flex; align-items: center; gap: 0.5rem; min-block-size: 2.5rem; cursor: pointer; font-family: var(--gridlock-font-sans); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gridlock-muted); transition: color 300ms cubic-bezier(0.16, 1, 0.3, 1); }
-  :where(.gridlock-patch-summary::-webkit-details-marker) { display: none; }
-  :where(.gridlock-patch-summary)::before { content: "+"; font-family: var(--gridlock-font-mono); font-size: 0.875rem; color: var(--gridlock-accent); }
-  :where(.gridlock-patch-disclosure[open] > .gridlock-patch-summary)::before { content: "−"; }
-  :where(.gridlock-patch-summary:hover) { color: var(--gridlock-ink); }
-  @keyframes gridlock-disclosure-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-  :where(.gridlock-patch-body) { display: flex; flex-direction: column; gap: 0.75rem; padding-block: 0.5rem 0.25rem; }
-  :where(.gridlock-patch-disclosure[open] > .gridlock-patch-body) { animation: gridlock-disclosure-in 480ms cubic-bezier(0.16, 1, 0.3, 1); }
   @media (prefers-reduced-motion: reduce) {
-    :where(.gridlock-patch-disclosure[open] > .gridlock-patch-body) { animation: none; }
-    :where(.gridlock-version-tab, .gridlock-patch-summary) { transition: none; }
+    :where(.gridlock-version-tab) { transition: none; }
   }
   :where(.gridlock-invariant-strip) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; padding-block: 0.65rem; padding-inline: 0.9rem; background-color: var(--gridlock-card); border: 1px solid var(--gridlock-border); font-size: 0.8125rem; }
   :where(.gridlock-provenance-meta) { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-family: var(--gridlock-font-mono); font-size: 0.75rem; color: var(--gridlock-muted); }

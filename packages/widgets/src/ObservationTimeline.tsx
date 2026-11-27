@@ -8,11 +8,9 @@ import {
   type TdlrProjectNumber,
 } from "@samasastudio/gridlock-core/schemas";
 import { buildObservationTimelineEntries, summarizeObservationTrajectory, unescapeWorkspaceProse, type TimelineEntryViewModel } from "./workspace-card-model.ts";
-import { GRIDLOCK_WORKSPACE_CARD_STYLESHEET } from "./workspace-card-styles.ts";
+import { WORKSPACE_CARD_STYLESHEET_NODE } from "./workspace-card-styles.ts";
 import { CopyCitationButton, DossierNumber, DossierStatusBadge, EDITORIAL_EASE, EXPORT_ARROW_ICON, RELIEF_RETICLE_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
-
-const WORKSPACE_CARD_STYLESHEET_NODE = <style href="gridlock-workspace-cards" precedence="default">{GRIDLOCK_WORKSPACE_CARD_STYLESHEET}</style>;
 const META_DOT_NODE = <span aria-hidden="true">·</span>;
 const INTEGER_FORMAT = { maximumFractionDigits: 0 } as const;
 const MILESTONE_MILLIONS_PREFIX = `$${Math.round(MILESTONE_COST_THRESHOLD_USD / 1_000_000)}M+`;

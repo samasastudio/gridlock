@@ -3,6 +3,7 @@ import { MotionConfig } from "motion/react";
 import { FrameTimelineResponseSchema, type FrameTimelineResponse } from "@samasastudio/gridlock-core/schemas";
 import { DossierStatusBadge, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { fetchFrameTimelineSnapshot, type FrameTimelineQuery, type FrameTimelineSnapshotResult } from "./frame-timeline-client.ts";
+import { DOSSIER_BASE_STYLESHEET_NODE } from "./dossier-styles.ts";
 import { GRIDLOCK_TIMELINE_WIDGET_STYLESHEET } from "./timeline-widget-styles.ts";
 import { TimelineFrameStage } from "./TimelineFrameStage.tsx";
 import { TimelineProvenanceSection } from "./TimelineProvenanceSection.tsx";
@@ -11,7 +12,12 @@ import { TimelineHeadlineKpiStrip, TimelineSummarySection, TimelineWidgetLoading
 import { DossierErrorShell, DossierTitle } from "./RepairChangelogSections.tsx";
 import { useTimelineBranching } from "./useTimelineBranching.ts";
 
-const WIDGET_STYLESHEET_NODE = <style href="gridlock-timeline-widget" precedence="default">{GRIDLOCK_TIMELINE_WIDGET_STYLESHEET}</style>;
+const WIDGET_STYLESHEET_NODE = (
+  <>
+    {DOSSIER_BASE_STYLESHEET_NODE}
+    <style href="gridlock-timeline-widget" precedence="default">{GRIDLOCK_TIMELINE_WIDGET_STYLESHEET}</style>
+  </>
+);
 const LOADING_PLACEHOLDER_NODE = <TimelineWidgetLoadingPlaceholder />;
 const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<FrameTimelineSnapshotResult>, Promise<FrameTimelineSnapshotResult>>();
 const TIMELINE_TITLE = "Corridor Frame Timeline";

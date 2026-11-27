@@ -4,9 +4,15 @@ import type { FrameTimelineEdge, FrameTimelineNode } from "@samasastudio/gridloc
 import { RELIEF_RETICLE_ICON } from "./DossierPrimitives.tsx";
 import { TimelineComparisonStage } from "./TimelineComparisonStage.tsx";
 import { buildTimelineTurnLabels, orderTimelineNodes, resolveStageActiveNode } from "./frame-timeline-model.ts";
+import { DOSSIER_BASE_STYLESHEET_NODE } from "./dossier-styles.ts";
 import { GRIDLOCK_TIMELINE_WIDGET_STYLESHEET } from "./timeline-widget-styles.ts";
 
-const STAGE_STYLESHEET_NODE = <style href="gridlock-timeline-widget" precedence="default">{GRIDLOCK_TIMELINE_WIDGET_STYLESHEET}</style>;
+const STAGE_STYLESHEET_NODE = (
+  <>
+    {DOSSIER_BASE_STYLESHEET_NODE}
+    <style href="gridlock-timeline-widget" precedence="default">{GRIDLOCK_TIMELINE_WIDGET_STYLESHEET}</style>
+  </>
+);
 const BRANCH_CUE_DOT = <span className="gridlock-branch-dot" aria-hidden="true" />;
 
 export interface TimelineFrameStageProps {

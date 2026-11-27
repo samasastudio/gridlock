@@ -3,6 +3,10 @@ import { act } from "react";
 import type { Root } from "react-dom/client";
 import { Window } from "happy-dom";
 
+export function extractStylesheetText(html: string): string {
+  return Array.from(html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g), (m) => m[1]).join("\n");
+}
+
 export interface WidgetDomContext {
   window: Window;
   container: ReturnType<Window["document"]["createElement"]>;

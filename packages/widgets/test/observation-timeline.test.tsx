@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CANONICAL_MILESTONE_LABEL } from "@samasastudio/gridlock-core";
 import { ObservationTimeline } from "../src/index.ts";
 import { makeCitedObservation, makeInterleavedObservations } from "./helpers/workspace-card-fixtures.ts";
-import { withWidgetDom } from "./helpers/dom-harness.ts";
+import { extractStylesheetText, withWidgetDom } from "./helpers/dom-harness.ts";
 
 const TWO_TRACKED_PROJECTS = ["TABS2027003697", "TABS2027004112"] as const;
 
@@ -105,7 +105,7 @@ describe("<ObservationTimeline /> Seam 4 Workspace Card (Ticket #38 Phase 2)", (
     );
     assert.doesNotMatch(nocturnalHtml, /<ol class="gridlock-timeline-rail">/);
 
-    const styleBlock = diurnalHtml.match(/<style[^>]*>([\s\S]*?)<\/style>/)?.[1] ?? "";
+    const styleBlock = extractStylesheetText(diurnalHtml);
     const remFontSizes = Array.from(styleBlock.matchAll(/font-size:\s*([0-9.]+)rem/g), (m) =>
       Number(m[1])
     );

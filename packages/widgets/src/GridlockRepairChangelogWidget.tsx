@@ -4,6 +4,7 @@ import { EfficiencyScorecardSchema, RepairChangelogResponseSchema, type Efficien
 import { buildRepairChangelogUrl, fetchRepairChangelogSnapshot, type RepairChangelogQuery, type RepairChangelogSnapshotResult } from "./repair-changelog-client.ts";
 import { ConnectorStatusBadge, EXPORT_ARROW_ICON, type GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 import { EfficiencyLineChart } from "./EfficiencyLineChart.tsx";
+import { DOSSIER_BASE_STYLESHEET_NODE } from "./dossier-styles.ts";
 import { GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET } from "./repair-changelog-styles.ts";
 import {
   ConnectorHealthBanner,
@@ -16,7 +17,12 @@ import { RepairChangelogTimelineSection } from "./RepairChangelogTimeline.tsx";
 
 export type { GridlockWidgetTheme } from "./DossierPrimitives.tsx";
 
-const WIDGET_STYLESHEET_NODE = <style href="gridlock-repair-changelog-widget" precedence="default">{GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET}</style>;
+const WIDGET_STYLESHEET_NODE = (
+  <>
+    {DOSSIER_BASE_STYLESHEET_NODE}
+    <style href="gridlock-repair-changelog-widget" precedence="default">{GRIDLOCK_REPAIR_CHANGELOG_STYLESHEET}</style>
+  </>
+);
 const LOADING_PLACEHOLDER_NODE = <RepairChangelogLoadingPlaceholder />;
 const SAFE_SNAPSHOT_PROMISES = new WeakMap<Promise<RepairChangelogSnapshotResult>, Promise<RepairChangelogSnapshotResult>>();
 
